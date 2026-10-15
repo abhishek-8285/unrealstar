@@ -35,6 +35,51 @@ pub struct OtpSession {
     pub phone: String,
     pub code: String,
     pub created_at: chrono::DateTime<Utc>,
+    /// Failed verify attempts against this session; dropped after
+    /// `OTP_MAX_ATTEMPTS` so a code cannot be brute forced.
+    pub attempts: u32,
+}
+
+/// Access tokens authenticate API requests; refresh tokens only mint new
+/// pairs and are never accepted by `authenticate_header`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TokenKind {
+    Access,
+    Refresh,
+}
+
+#[derive(Debug, Clone)]
+pub struct TokenRecord {
+    pub user_id: u64,
+    /// Every token minted under one login session shares this id so logout
+    /// and refresh rotation can revoke the whole session at once.
+    pub session_id: Uuid,
+    pub kind: TokenKind,
+    pub expires_at: chrono::DateTime<Utc>,
+}
+
+pub fn access_token_ttl_secs() -> u64 {
+    std::env::var("ACCESS_TOKEN_TTL_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(900)
+}
+
+pub fn refresh_token_ttl_secs() -> u64 {
+    std::env::var("REFRESH_TOKEN_TTL_SECS")
+        .ok()
+        .and_then(|v| v.parse().ok())
+        .unwrap_or(30 * 24 * 60 * 60)
+}
+
+/// Unauthenticated `Bearer guest_token_N` tokens are a development
+/// convenience only. Production must leave `CAMSTAR_ALLOW_GUEST_TOKEN`
+/// unset so forged guest tokens are rejected.
+pub fn guest_tokens_enabled() -> bool {
+    matches!(
+        std::env::var("CAMSTAR_ALLOW_GUEST_TOKEN").as_deref(),
+        Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes") | Ok("YES")
+    )
 }
 
 #[derive(Debug, Clone)]
@@ -64,7 +109,7 @@ pub struct AppState {
     pub authorizer: Arc<RwLock<Authorizer>>,
     pub users: Arc<RwLock<HashMap<u64, UserProfile>>>,
     pub phone_to_user: Arc<RwLock<HashMap<String, u64>>>,
-    pub tokens_to_user: Arc<RwLock<HashMap<String, u64>>>,
+    pub tokens_to_user: Arc<RwLock<HashMap<String, TokenRecord>>>,
     pub otp_sessions: Arc<RwLock<HashMap<String, OtpSession>>>,
     pub rooms: Arc<RwLock<HashMap<u64, RoomSession>>>,
     pub gifts: Arc<Vec<GiftItem>>,
@@ -302,7 +347,9 @@ impl AppState {
         let mut tokens_map = self.tokens_to_user.write().await;
         let mut ledger = self.ledger.write().await;
 
-        let user_id = (users.len() as u64) + 1;
+        // Highest existing id, not count: seeded demo users (1001, 9999)
+        // must not collide with the next registered account.
+        let user_id = users.keys().max().copied().unwrap_or(0) + 1;
         let coins_acct = user_coins_account(user_id);
         let diamonds_acct = user_diamonds_account(user_id);
 
@@ -354,21 +401,55 @@ impl AppState {
         phone_map.insert(phone.to_string(), user_id);
 
         let token = format!("token_{user_id}_{}", Uuid::new_v4());
-        tokens_map.insert(token, user_id);
+        tokens_map.insert(
+            token,
+            TokenRecord {
+                user_id,
+                session_id: Uuid::new_v4(),
+                kind: TokenKind::Access,
+                expires_at: Utc::now()
+                    + chrono::Duration::seconds(access_token_ttl_secs() as i64),
+            },
+        );
 
         user_id
+    }
+
+    /// Mint an access token for `user_id`. Used by integration tests that
+    /// need a bearer token without going through the OTP flow.
+    pub async fn grant_test_token(&self, token: &str, user_id: u64) {
+        let mut tokens = self.tokens_to_user.write().await;
+        tokens.insert(
+            token.to_string(),
+            TokenRecord {
+                user_id,
+                session_id: Uuid::new_v4(),
+                kind: TokenKind::Access,
+                expires_at: Utc::now()
+                    + chrono::Duration::seconds(access_token_ttl_secs() as i64),
+            },
+        );
     }
 
     pub async fn authenticate_header(&self, auth_header: Option<&str>) -> Option<u64> {
         let header = auth_header?;
         let token = header.strip_prefix("Bearer ")?;
-        let tokens = self.tokens_to_user.read().await;
-        if let Some(&uid) = tokens.get(token) {
-            return Some(uid);
+        {
+            let tokens = self.tokens_to_user.read().await;
+            if let Some(rec) = tokens.get(token) {
+                // Only unexpired access tokens authenticate. Refresh tokens
+                // presented as bearer tokens are rejected outright.
+                if rec.kind == TokenKind::Access && rec.expires_at > Utc::now() {
+                    return Some(rec.user_id);
+                }
+                return None;
+            }
         }
-        if let Some(rest) = token.strip_prefix("guest_token_") {
-            if let Ok(uid) = rest.parse::<u64>() {
-                return Some(uid);
+        if guest_tokens_enabled() {
+            if let Some(rest) = token.strip_prefix("guest_token_") {
+                if let Ok(uid) = rest.parse::<u64>() {
+                    return Some(uid);
+                }
             }
         }
         None

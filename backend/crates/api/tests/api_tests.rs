@@ -31,13 +31,14 @@ async fn test_auth_and_user_lifecycle() {
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
     assert_eq!(status, StatusCode::OK);
     let session_id = body["otp_session_id"].as_str().unwrap();
+    let otp_code = body["debug_otp"].as_str().unwrap().to_string();
 
     // 2. Verify OTP
     let req = Request::post("/api/v1/auth/otp/verify")
         .header("Content-Type", "application/json")
         .body(Body::from(json!({
             "otp_session_id": session_id,
-            "otp_code": "123456",
+            "otp_code": otp_code,
             "device_uid": "dev_test_123"
         }).to_string()))
         .unwrap();
@@ -92,7 +93,7 @@ async fn test_wallet_and_payin_order() {
     let app = create_router(state.clone());
     let user_id = state.create_user("+919876543211", 0).await;
     let token = format!("tok_{user_id}_test");
-    state.tokens_to_user.write().await.insert(token.clone(), user_id);
+    state.grant_test_token(&token, user_id).await;
 
     // 1. List packages
     let req = Request::get("/api/v1/payments/packages")
@@ -142,11 +143,11 @@ async fn test_room_lifecycle_and_seating() {
     let app = create_router(state.clone());
     let host_id = state.create_user("+919876543212", 0).await;
     let host_token = format!("tok_{host_id}_test");
-    state.tokens_to_user.write().await.insert(host_token.clone(), host_id);
+    state.grant_test_token(&host_token, host_id).await;
 
     let guest_id = state.create_user("+919876543213", 0).await;
     let guest_token = format!("tok_{guest_id}_test");
-    state.tokens_to_user.write().await.insert(guest_token.clone(), guest_id);
+    state.grant_test_token(&guest_token, guest_id).await;
 
     // 1. Host creates room
     let req = Request::post("/api/v1/rooms/create")
@@ -198,11 +199,11 @@ async fn test_gifting_and_ledger_transfer() {
 
     let host_id = state.create_user("+919876543214", 0).await;
     let host_token = format!("tok_{host_id}_test");
-    state.tokens_to_user.write().await.insert(host_token.clone(), host_id);
+    state.grant_test_token(&host_token, host_id).await;
 
     let sender_id = state.create_user("+919876543215", 500).await; // 500 coins initial
     let sender_token = format!("tok_{sender_id}_test");
-    state.tokens_to_user.write().await.insert(sender_token.clone(), sender_id);
+    state.grant_test_token(&sender_token, sender_id).await;
 
     // Host opens room
     let req = Request::post("/api/v1/rooms/create")
@@ -243,7 +244,7 @@ async fn test_anti_fraud_host_cannot_gift_to_self() {
 
     let host_id = state.create_user("+919876543216", 500).await;
     let host_token = format!("tok_{host_id}_test");
-    state.tokens_to_user.write().await.insert(host_token.clone(), host_id);
+    state.grant_test_token(&host_token, host_id).await;
 
     // Host opens room
     let req = Request::post("/api/v1/rooms/create")
@@ -284,7 +285,7 @@ async fn test_creator_kyc_and_payout_with_194q_tds() {
     // Host with 10,000 diamonds earned
     let host_id = state.create_user("+919876543217", 0).await;
     let host_token = format!("tok_{host_id}_test");
-    state.tokens_to_user.write().await.insert(host_token.clone(), host_id);
+    state.grant_test_token(&host_token, host_id).await;
 
     // Seed diamonds in host's diamond account
     {
@@ -384,7 +385,7 @@ async fn test_wheelpan_and_minigames_settlement() {
     let app = create_router(state.clone());
     let user_id = state.create_user("+919876543299", 0).await;
     let token = format!("tok_{user_id}_wheel");
-    state.tokens_to_user.write().await.insert(token.clone(), user_id);
+    state.grant_test_token(&token, user_id).await;
 
     // Fund user with 2,000 coins in ledger
     {

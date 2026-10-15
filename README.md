@@ -54,8 +54,27 @@ cargo test
 cargo clippy --all-targets -- -D warnings
 ```
 
+### API server (dev)
+
+```bash
+cd backend
+cargo run -p camstar-api
+```
+
+Auth is OTP-based (`/api/v1/auth/otp/send` → `/api/v1/auth/otp/verify`). In debug builds the OTP is returned in the response as `debug_otp`; in release builds set `CAMSTAR_DEBUG_OTP=1` to get the same.
+
+The Android debug build ships with `DEV_AUTH_TOKEN = "guest_token_1001"`. For local dev without OTP, enable the guest-token fallback:
+
+```bash
+CAMSTAR_ALLOW_GUEST_TOKEN=1 cargo run -p camstar-api
+```
+
+This accepts any `Bearer guest_token_<uid>` and authenticates as that uid. **Never enable it in production.**
+
+Token TTLs (env-overridable): `ACCESS_TOKEN_TTL_SECS` (default 900), `REFRESH_TOKEN_TTL_SECS` (default 2 592 000).
+
 ## Next
 
-Phase 0 remaining: persistence (the ledger is in-memory for now — it needs Postgres with `sqlx` compile-time query checking), auth, feature flags, analytics. Then Phase 1: camera with live filters and 1:1 rooms.
+Auth hardening is in (session-bound tokens, OTP TTL/cooldown/attempt limits, refresh rotation, guest fallback gated behind env). Next: money-path fixes (webhook-verified pay-in, gift red-packet, games EV, payouts KYC), then persistence (Postgres + `sqlx`), WS auth, CORS lockdown, CI. Then Phase 1: camera with live filters and 1:1 rooms.
 
 Before Phase 3, see the legal note at the top of `docs/FEATURE_PLAN.md`.

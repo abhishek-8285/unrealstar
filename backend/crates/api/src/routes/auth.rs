@@ -12,34 +12,117 @@ use crate::{
         AuthTokensResponse, LogoutRequest, MeDashboard, MeStats, OtpSendRequest, OtpSendResponse,
         OtpVerifyRequest, RefreshTokenRequest, UpdateProfileRequest, UserProfile,
     },
-    state::{user_coins_account, user_diamonds_account, AppState, OtpSession},
+    state::{
+        access_token_ttl_secs, refresh_token_ttl_secs, user_coins_account, user_diamonds_account,
+        AppState, OtpSession, TokenKind, TokenRecord,
+    },
 };
+
+/// Codes must arrive within 5 minutes or the session is dropped.
+const OTP_TTL_SECS: i64 = 300;
+/// Minimum gap between two OTP sends for the same phone number.
+const OTP_RESEND_COOLDOWN_SECS: i64 = 60;
+/// Failed verifies before the session is destroyed (brute-force guard).
+const OTP_MAX_ATTEMPTS: u32 = 5;
+
+/// A fresh six-digit code derived from the UUID entropy pool. No global
+/// `rand` dependency needed; `Uuid::new_v4` uses the OS CSPRNG.
+fn random_otp() -> String {
+    let n = u32::from_be_bytes(Uuid::new_v4().into_bytes()[..4].try_into().unwrap()) % 1_000_000;
+    format!("{n:06}")
+}
+
+/// `debug_otp` is returned only when explicitly enabled: always in debug
+/// builds so local development and tests work, or via
+/// `CAMSTAR_DEBUG_OTP=1` in a release build. Production leaves it unset so
+/// codes are never echoed in HTTP responses.
+fn debug_otp_enabled() -> bool {
+    cfg!(debug_assertions)
+        || matches!(
+            std::env::var("CAMSTAR_DEBUG_OTP").as_deref(),
+            Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes") | Ok("YES")
+        )
+}
+
+/// Mint a matched access/refresh pair under one session id. The refresh
+/// token can never authenticate requests; rotation and logout revoke the
+/// whole session by its id.
+async fn issue_session(state: &AppState, user_id: u64) -> (String, String) {
+    let session_id = Uuid::new_v4();
+    let now = Utc::now();
+    let access_token = format!("tok_{user_id}_{session_id}");
+    let refresh_token = format!("ref_{user_id}_{session_id}");
+
+    let mut tokens = state.tokens_to_user.write().await;
+    tokens.insert(
+        access_token.clone(),
+        TokenRecord {
+            user_id,
+            session_id,
+            kind: TokenKind::Access,
+            expires_at: now + chrono::Duration::seconds(access_token_ttl_secs() as i64),
+        },
+    );
+    tokens.insert(
+        refresh_token.clone(),
+        TokenRecord {
+            user_id,
+            session_id,
+            kind: TokenKind::Refresh,
+            expires_at: now + chrono::Duration::seconds(refresh_token_ttl_secs() as i64),
+        },
+    );
+    (access_token, refresh_token)
+}
 
 pub async fn otp_send(
     State(state): State<AppState>,
     Json(req): Json<OtpSendRequest>,
 ) -> Result<Json<OtpSendResponse>, ApiError> {
-    if req.phone_number.trim().is_empty() {
+    let phone = req.phone_number.trim().to_string();
+    if phone.is_empty() {
         return Err(ApiError::BadRequest("Phone number is required".into()));
     }
 
-    let session_id = Uuid::new_v4().to_string();
-    let otp_code = "123456".to_string(); // In production, integrated with SMS gateway
-
+    let now = Utc::now();
     let mut sessions = state.otp_sessions.write().await;
+
+    // Opportunistic prune: nothing past the TTL can ever verify, so drop it.
+    sessions.retain(|_, s| now.signed_duration_since(s.created_at).num_seconds() <= OTP_TTL_SECS);
+
+    // Resend cooldown per phone number.
+    let last_sent = sessions
+        .values()
+        .filter(|s| s.phone == phone)
+        .map(|s| s.created_at)
+        .max();
+    if let Some(last) = last_sent {
+        let age = now.signed_duration_since(last).num_seconds();
+        if age < OTP_RESEND_COOLDOWN_SECS {
+            return Err(ApiError::BadRequest(format!(
+                "OTP already sent, retry in {}s",
+                OTP_RESEND_COOLDOWN_SECS - age
+            )));
+        }
+    }
+
+    let session_id = Uuid::new_v4().to_string();
+    let otp_code = random_otp(); // No SMS gateway yet: code is generated in-process.
     sessions.insert(
         session_id.clone(),
         OtpSession {
-            phone: req.phone_number.clone(),
+            phone,
             code: otp_code.clone(),
-            created_at: Utc::now(),
+            created_at: now,
+            attempts: 0,
         },
     );
+    drop(sessions);
 
     Ok(Json(OtpSendResponse {
         otp_session_id: session_id,
-        retry_after_secs: 60,
-        debug_otp: Some(otp_code),
+        retry_after_secs: OTP_RESEND_COOLDOWN_SECS as u32,
+        debug_otp: debug_otp_enabled().then_some(otp_code),
     }))
 }
 
@@ -47,33 +130,65 @@ pub async fn otp_verify(
     State(state): State<AppState>,
     Json(req): Json<OtpVerifyRequest>,
 ) -> Result<Json<AuthTokensResponse>, ApiError> {
+    // Validate expiry/code and count the attempt under a single write lock.
+    // Everything needed after the lock is copied out first so we never hold
+    // `sessions` across other lock acquisitions.
     let phone = {
-        let sessions = state.otp_sessions.read().await;
-        let session = sessions
-            .get(&req.otp_session_id)
-            .ok_or_else(|| ApiError::BadRequest("Invalid or expired OTP session".into()))?;
+        let mut sessions = state.otp_sessions.write().await;
+        let now = Utc::now();
+        let (expired, code_ok, attempts, phone) = {
+            let session = sessions
+                .get(&req.otp_session_id)
+                .ok_or_else(|| ApiError::BadRequest("Invalid or expired OTP session".into()))?;
+            (
+                now.signed_duration_since(session.created_at).num_seconds() > OTP_TTL_SECS,
+                session.code == req.otp_code,
+                session.attempts,
+                session.phone.clone(),
+            )
+        };
 
-        if session.code != req.otp_code {
+        if expired {
+            sessions.remove(&req.otp_session_id);
+            return Err(ApiError::BadRequest("OTP session expired".into()));
+        }
+
+        if !code_ok {
+            let attempts = attempts + 1;
+            if attempts >= OTP_MAX_ATTEMPTS {
+                sessions.remove(&req.otp_session_id);
+                return Err(ApiError::BadRequest("Too many incorrect attempts".into()));
+            }
+            if let Some(session) = sessions.get_mut(&req.otp_session_id) {
+                session.attempts = attempts;
+            }
             return Err(ApiError::BadRequest("Incorrect OTP code".into()));
         }
-        session.phone.clone()
+
+        // Single-use: a verified session can never be replayed.
+        sessions.remove(&req.otp_session_id);
+        phone
     };
 
+    // Lock order matches `create_user`: users -> phone_to_user -> ledger.
     let (user_id, is_new) = {
-        let phone_map = state.phone_to_user.read().await;
+        let mut users = state.users.write().await;
+        let mut phone_map = state.phone_to_user.write().await;
+
         if let Some(&uid) = phone_map.get(&phone) {
             (uid, false)
         } else {
-            drop(phone_map);
-            let mut phone_map = state.phone_to_user.write().await;
-            let mut users = state.users.write().await;
             let mut ledger = state.ledger.write().await;
 
-            let uid = (users.len() as u64) + 1;
+            // Highest existing id, not count: seeded demo users (1001, 9999)
+            // must not collide with the next registered account.
+            let uid = users.keys().max().copied().unwrap_or(0) + 1;
 
-            // Register accounts in ledger
             ledger.register_account(user_coins_account(uid), camstar_ledger::AccountKind::Owned);
-            ledger.register_account(user_diamonds_account(uid), camstar_ledger::AccountKind::Owned);
+            ledger.register_account(
+                user_diamonds_account(uid),
+                camstar_ledger::AccountKind::Owned,
+            );
 
             let profile = UserProfile {
                 user_id: uid,
@@ -91,7 +206,8 @@ pub async fn otp_verify(
                 followers_count: 0,
                 following_count: 0,
                 is_live: false,
-                live_room_id: None, likes_received: 0,
+                live_room_id: None,
+                likes_received: 0,
             };
 
             users.insert(uid, profile);
@@ -100,12 +216,7 @@ pub async fn otp_verify(
         }
     };
 
-    let access_token = format!("tok_{user_id}_{}", Uuid::new_v4());
-    let refresh_token = format!("ref_{user_id}_{}", Uuid::new_v4());
-
-    let mut tokens = state.tokens_to_user.write().await;
-    tokens.insert(access_token.clone(), user_id);
-    tokens.insert(refresh_token.clone(), user_id);
+    let (access_token, refresh_token) = issue_session(&state, user_id).await;
 
     Ok(Json(AuthTokensResponse {
         access_token,
@@ -119,20 +230,27 @@ pub async fn token_refresh(
     State(state): State<AppState>,
     Json(req): Json<RefreshTokenRequest>,
 ) -> Result<Json<AuthTokensResponse>, ApiError> {
-    let mut tokens = state.tokens_to_user.write().await;
-    let user_id = tokens
-        .get(&req.refresh_token)
-        .copied()
-        .ok_or_else(|| ApiError::Unauthorized("Invalid refresh token".into()))?;
+    let now = Utc::now();
 
-    // Invalidate old refresh token and issue new pair
-    tokens.remove(&req.refresh_token);
+    // Look up under a read borrow, then revoke the whole old session and
+    // mint the new pair — refresh tokens are single-use (rotation).
+    let (user_id, session_id) = {
+        let tokens = state.tokens_to_user.read().await;
+        let rec = tokens
+            .get(&req.refresh_token)
+            .ok_or_else(|| ApiError::Unauthorized("Invalid refresh token".into()))?;
+        if rec.kind != TokenKind::Refresh || rec.expires_at <= now {
+            return Err(ApiError::Unauthorized("Invalid refresh token".into()));
+        }
+        (rec.user_id, rec.session_id)
+    };
 
-    let access_token = format!("tok_{user_id}_{}", Uuid::new_v4());
-    let refresh_token = format!("ref_{user_id}_{}", Uuid::new_v4());
+    {
+        let mut tokens = state.tokens_to_user.write().await;
+        tokens.retain(|_, rec| rec.session_id != session_id);
+    }
 
-    tokens.insert(access_token.clone(), user_id);
-    tokens.insert(refresh_token.clone(), user_id);
+    let (access_token, refresh_token) = issue_session(&state, user_id).await;
 
     Ok(Json(AuthTokensResponse {
         access_token,
@@ -146,8 +264,14 @@ pub async fn logout(
     State(state): State<AppState>,
     Json(req): Json<LogoutRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    // Revoke every token minted in the session the refresh token belongs
+    // to (access + refresh). Unknown tokens are a no-op: logout is
+    // idempotent.
     let mut tokens = state.tokens_to_user.write().await;
-    tokens.remove(&req.refresh_token);
+    if let Some(rec) = tokens.get(&req.refresh_token) {
+        let session_id = rec.session_id;
+        tokens.retain(|_, rec| rec.session_id != session_id);
+    }
     Ok(Json(serde_json::json!({ "success": true })))
 }
 
