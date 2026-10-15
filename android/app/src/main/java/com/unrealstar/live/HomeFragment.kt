@@ -148,7 +148,7 @@ class HomeFragment : Fragment() {
         binding.viewIndicator.visibility = if (followed) View.GONE else View.VISIBLE
         binding.viewIndicatorFollowed.visibility = if (followed) View.VISIBLE else View.GONE
 
-        applyFilter()
+        loadMoments()
     }
 
     private fun loadMoments() {
@@ -165,7 +165,7 @@ class HomeFragment : Fragment() {
                 nextCursor = null
                 isLoadingPage = false
             } else {
-                val page = UnrealStarApiClient.fetchFeed(cursor = null, limit = PAGE_SIZE)
+                val page = UnrealStarApiClient.fetchFeed(cursor = null, limit = PAGE_SIZE, followedOnly = showingFollowed)
                 allMoments.clear()
                 allMoments.addAll(page.posts)
                 nextCursor = page.next_cursor
@@ -183,7 +183,7 @@ class HomeFragment : Fragment() {
         isLoadingPage = true
 
         viewLifecycleOwner.lifecycleScope.launch {
-            val page = UnrealStarApiClient.fetchFeed(cursor = cursor, limit = PAGE_SIZE)
+            val page = UnrealStarApiClient.fetchFeed(cursor = cursor, limit = PAGE_SIZE, followedOnly = showingFollowed)
             isLoadingPage = false
             nextCursor = page.next_cursor
             if (page.posts.isEmpty()) return@launch
@@ -193,12 +193,7 @@ class HomeFragment : Fragment() {
     }
 
     private fun applyFilter() {
-        val items: List<FeedPost> = if (showingFollowed) {
-            // No follow graph is exposed to the client yet, so this stays empty.
-            emptyList()
-        } else {
-            allMoments
-        }
+        val items: List<FeedPost> = allMoments
 
         adapter.submit(items)
 

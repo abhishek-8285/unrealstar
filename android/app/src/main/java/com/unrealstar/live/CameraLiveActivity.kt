@@ -220,6 +220,10 @@ class CameraLiveActivity : AppCompatActivity() {
                 ?: return@launch
             liveRoomId = room.room_id
             val client = RtcSignalClient(room.room_id, object : RtcSignalClient.Listener {
+                override fun onConnected() {
+                    signalClient?.sendJoin()
+                }
+
                 override fun onChat(fromUserId: Long, nickname: String, text: String) {
                     addChatMessage(fromUserId, nickname, text)
                 }

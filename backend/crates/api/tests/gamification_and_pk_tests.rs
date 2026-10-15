@@ -209,7 +209,16 @@ async fn test_social_follow_and_engagement() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["is_following"], true);
 
-    // 2. Unfollow target user
+    // 2. Fetch followed feed moments (before following target_id, empty if target_id has moments)
+    let req = Request::get("/api/v1/feed/moments?followed_only=true")
+        .header("Authorization", format!("Bearer {user_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = common::json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["posts"].as_array().unwrap().len(), 0);
+
+    // 3. Unfollow target user
     let req = Request::post(format!("/api/v1/social/unfollow/{target_id}"))
         .header("Authorization", format!("Bearer {user_token}"))
         .header("Content-Type", "application/json")

@@ -88,16 +88,22 @@ object UnrealStarApiClient {
         }
     }
 
-    suspend fun fetchFeed(cursor: String? = null, limit: Int = 10): FeedPage =
-        withContext(Dispatchers.IO) {
-            val url = buildString {
-                append("$BASE_URL/feed/moments?limit=")
-                append(limit)
-                if (!cursor.isNullOrBlank()) {
-                    append("&cursor=")
-                    append(URLEncoder.encode(cursor, "UTF-8"))
-                }
+    suspend fun fetchFeed(
+        cursor: String? = null,
+        limit: Int = 10,
+        followedOnly: Boolean = false,
+    ): FeedPage = withContext(Dispatchers.IO) {
+        val url = buildString {
+            append("$BASE_URL/feed/moments?limit=")
+            append(limit)
+            if (followedOnly) {
+                append("&followed_only=true")
             }
+            if (!cursor.isNullOrBlank()) {
+                append("&cursor=")
+                append(URLEncoder.encode(cursor, "UTF-8"))
+            }
+        }
             val request = Request.Builder()
                 .url(url)
                 .header("Authorization", SessionStore.authorization())
@@ -633,6 +639,23 @@ object UnrealStarApiClient {
                 if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
                 val type = object : TypeToken<List<VipTierItem>>() {}.type
                 Result.success(gson.fromJson(response.body?.string() ?: "[]", type))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchKycStatus(): Result<com.unrealstar.live.models.KycStatus> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/kyc/status")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val status = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.KycStatus::class.java)
+                Result.success(status)
             }
         } catch (e: Exception) {
             Result.failure(e)

@@ -28,6 +28,7 @@ class RtcSignalClient(
     private val listener: Listener,
 ) {
     interface Listener {
+        fun onConnected() {}
         fun onRoomState(viewers: Long) {}
         fun onChat(fromUserId: Long, nickname: String, text: String) {}
         fun onRtcSignal(fromUserId: Long, kind: String, sdp: String) {}
@@ -67,6 +68,7 @@ class RtcSignalClient(
                 override fun onOpen(webSocket: WebSocket, response: Response) {
                     // Successful (re)connection resets the backoff ladder.
                     attempts = 0
+                    listener.onConnected()
                 }
 
                 override fun onMessage(webSocket: WebSocket, text: String) {

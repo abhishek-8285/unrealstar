@@ -541,6 +541,7 @@ pub struct FeedMomentsQuery {
     /// Opaque cursor from a previous page's `next_cursor`.
     pub cursor: Option<String>,
     pub limit: Option<u32>,
+    pub followed_only: Option<bool>,
 }
 
 // ---------------------------------------------------------------------------

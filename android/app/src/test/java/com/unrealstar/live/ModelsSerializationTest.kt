@@ -163,4 +163,20 @@ class ModelsSerializationTest {
         assertEquals(500L, wallet.coins)
         assertEquals(120L, wallet.diamonds)
     }
+
+    @Test
+    fun testKycStatusDeserialization() {
+        val json = """
+            {
+                "status": "approved",
+                "payer_name": "Priya Sharma",
+                "rejection_reason": null
+            }
+        """.trimIndent()
+
+        val kyc = gson.fromJson(json, com.unrealstar.live.models.KycStatus::class.java)
+        assertEquals("approved", kyc.status)
+        assertEquals("Priya Sharma", kyc.payer_name)
+        assertFalse(kyc.status == "rejected")
+    }
 }

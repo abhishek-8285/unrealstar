@@ -57,7 +57,27 @@ class MeFragment : Fragment() {
             tile.ivAction.setBackgroundResource(action.background)
             tile.ivAction.setImageResource(action.icon)
             tile.root.setOnClickListener {
-                Toast.makeText(requireContext(), R.string.me_soon, Toast.LENGTH_SHORT).show()
+                when (action.label) {
+                    R.string.me_live_action -> {
+                        startActivity(android.content.Intent(requireContext(), CameraLiveActivity::class.java))
+                    }
+                    R.string.me_svip -> {
+                        VipTiersBottomSheet().show(childFragmentManager, VipTiersBottomSheet.TAG)
+                    }
+                    R.string.me_store -> {
+                        DailyTasksBottomSheet(onRewardClaimed = { load() }).show(childFragmentManager, DailyTasksBottomSheet.TAG)
+                    }
+                    R.string.me_creator -> {
+                        lifecycleScope.launch {
+                            val kyc = UnrealStarApiClient.fetchKycStatus().getOrNull()
+                            val msg = if (kyc != null) "KYC Status: ${kyc.status.uppercase()}" else "Creator Center Active"
+                            Toast.makeText(requireContext(), "🌟 $msg", Toast.LENGTH_SHORT).show()
+                        }
+                    }
+                    else -> {
+                        Toast.makeText(requireContext(), R.string.me_soon, Toast.LENGTH_SHORT).show()
+                    }
+                }
             }
             current.actionRow.addView(tile.root)
         }

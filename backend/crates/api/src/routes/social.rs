@@ -193,8 +193,22 @@ pub async fn feed_moments(
     let users = state.users.read().await;
     let likes = state.moment_likes.read().await;
 
-    // Newest first, which is what a "For you" feed should show.
-    let mut ordered: Vec<&MomentItem> = moments.iter().collect();
+    let follows = state.follows.read().await;
+    let followed_set = if q.followed_only.unwrap_or(false) {
+        viewer.and_then(|uid| follows.get(&uid).cloned())
+    } else {
+        None
+    };
+
+    // Newest first; if followed_only is requested, limit to authors in followed_set.
+    let mut ordered: Vec<&MomentItem> = if q.followed_only.unwrap_or(false) {
+        match &followed_set {
+            Some(set) => moments.iter().filter(|m| set.contains(&m.author_id)).collect(),
+            None => Vec::new(),
+        }
+    } else {
+        moments.iter().collect()
+    };
     ordered.reverse();
 
     let limit = q.limit.unwrap_or(10).clamp(1, 50) as usize;

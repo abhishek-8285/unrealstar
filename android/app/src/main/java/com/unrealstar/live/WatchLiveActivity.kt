@@ -162,6 +162,11 @@ class WatchLiveActivity : AppCompatActivity() {
             viewer?.attachRenderer(binding.renderer)
 
             val client = RtcSignalClient(roomId, object : RtcSignalClient.Listener {
+                override fun onConnected() {
+                    signalClient?.sendJoin()
+                    signalClient?.sendSignal(hostId, "request", "{}")
+                }
+
                 override fun onRoomState(viewers: Long) {
                     runOnUiThread { binding.tvViewers.text = "👁 $viewers" }
                 }

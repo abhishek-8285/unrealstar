@@ -330,3 +330,10 @@ data class VipTierItem(
     val privileges: List<String> = emptyList()
 )
 
+/** GET /kyc/status */
+data class KycStatus(
+    val status: String = "not_submitted",
+    val payer_name: String? = null,
+    val rejection_reason: String? = null
+)
+
