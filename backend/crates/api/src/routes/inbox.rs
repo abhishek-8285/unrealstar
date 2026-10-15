@@ -96,7 +96,7 @@ pub async fn inbox_messages(
         .collect();
 
     // Newest first, the order the list renders in.
-    messages.sort_by(|a, b| b.created_at.cmp(&a.created_at));
+    messages.sort_by_key(|a| std::cmp::Reverse(a.created_at));
 
     Json(InboxMessagePage { messages })
 }

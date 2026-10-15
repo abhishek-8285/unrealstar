@@ -132,9 +132,9 @@ pub async fn feed_rooms(
         "pk" => items.retain(|r| r.is_pk),
         "nearby" => items.retain(|r| r.category == "nearby"),
         "party" => items.retain(|r| r.category == "party"),
-        "new_stars" => items.sort_by(|a, b| b.room_id.cmp(&a.room_id)),
+        "new_stars" => items.sort_by_key(|a| std::cmp::Reverse(a.room_id)),
         // "hot" and anything unrecognised fall back to viewer ranking.
-        _ => items.sort_by(|a, b| b.viewers_count.cmp(&a.viewers_count)),
+        _ => items.sort_by_key(|a| std::cmp::Reverse(a.viewers_count)),
     }
 
     let page_size = q.page_size.unwrap_or(20).clamp(1, 100) as usize;
