@@ -10,6 +10,7 @@ use axum::{
 use camstar_roles::{RoomRoster, SeatRole};
 use futures_util::{SinkExt, StreamExt};
 use serde::Deserialize;
+use std::collections::HashSet;
 use tokio::sync::broadcast;
 
 use crate::{
@@ -69,6 +70,8 @@ pub async fn create_room(
         pk_opponent: None,
         rank_tag: None,
         host_badge: None,
+        present: HashSet::new(),
+        viewers_base: 0,
     };
 
     rooms.insert(room_id, session);
@@ -131,11 +134,10 @@ pub async fn join_room(
         return Err(ApiError::BadRequest("Room is already closed".into()));
     }
 
-    let viewers = room.roster.viewer_count();
-    room.roster.set_viewer_count(viewers + 1);
-    if room.roster.viewer_count() > room.peak_viewers {
-        room.peak_viewers = room.roster.viewer_count();
-    }
+    // Presence-tracked counting: a user who joined and left repeatedly cannot
+    // inflate the count, and a user who never joined cannot decrement it.
+    let joined = room.mark_present(user_id);
+
 
     let users = state.users.read().await;
     let host_profile =
@@ -174,7 +176,7 @@ pub async fn join_room(
         })
         .collect();
 
-    Ok(Json(JoinRoomResponse {
+    let response = JoinRoomResponse {
         room_id,
         title: room.title.clone(),
         host_id: room.host_id,
@@ -183,7 +185,69 @@ pub async fn join_room(
         viewers_count: room.roster.viewer_count(),
         active_seats,
         ws_url: format!("wss://api.camstar.live/ws/rooms/{room_id}"),
-    }))
+    };
+    drop(users);
+    drop(rooms);
+
+    // Broadcast only after the room lock is released: the helper takes a read
+    // lock on the same map.
+    if joined {
+        broadcast_viewer_count(&state, room_id).await;
+    }
+
+    Ok(Json(response))
+}
+
+/// Push the zero-delta `ViewerCount` message to every socket in `room_id`.
+async fn broadcast_viewer_count(state: &AppState, room_id: u64) {
+    let viewers = {
+        let rooms = state.rooms.read().await;
+        rooms.get(&room_id).map(|r| r.viewers_count())
+    };
+    let Some(viewers) = viewers else { return };
+    let ws_rooms = state.ws_rooms.read().await;
+    if let Some(tx) = ws_rooms.get(&room_id) {
+        let _ = tx.send(WsServerMessage::ViewerCount { viewers_count: viewers });
+    }
+}
+
+/// Tell the room a user left at host level (kick or ban). Used by seat_action
+/// and moderate so clients can drop their UI state for that user.
+async fn broadcast_kicked(state: &AppState, room_id: u64, user_id: u64, banned: bool) {
+    let ws_rooms = state.ws_rooms.read().await;
+    if let Some(tx) = ws_rooms.get(&room_id) {
+        let _ = tx.send(WsServerMessage::KickedFromRoom { user_id, banned });
+    }
+    broadcast_viewer_count(state, room_id).await;
+}
+
+/// Fire a broadcast into a room if the channel exists; no-op otherwise
+/// (rooms closed before the WS layer create no channel).
+async fn broadcast_to_room(state: &AppState, room_id: u64, msg: WsServerMessage) {
+    let ws_rooms = state.ws_rooms.read().await;
+    if let Some(tx) = ws_rooms.get(&room_id) {
+        let _ = tx.send(msg);
+    }
+}
+
+/// RoomState snapshot payload (viewers + seat map) for a room session; used
+/// by Join handling and Lagged recovery in handle_socket.
+fn room_state_snapshot(room: &RoomSession) -> WsServerMessage {
+    let seats = (0u8..15)
+        .filter_map(|slot| {
+            room.roster.seat(slot).map(|s| SeatInfo {
+                slot: s.slot + 1,
+                occupant_id: s.occupant,
+                nickname: format!("Seat_{}", s.occupant),
+                avatar_url: format!("https://cdn.camstar.live/avatars/{}.png", s.occupant),
+                is_muted: s.role == camstar_roles::SeatRole::Moderator,
+            })
+        })
+        .collect();
+    WsServerMessage::RoomState {
+        viewers_count: room.viewers_count(),
+        seats,
+    }
 }
 
 pub async fn leave_room(
@@ -197,13 +261,19 @@ pub async fn leave_room(
         .await
         .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
 
-    let mut rooms = state.rooms.write().await;
-    if let Some(room) = rooms.get_mut(&room_id) {
-        let viewers = room.roster.viewer_count();
-        if viewers > 0 {
-            room.roster.set_viewer_count(viewers - 1);
+    // Only decrement when the user actually holds presence: without this a
+    // user could POST leave N times and drive other viewers off the counter.
+    let mut changed = false;
+    {
+        let mut rooms = state.rooms.write().await;
+        if let Some(room) = rooms.get_mut(&room_id) {
+            changed = room.mark_absent(user_id);
+            let _ = room.roster.leave(user_id);
         }
-        let _ = room.roster.leave(user_id);
+    }
+
+    if changed {
+        broadcast_viewer_count(&state, room_id).await;
     }
 
     Ok(Json(serde_json::json!({ "success": true })))
@@ -232,6 +302,12 @@ pub async fn close_room(
     }
 
     room.is_active = false;
+    // Everyone present is gone at once: clear presence and let sockets learn
+    // via the RoomClosed broadcast below instead of staying connected.
+    room.clear_present();
+    let room_id = room.room_id;
+    let peak_viewers = room.peak_viewers;
+    let diamonds_earned = room.diamonds_earned;
 
     // Update user state
     {
@@ -241,11 +317,20 @@ pub async fn close_room(
             user.live_room_id = None;
         }
     }
+    drop(rooms);
+
+    // Mutes belong to the room; drop them with it.
+    {
+        let mut mutes = state.chat_mutes.write().await;
+        mutes.remove(&room_id);
+    }
+
+    broadcast_to_room(&state, room_id, WsServerMessage::RoomClosed).await;
 
     Ok(Json(CloseRoomResponse {
         duration_secs: 1800,
-        peak_viewers: room.peak_viewers,
-        diamonds_earned: room.diamonds_earned,
+        peak_viewers,
+        diamonds_earned,
     }))
 }
 
@@ -317,6 +402,15 @@ pub async fn seat_action(
             room.roster
                 .leave(req.target_user_id)
                 .map_err(ApiError::RoomDenial)?;
+            // Presence-driven count, one source of truth (was: silent no-dec).
+            room.mark_absent(req.target_user_id);
+            drop(rooms);
+            broadcast_kicked(&state, room_id, req.target_user_id, false).await;
+            return Ok(Json(serde_json::json!({
+                "success": true,
+                "target_user_id": req.target_user_id,
+                "action": req.action
+            })));
         }
         "mute_mic" => {
             // Muted = Moderator role (cannot gift, listed as muted).
@@ -388,17 +482,13 @@ pub async fn moderate(
     match req.action.as_str() {
         "kick_room" => {
             let _ = room.roster.leave(req.target_user_id);
-            let viewers = room.roster.viewer_count();
-            if viewers > 0 {
-                room.roster.set_viewer_count(viewers - 1);
-            }
+            room.mark_absent(req.target_user_id);
+            drop(rooms);
+            broadcast_kicked(&state, room_id, req.target_user_id, false).await;
         }
         "ban_room" => {
             let _ = room.roster.leave(req.target_user_id);
-            let viewers = room.roster.viewer_count();
-            if viewers > 0 {
-                room.roster.set_viewer_count(viewers - 1);
-            }
+            room.mark_absent(req.target_user_id);
             state
                 .room_bans
                 .write()
@@ -406,20 +496,39 @@ pub async fn moderate(
                 .entry(room_id)
                 .or_default()
                 .insert(req.target_user_id);
+            drop(rooms);
+            // Also lift the WS connection: the banned client learns from the
+            // broadcast and closes its own socket.
+            broadcast_kicked(&state, room_id, req.target_user_id, true).await;
         }
         "mute_chat" => {
-            // Chat-mute is represented as a Moderator (muted) seat when seated;
-            // viewers without seats are simply acknowledged — durable mute list
-            // lands with persistence (Phase 0 follow-up).
-            if room.roster.seat_of(req.target_user_id).is_some() {
-                let _ = room
-                    .roster
-                    .set_role(req.target_user_id, camstar_roles::SeatRole::Moderator);
-            }
+            // Durable mute list enforced by the WS chat relay (see
+            // handle_socket); the Moderator seat role stays decorative.
+            // Drop the room lock first: the WS path reads chat_mutes and then
+            // rooms in that order, so the reverse order here can deadlock.
+            drop(rooms);
+            state
+                .chat_mutes
+                .write()
+                .await
+                .entry(room_id)
+                .or_default()
+                .insert(req.target_user_id);
+        }
+        "unmute_chat" => {
+            // Same lock-order note as mute_chat above.
+            drop(rooms);
+            state
+                .chat_mutes
+                .write()
+                .await
+                .entry(room_id)
+                .or_default()
+                .remove(&req.target_user_id);
         }
         _ => {
             return Err(ApiError::BadRequest(
-                "Unknown moderation action (mute_chat/kick_room/ban_room)".into(),
+                "Unknown moderation action (mute_chat/unmute_chat/kick_room/ban_room)".into(),
             ))
         }
     }
@@ -453,6 +562,34 @@ pub async fn ws_handler(
     let Some(user_id) = state.authenticate_header(Some(&auth_header)).await else {
         return ApiError::Unauthorized("Missing or invalid token".to_string()).into_response();
     };
+
+    // Room-level admission checks: a token alone used to be enough to chat in
+    // room the user was banned from, or in a room the host already closed.
+    {
+        let bans = state.room_bans.read().await;
+        if bans
+            .get(&room_id)
+            .map(|s| s.contains(&user_id))
+            .unwrap_or(false)
+        {
+            return ApiError::Forbidden("You are banned from this room".to_string())
+                .into_response();
+        }
+    }
+    {
+        let rooms = state.rooms.read().await;
+        match rooms.get(&room_id) {
+            Some(room) if room.is_active => {}
+            Some(_) => {
+                return ApiError::BadRequest("Room is already closed".to_string())
+                    .into_response()
+            }
+            None => {
+                return ApiError::NotFound("Room not found".to_string()).into_response()
+            }
+        }
+    }
+
     ws.on_upgrade(move |socket| handle_socket(socket, room_id, state, user_id))
         .into_response()
 }
@@ -460,23 +597,70 @@ pub async fn ws_handler(
 async fn handle_socket(socket: WebSocket, room_id: u64, state: AppState, user_id: u64) {
     let (mut sender, mut receiver) = socket.split();
 
-    // Subscribe to room broadcast channel
+    // Subscribe to the room broadcast channel, creating it lazily: seed rooms
+    // and rooms created before the WS layer existed have no channel yet, and
+    // without this every socket to them would close immediately.
     let mut rx = {
-        let ws_rooms = state.ws_rooms.read().await;
-        if let Some(tx) = ws_rooms.get(&room_id) {
-            tx.subscribe()
-        } else {
-            return;
-        }
+        let mut ws_rooms = state.ws_rooms.write().await;
+        ws_rooms
+            .entry(room_id)
+            .or_insert_with(|| {
+                let (tx, _rx) = broadcast::channel(100);
+                tx
+            })
+            .subscribe()
     };
 
-    // Forward broadcast messages to this client
+    // Presence counting for WS-only audiences: a socket open is presence.
+    // The host is excluded inside mark_present, and the socket close below
+    // undoes it, so a socket that half-dies mid-negotiation cannot leak a
+    // permanent viewer.
+    let presence_changed = {
+        let mut rooms = state.rooms.write().await;
+        rooms
+            .get_mut(&room_id)
+            .map(|r| r.mark_present(user_id))
+            .unwrap_or(false)
+    };
+    if presence_changed {
+        broadcast_viewer_count(&state, room_id).await;
+    }
+
+    // Forward broadcast messages to this client. The socket's own signals
+    // are suppressed here: without this the relay echoes every RtcSignal
+    // back to its sender (the sender is also a subscriber), and clients
+    // relied on their own filtering to survive their own offer.
+    let state_for_send = state.clone();
     let mut send_task = tokio::spawn(async move {
-        while let Ok(msg) = rx.recv().await {
-            if let Ok(json_str) = serde_json::to_string(&msg) {
-                if sender.send(Message::Text(json_str.into())).await.is_err() {
-                    break;
+        loop {
+            match rx.recv().await {
+                Ok(WsServerMessage::RtcSignalRelay { ref from_user_id, .. })
+                    if *from_user_id == user_id => continue,
+                Ok(msg) => {
+                    if let Ok(json_str) = serde_json::to_string(&msg) {
+                        if sender.send(Message::Text(json_str.into())).await.is_err() {
+                            break;
+                        }
+                    }
                 }
+                Err(broadcast::error::RecvError::Lagged(_)) => {
+                    // The client fell >capacity messages behind. Replay of the
+                    // dropped window is impossible; heal instead by sending a
+                    // fresh RoomState snapshot and keep the connection (the
+                    // old code silently closed the socket on the first Lagged).
+                    let snapshot = {
+                        let rooms = state_for_send.rooms.read().await;
+                        rooms.get(&room_id).map(room_state_snapshot)
+                    };
+                    if let Some(snapshot) = snapshot {
+                        if let Ok(json_str) = serde_json::to_string(&snapshot) {
+                            if sender.send(Message::Text(json_str.into())).await.is_err() {
+                                break;
+                            }
+                        }
+                    }
+                }
+                Err(broadcast::error::RecvError::Closed) => break,
             }
         }
     });
@@ -484,10 +668,38 @@ async fn handle_socket(socket: WebSocket, room_id: u64, state: AppState, user_id
     // Receive messages from this client and broadcast
     let state_clone = state.clone();
     let mut recv_task = tokio::spawn(async move {
-        while let Some(Ok(Message::Text(text))) = receiver.next().await {
+        while let Some(msg) = receiver.next().await {
+            let text = match msg {
+                Ok(Message::Text(text)) => text,
+                // Control frames and binary blobs must not kill the socket.
+                Ok(Message::Close(_)) => break,
+                Ok(_) => continue,
+                Err(_) => break,
+            };
             if let Ok(client_msg) = serde_json::from_str::<WsClientMessage>(&text) {
                 match client_msg {
                     WsClientMessage::Chat { text } => {
+                        // Mute enforcement lives at the relay: chat_mutes is
+                        // the durable mute list, and a Moderator-role seat is
+                        // also chat-silent.
+                        let mut muted = {
+                            let mutes = state_clone.chat_mutes.read().await;
+                            mutes
+                                .get(&room_id)
+                                .map(|m| m.contains(&user_id))
+                                .unwrap_or(false)
+                        };
+                        if !muted {
+                            let rooms = state_clone.rooms.read().await;
+                            muted = rooms
+                                .get(&room_id)
+                                .and_then(|r| r.roster.seat_of(user_id))
+                                .map(|s| s.role == camstar_roles::SeatRole::Moderator)
+                                .unwrap_or(false);
+                        }
+                        if muted {
+                            continue;
+                        }
                         let nickname = {
                             let users = state_clone.users.read().await;
                             users
@@ -507,38 +719,22 @@ async fn handle_socket(socket: WebSocket, room_id: u64, state: AppState, user_id
                     WsClientMessage::Join {
                         room_id: join_room, ..
                     } => {
-                        // Send a room_state snapshot to all subscribers so the
-                        // joiner (and room) converge on viewer/seat truth.
-                        let (viewers, seats) = {
+                        // The URL path is the authenticated room; a mismatched
+                        // payload room_id is ignored outright. Trusting it let
+                        // a client pull another room's snapshot (viewers,
+                        // seats) into this channel.
+                        if join_room != room_id {
+                            continue;
+                        }
+                        let snapshot = {
                             let rooms = state_clone.rooms.read().await;
-                            match rooms.get(&join_room) {
-                                Some(r) => (
-                                    r.roster.viewer_count(),
-                                    (0u8..15)
-                                        .filter_map(|slot| {
-                                            r.roster.seat(slot).map(|s| SeatInfo {
-                                                slot: s.slot + 1,
-                                                occupant_id: s.occupant,
-                                                nickname: format!("Seat_{}", s.occupant),
-                                                avatar_url: format!(
-                                                    "https://cdn.camstar.live/avatars/{}.png",
-                                                    s.occupant
-                                                ),
-                                                is_muted: s.role
-                                                    == camstar_roles::SeatRole::Moderator,
-                                            })
-                                        })
-                                        .collect::<Vec<_>>(),
-                                ),
-                                None => continue,
-                            }
+                            rooms.get(&room_id).map(room_state_snapshot)
                         };
-                        let ws_rooms = state_clone.ws_rooms.read().await;
-                        if let Some(tx) = ws_rooms.get(&room_id) {
-                            let _ = tx.send(WsServerMessage::RoomState {
-                                viewers_count: viewers,
-                                seats,
-                            });
+                        if let Some(snapshot) = snapshot {
+                            let ws_rooms = state_clone.ws_rooms.read().await;
+                            if let Some(tx) = ws_rooms.get(&room_id) {
+                                let _ = tx.send(snapshot);
+                            }
                         }
                     }
                     WsClientMessage::SeatSignal { is_muted } => {
@@ -565,6 +761,30 @@ async fn handle_socket(socket: WebSocket, room_id: u64, state: AppState, user_id
                             let _ = tx.send(WsServerMessage::Pong);
                         }
                     }
+                    WsClientMessage::RtcSignal {
+                        target_user_id,
+                        kind,
+                        sdp,
+                    } => {
+                        // Relay-only: validate the envelope, never the SDP.
+                        // 16 KiB cap keeps one client from bloating the room
+                        // broadcast channel.
+                        if !matches!(kind.as_str(), "offer" | "answer" | "ice" | "request") {
+                            continue;
+                        }
+                        if sdp.is_empty() || sdp.len() > 16 * 1024 {
+                            continue;
+                        }
+                        let ws_rooms = state_clone.ws_rooms.read().await;
+                        if let Some(tx) = ws_rooms.get(&room_id) {
+                            let _ = tx.send(WsServerMessage::RtcSignalRelay {
+                                from_user_id: user_id,
+                                target_user_id,
+                                kind,
+                                sdp,
+                            });
+                        }
+                    }
                 }
             }
         }
@@ -573,5 +793,15 @@ async fn handle_socket(socket: WebSocket, room_id: u64, state: AppState, user_id
     tokio::select! {
         _ = (&mut send_task) => recv_task.abort(),
         _ = (&mut recv_task) => send_task.abort(),
-    };
+    }
+
+    // Socket is done: drop presence so the reported count reflects reality,
+    // mirroring the mark_present at open.
+    {
+        let mut rooms = state.rooms.write().await;
+        if let Some(room) = rooms.get_mut(&room_id) {
+            room.mark_absent(user_id);
+        }
+    }
+    broadcast_viewer_count(&state, room_id).await;
 }

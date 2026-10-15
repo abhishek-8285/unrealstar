@@ -231,6 +231,7 @@ pub async fn feed_moments(
                     .unwrap_or_else(|| m.author_nickname.clone()),
                 author_avatar_url: profile
                     .map(|p| p.avatar_url.clone())
+                    .filter(|u| !u.is_empty())
                     .unwrap_or_else(|| m.avatar_url.clone()),
                 media_url: m.media_url.clone(),
                 cover_url: m.cover_url.clone(),

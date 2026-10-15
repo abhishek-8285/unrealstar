@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">CamStar</string>
+    <string name="app_name">Unreal Star</string>
     <string name="start_broadcast">Go Live</string>
     <string name="beauty_filters">Filters</string>
     <string name="gifts">Gifts</string>
@@ -52,10 +52,11 @@
     <string name="share_with_count">Share, %1$s shares</string>
     <string name="gift_with_count">Send gift, %1$s gifts</string>
     <string name="sign_in_title">You\'re signed out</string>
-    <string name="sign_in_body">Sign in to see the feed. Not wired up yet.</string>
+    <string name="sign_in_body">Sign in to see the feed.</string>
     <string name="comments">Comments</string>
     <string name="share">Share</string>
     <!-- Live tab -->
+    <string name="live_tab_live">Live</string>
     <string name="live_tab_party">Party</string>
     <string name="live_tab_popular">Popular</string>
     <string name="live_tab_new">New 🔥</string>
@@ -67,6 +68,17 @@
     <string name="live_banner_image">Promotion</string>
     <string name="live_chip_pk">PK · %1$s</string>
     <string name="live_room_opening">Opening %1$s\'s room…</string>
+
+    <!-- Watch live -->
+    <string name="watch_host">Live</string>
+    <string name="watch_close">✕</string>
+    <string name="watch_connecting">Connecting…</string>
+    <string name="watch_connected">Connected</string>
+    <string name="watch_stream_error">Stream error — please check the room</string>
+    <string name="watch_kicked">You were removed from the room</string>
+    <string name="watch_banned">You were banned from this room</string>
+    <string name="watch_join_failed">Could not join the room</string>
+    <string name="watch_sign_in_required">Sign in to watch live rooms</string>
 
     <!-- Inbox -->
     <string name="inbox_tab_official">Official</string>
@@ -110,7 +122,7 @@
     <string name="live_go_live">Go Live</string>
     <string name="live_official_talent">Official Talent</string>
     <string name="live_change_poster">Change Poster</string>
-    <string name="live_poster_tip">✨ Please upload a poster so that it can appear in the Popular column on the homepage.</string>
+    <string name="live_poster_tip">✨ Please upload a poster so that it can appear in the Popular column on the homepage. ✨</string>
     <string name="live_hide">Hide</string>
     <string name="live_higher_grade">Get Higher Grade for More Exposure</string>
     <string name="live_switch_camera">Switch Camera</string>

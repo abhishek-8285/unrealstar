@@ -8,7 +8,7 @@ use camstar_ledger::{
     AccountId, AccountKind, Entry, EntryId, EntryKind, Ledger, LedgerError, Line, Money,
 };
 use camstar_roles::{Authorizer, CreatorStatus, RoomRoster, Tier, VipLevel};
-use chrono::Utc;
+use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::models::{
@@ -252,6 +252,58 @@ pub struct RoomSession {
     pub rank_tag: Option<String>,
     /// Decorative host marker shown beside the nickname, e.g. "👑".
     pub host_badge: Option<String>,
+    /// Non-host users currently present in the room (HTTP join or WS open).
+    pub present: HashSet<u64>,
+    /// Viewer count attributed to seeds/demo data, unaffected by presence
+    /// tracking. Reported count = viewers_base + present.len().
+    pub viewers_base: u64,
+}
+
+impl RoomSession {
+    /// Reported viewer count: seeded/demo viewers plus tracked presence.
+    pub fn viewers_count(&self) -> u64 {
+        self.viewers_base + self.present.len() as u64
+    }
+
+    /// Insert a viewer into presence. The host is never tracked (they are not
+    /// a viewer). Returns true when the set changed, so callers know whether
+    /// to broadcast a ViewerCount update.
+    pub fn mark_present(&mut self, user_id: u64) -> bool {
+        if user_id == self.host_id {
+            return false;
+        }
+        let changed = self.present.insert(user_id);
+        if changed {
+            self.sync_viewer_count();
+        }
+        changed
+    }
+
+    /// Remove a viewer from presence (leave / WS close / kick). Returns true
+    /// when the set changed.
+    pub fn mark_absent(&mut self, user_id: u64) -> bool {
+        let changed = self.present.remove(&user_id);
+        if changed {
+            self.sync_viewer_count();
+        }
+        changed
+    }
+
+    /// Clear all presence (room closed) and sync the roster one final time.
+    pub fn clear_present(&mut self) {
+        self.present.clear();
+        self.sync_viewer_count();
+    }
+
+    /// Push the computed count into the roster (used by social/PK routes) and
+    /// keep peak_viewers monotonic.
+    fn sync_viewer_count(&mut self) {
+        let viewers = self.viewers_count();
+        self.roster.set_viewer_count(viewers);
+        if viewers > self.peak_viewers {
+            self.peak_viewers = viewers;
+        }
+    }
 }
 
 #[derive(Clone)]
@@ -268,6 +320,9 @@ pub struct AppState {
     pub order_keys: Arc<RwLock<HashMap<String, String>>>,
     /// room_id -> banned user_ids. Banned users cannot (re)join.
     pub room_bans: Arc<RwLock<HashMap<u64, HashSet<u64>>>>,
+    /// room_id -> chat-muted user_ids. Enforced by the WS chat relay, unlike
+    /// the decorative Moderator seat role.
+    pub chat_mutes: Arc<RwLock<HashMap<u64, HashSet<u64>>>>,
     /// Active red-packet drops, keyed by packet_id.
     pub red_packets: Arc<RwLock<HashMap<String, RedPacketDrop>>>,
     pub rooms: Arc<RwLock<HashMap<u64, RoomSession>>>,
@@ -289,6 +344,8 @@ pub struct AppState {
     /// user_id -> FCM device tokens (cap 10). Delivery via FCM HTTP v1 lands
     /// once a service-account key is provisioned; see routes::push.
     pub push_tokens: Arc<RwLock<HashMap<u64, HashSet<String>>>>,
+    /// Client IP -> recent OTP send timestamps (sliding-window rate limit).
+    pub otp_ip_log: Arc<RwLock<HashMap<std::net::IpAddr, Vec<DateTime<Utc>>>>>,
     pub ws_rooms: Arc<RwLock<HashMap<u64, broadcast::Sender<WsServerMessage>>>>,
     pub beauty_manifest: Arc<Vec<BeautyCategory>>,
     pub vip_tiers: Arc<Vec<VipTierItem>>,
@@ -505,6 +562,7 @@ impl AppState {
             pending_orders: Arc::new(RwLock::new(HashMap::new())),
             order_keys: Arc::new(RwLock::new(HashMap::new())),
             room_bans: Arc::new(RwLock::new(HashMap::new())),
+            chat_mutes: Arc::new(RwLock::new(HashMap::new())),
             red_packets: Arc::new(RwLock::new(HashMap::new())),
             rooms: Arc::new(RwLock::new(HashMap::new())),
             gifts: Arc::new(gifts),
@@ -519,6 +577,7 @@ impl AppState {
             comment_likes: Arc::new(RwLock::new(HashMap::new())),
             pks: Arc::new(RwLock::new(HashMap::new())),
             push_tokens: Arc::new(RwLock::new(HashMap::new())),
+            otp_ip_log: Arc::new(RwLock::new(HashMap::new())),
             ws_rooms: Arc::new(RwLock::new(HashMap::new())),
             beauty_manifest: Arc::new(beauty_manifest),
             vip_tiers: Arc::new(vip_tiers),

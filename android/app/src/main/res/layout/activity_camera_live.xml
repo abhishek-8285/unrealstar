@@ -12,6 +12,13 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- GPU live-filter preview (GLES3-class devices; swaps with PreviewView) -->
+    <com.unrealstar.live.GpuPreviewView
+        android:id="@+id/gpuPreviewView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
     <!-- Beauty Compositing Overlay Layer -->
     <ImageView
         android:id="@+id/ivFilterOverlay"
@@ -20,6 +27,40 @@
         android:scaleType="centerCrop"
         tools:ignore="ContentDescription" />
 
+    <!-- Instagram color-filter tint (lightweight live path, driven by FilterEngine) -->
+    <View
+        android:id="@+id/vFilterTint"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- Beauty soft-glow (smooth + whiten approximation, driven by FilterEngine) -->
+    <View
+        android:id="@+id/vBeautySoft"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
+    <!-- Face sticker overlay (center-anchored until ML Kit tracking lands) -->
+    <TextView
+        android:id="@+id/tvStickerOverlay"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="180dp"
+        android:visibility="gone"
+        android:textSize="64sp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:ignore="HardcodedText" />
+
+    <!-- Full-screen luxury gift effect (PAG). Gone unless a .pag asset plays. -->
+    <org.libpag.PAGView
+        android:id="@+id/pagGiftEffect"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:visibility="gone" />
+
     <!-- ==================== STATE: PRE-LIVE SETUP ==================== -->
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/preLiveControls"
@@ -27,27 +68,28 @@
         android:layout_height="match_parent"
         android:visibility="gone">
 
-        <!-- Close Setup (X) -->
+        <!-- Close Setup (X) — top-RIGHT per reference -->
         <ImageButton
             android:id="@+id/btnCloseSetup"
             android:layout_width="44dp"
             android:layout_height="44dp"
-            android:layout_marginStart="12dp"
             android:layout_marginTop="12dp"
+            android:layout_marginEnd="12dp"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
             app:tint="@color/text_white"
-            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
 
-        <!-- Poster / Cover Card -->
+        <!-- Poster / Cover Card — translucent, poster left, tip right, share circles inside -->
         <androidx.cardview.widget.CardView
             android:id="@+id/posterCard"
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
             android:layout_marginTop="64dp"
-            android:layout_marginEnd="56dp"
+            android:layout_marginEnd="16dp"
+            app:cardBackgroundColor="@color/poster_card_bg"
             app:cardCornerRadius="12dp"
             app:cardElevation="0dp"
             app:contentPadding="12dp"
@@ -58,119 +100,150 @@
             <androidx.constraintlayout.widget.ConstraintLayout
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content">
+
+                <!-- Poster thumbnail -->
                 <ImageView
                     android:id="@+id/ivPosterThumb"
-                    android:layout_width="64dp"
-                    android:layout_height="80dp"
+                    android:layout_width="100dp"
+                    android:layout_height="140dp"
                     android:background="@color/surface_dark"
                     android:scaleType="centerCrop"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent"
                     tools:ignore="ContentDescription" />
 
+                <!-- "Change Poster" overlay on poster bottom -->
                 <TextView
                     android:id="@+id/tvChangePoster"
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="12dp"
+                    android:layout_width="0dp"
+                    android:layout_height="28dp"
+                    android:background="#99000000"
+                    android:gravity="center"
                     android:text="@string/live_change_poster"
                     android:textColor="@color/text_white"
-                    android:textSize="14sp"
+                    android:textSize="12sp"
                     android:textStyle="bold"
                     app:layout_constraintBottom_toBottomOf="@id/ivPosterThumb"
-                    app:layout_constraintStart_toEndOf="@id/ivPosterThumb"
-                    app:layout_constraintTop_toTopOf="@id/ivPosterThumb" />
+                    app:layout_constraintEnd_toEndOf="@id/ivPosterThumb"
+                    app:layout_constraintStart_toStartOf="@id/ivPosterThumb" />
 
+                <!-- Purple tip bubble — to the RIGHT of poster -->
                 <TextView
                     android:id="@+id/tvPosterTip"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginTop="8dp"
+                    android:layout_marginStart="10dp"
                     android:background="@drawable/bg_poster_tip_purple"
                     android:padding="10dp"
                     android:text="@string/live_poster_tip"
                     android:textColor="@color/text_white"
                     android:textSize="12sp"
                     app:layout_constraintEnd_toEndOf="parent"
-                    app:layout_constraintStart_toStartOf="parent"
-                    app:layout_constraintTop_toBottomOf="@id/ivPosterThumb" />
+                    app:layout_constraintStart_toEndOf="@id/ivPosterThumb"
+                    app:layout_constraintTop_toTopOf="@id/ivPosterThumb" />
 
+                <!-- "📌 Hide" with pin icon -->
                 <TextView
                     android:id="@+id/tvHidePosterTip"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_marginTop="6dp"
+                    android:drawablePadding="4dp"
+                    android:drawableStart="@drawable/ic_inbox_pin"
+                    android:gravity="center_vertical"
+                    android:includeFontPadding="false"
                     android:text="@string/live_hide"
                     android:textColor="@color/text_white"
                     android:textSize="11sp"
-                    app:layout_constraintStart_toStartOf="parent"
+                    app:layout_constraintStart_toStartOf="@id/tvPosterTip"
                     app:layout_constraintTop_toBottomOf="@id/tvPosterTip" />
+
+                <!-- Twitter share circle — bottom-right of card -->
+                <TextView
+                    android:id="@+id/tvShareTwitter"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginBottom="8dp"
+                    android:layout_marginEnd="12dp"
+                    android:background="@drawable/bg_share_circle_white"
+                    android:gravity="center"
+                    android:text="𝕏"
+                    android:textColor="#333333"
+                    android:textSize="16sp"
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toStartOf="@id/tvShareFacebook"
+                    tools:ignore="HardcodedText" />
+
+                <!-- Facebook share circle — bottom-right of card -->
+                <TextView
+                    android:id="@+id/tvShareFacebook"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:layout_marginBottom="8dp"
+                    android:background="@drawable/bg_share_circle_white"
+                    android:gravity="center"
+                    android:text="f"
+                    android:textColor="#333333"
+                    android:textSize="18sp"
+                    android:textStyle="bold"
+                    app:layout_constraintBottom_toBottomOf="parent"
+                    app:layout_constraintEnd_toEndOf="parent"
+                    tools:ignore="HardcodedText" />
             </androidx.constraintlayout.widget.ConstraintLayout>
         </androidx.cardview.widget.CardView>
 
-        <!-- Social Share Circles -->
-        <TextView
-            android:id="@+id/tvShareFacebook"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginTop="200dp"
-            android:background="@drawable/bg_icon_circle"
-            android:gravity="center"
-            android:text="f"
-            android:textColor="@color/text_white"
-            android:textStyle="bold"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:ignore="HardcodedText" />
-
-        <TextView
-            android:id="@+id/tvShareTwitter"
-            android:layout_width="36dp"
-            android:layout_height="36dp"
-            android:layout_marginTop="200dp"
-            android:layout_marginEnd="8dp"
-            android:background="@drawable/bg_icon_circle"
-            android:gravity="center"
-            android:text="𝕏"
-            android:textColor="@color/text_white"
-            android:textStyle="bold"
-            app:layout_constraintEnd_toStartOf="@id/tvShareFacebook"
-            app:layout_constraintTop_toTopOf="parent"
-            tools:ignore="HardcodedText" />
-
-        <!-- Grade / Exposure Card -->
+        <!-- Grade / Exposure Card — small, LEFT-aligned -->
         <LinearLayout
             android:id="@+id/gradeCard"
-            android:layout_width="0dp"
+            android:layout_width="140dp"
             android:layout_height="wrap_content"
             android:layout_marginStart="16dp"
-            android:layout_marginEnd="16dp"
+            android:layout_marginTop="12dp"
             android:background="@drawable/bg_chip_translucent"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
+            android:orientation="vertical"
             android:padding="10dp"
-            app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/posterCard">
 
-            <TextView
-                android:layout_width="0dp"
+            <LinearLayout
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/live_higher_grade"
-                android:textColor="@color/text_white"
-                android:textSize="12sp" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <View
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:background="@drawable/bg_official_talent_circle" />
+
+                <View
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_marginStart="-8dp"
+                    android:background="@drawable/bg_official_talent_circle" />
+
+                <TextView
+                    android:id="@+id/tvGradeD"
+                    android:layout_width="28dp"
+                    android:layout_height="28dp"
+                    android:layout_marginStart="-8dp"
+                    android:background="@drawable/bg_official_talent_circle"
+                    android:gravity="center"
+                    android:text="D"
+                    android:textColor="#3F9CFF"
+                    android:textSize="12sp"
+                    android:textStyle="bold"
+                    tools:ignore="HardcodedText" />
+            </LinearLayout>
 
             <TextView
-                android:id="@+id/tvGradeD"
-                android:layout_width="28dp"
-                android:layout_height="28dp"
-                android:background="@drawable/bg_official_talent_circle"
-                android:gravity="center"
-                android:text="D"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:text="@string/live_higher_grade"
                 android:textColor="@color/text_white"
-                android:textStyle="bold"
-                tools:ignore="HardcodedText" />
+                android:textSize="11sp" />
         </LinearLayout>
 
         <!-- Right-edge purple PK-style badge -->
@@ -190,7 +263,7 @@
             app:layout_constraintTop_toBottomOf="@id/posterCard"
             tools:ignore="HardcodedText" />
 
-        <!-- Setup control row: Switch Camera / Sticker-Beauty / Connection Speed -->
+        <!-- Setup control row: flip / smiley / speedometer — icons match reference -->
         <LinearLayout
             android:id="@+id/setupControlsRow"
             android:layout_width="match_parent"
@@ -209,10 +282,9 @@
                 android:padding="8dp">
 
                 <ImageView
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:src="@android:drawable/ic_menu_rotate"
-                    app:tint="@color/text_white"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_setup_camera_flip"
                     tools:ignore="ContentDescription" />
 
                 <TextView
@@ -221,23 +293,22 @@
                     android:layout_marginTop="4dp"
                     android:text="@string/live_switch_camera"
                     android:textColor="@color/text_white"
-                    android:textSize="11sp" />
+                    android:textSize="10sp" />
             </LinearLayout>
 
             <LinearLayout
                 android:id="@+id/btnStickerBeauty"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="32dp"
+                android:layout_marginStart="28dp"
                 android:gravity="center"
                 android:orientation="vertical"
                 android:padding="8dp">
 
                 <ImageView
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:src="@android:drawable/ic_menu_edit"
-                    app:tint="@color/text_white"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_setup_smiley"
                     tools:ignore="ContentDescription" />
 
                 <TextView
@@ -246,23 +317,22 @@
                     android:layout_marginTop="4dp"
                     android:text="@string/live_sticker_beauty"
                     android:textColor="@color/text_white"
-                    android:textSize="11sp" />
+                    android:textSize="10sp" />
             </LinearLayout>
 
             <LinearLayout
                 android:id="@+id/btnConnectionSpeed"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_marginStart="32dp"
+                android:layout_marginStart="28dp"
                 android:gravity="center"
                 android:orientation="vertical"
                 android:padding="8dp">
 
                 <ImageView
-                    android:layout_width="40dp"
-                    android:layout_height="40dp"
-                    android:src="@android:drawable/ic_menu_manage"
-                    app:tint="@color/text_white"
+                    android:layout_width="36dp"
+                    android:layout_height="36dp"
+                    android:src="@drawable/ic_setup_speedometer"
                     tools:ignore="ContentDescription" />
 
                 <TextView
@@ -271,11 +341,11 @@
                     android:layout_marginTop="4dp"
                     android:text="@string/live_connection_speed"
                     android:textColor="@color/text_white"
-                    android:textSize="11sp" />
+                    android:textSize="10sp" />
             </LinearLayout>
         </LinearLayout>
 
-        <!-- Go Live + Official Talent row -->
+        <!-- Go Live + Official Talent row — full "Official Talent" text, translucent -->
         <LinearLayout
             android:id="@+id/goLiveRow"
             android:layout_width="match_parent"
@@ -300,19 +370,19 @@
 
             <TextView
                 android:id="@+id/btnOfficialTalent"
-                android:layout_width="52dp"
-                android:layout_height="52dp"
+                android:layout_width="60dp"
+                android:layout_height="60dp"
                 android:layout_marginStart="12dp"
                 android:background="@drawable/bg_official_talent_circle"
                 android:gravity="center"
-                android:text="OT"
+                android:padding="6dp"
+                android:text="@string/live_official_talent"
                 android:textColor="@color/text_white"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                tools:ignore="HardcodedText" />
+                android:textSize="10sp"
+                android:textStyle="bold" />
         </LinearLayout>
 
-        <!-- Live / Chat Party / Video Party tabs -->
+        <!-- Live / Chat Party / Video Party tabs — "Live" not the app name -->
         <HorizontalScrollView
             android:id="@+id/modeTabs"
             android:layout_width="match_parent"
@@ -333,11 +403,10 @@
                     android:layout_height="wrap_content"
                     android:paddingHorizontal="16dp"
                     android:paddingVertical="6dp"
-                    android:text="@string/app_name"
+                    android:text="@string/live_tab_live"
                     android:textColor="@color/text_white"
                     android:textSize="15sp"
-                    android:textStyle="bold"
-                    tools:ignore="HardcodedText" />
+                    android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/tabChatParty"
@@ -1071,25 +1140,158 @@
             android:textSize="14sp"
             android:textStyle="bold" />
 
-        <HorizontalScrollView
+        <!-- Top-level tabs: Instagram filters | Beauty | Stickers -->
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
-            android:scrollbars="none">
+            android:orientation="horizontal">
 
-            <com.google.android.material.chip.ChipGroup
-                android:id="@+id/chipGroupCategories"
-                android:layout_width="wrap_content"
+            <TextView
+                android:id="@+id/btnTabFilters"
+                android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                app:singleSelection="true" />
-        </HorizontalScrollView>
+                android:layout_weight="1"
+                android:background="@drawable/bg_chip_translucent"
+                android:gravity="center"
+                android:paddingVertical="8dp"
+                android:text="Filters"
+                android:textColor="@color/text_white"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                tools:ignore="HardcodedText" />
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/rvMatteItems"
+            <TextView
+                android:id="@+id/btnTabBeauty"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:paddingVertical="8dp"
+                android:text="Beauty"
+                android:textColor="@color/text_muted"
+                android:textSize="13sp"
+                tools:ignore="HardcodedText" />
+
+            <TextView
+                android:id="@+id/btnTabStickers"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:gravity="center"
+                android:paddingVertical="8dp"
+                android:text="Stickers"
+                android:textColor="@color/text_muted"
+                android:textSize="13sp"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+
+        <!-- Tab page: Instagram swipe filters -->
+        <LinearLayout
+            android:id="@+id/pageFilters"
             android:layout_width="match_parent"
-            android:layout_height="80dp"
-            android:layout_marginTop="8dp"
-            android:orientation="horizontal" />
+            android:layout_height="wrap_content"
+            android:orientation="vertical">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvColorFilters"
+                android:layout_width="match_parent"
+                android:layout_height="80dp"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/tvFilterEngineMode"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:textColor="@color/text_muted"
+                    android:textSize="11sp"
+                    tools:ignore="HardcodedText" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <!-- Tab page: beauty (makeup mattes + smooth/whiten sliders) -->
+        <LinearLayout
+            android:id="@+id/pageBeauty"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:scrollbars="none">
+
+                <com.google.android.material.chip.ChipGroup
+                    android:id="@+id/chipGroupCategories"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    app:singleSelection="true" />
+            </HorizontalScrollView>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvMatteItems"
+                android:layout_width="match_parent"
+                android:layout_height="80dp"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal" />
+
+            <SeekBar
+                android:id="@+id/sbSmooth"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp"
+                android:max="100"
+                android:progress="0" />
+
+            <SeekBar
+                android:id="@+id/sbWhiten"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="100"
+                android:progress="0" />
+
+            <SeekBar
+                android:id="@+id/sbSlim"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="100"
+                android:progress="0" />
+
+            <SeekBar
+                android:id="@+id/sbBigEyes"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:max="100"
+                android:progress="0" />
+        </LinearLayout>
+
+        <!-- Tab page: stickers -->
+        <LinearLayout
+            android:id="@+id/pageStickers"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/rvStickers"
+                android:layout_width="match_parent"
+                android:layout_height="80dp"
+                android:layout_marginTop="8dp"
+                android:orientation="horizontal" />
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"

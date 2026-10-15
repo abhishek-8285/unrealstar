@@ -47,7 +47,7 @@
     </LinearLayout>
 
     <!-- The 8-sector Wheel View -->
-    <com.camstar.live.PrivateWheelView
+    <com.unrealstar.live.PrivateWheelView
         android:id="@+id/wheelView"
         android:layout_width="280dp"
         android:layout_height="280dp"

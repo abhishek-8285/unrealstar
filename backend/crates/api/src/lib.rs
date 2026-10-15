@@ -4,13 +4,44 @@ pub mod routes;
 pub mod state;
 
 use axum::{
+    extract::{ConnectInfo, State},
+    http::Request,
+    middleware::{self, Next},
+    response::Response,
     routing::{get, post},
     Router,
 };
+use std::net::SocketAddr;
 use std::path::PathBuf;
 use tower_http::cors::CorsLayer;
 
+use crate::error::ApiError;
+
 pub use state::{system_clearing_account, user_coins_account, user_diamonds_account, AppState};
+
+/// Per-IP sliding-window rate limit on OTP sends, so one client cannot rotate
+/// phone numbers to dodge the per-phone cooldown. Reads `ConnectInfo`
+/// optionally: unit tests (no connection info) skip the check, production
+/// (`into_make_service_with_connect_info`) enforces it.
+async fn rate_limit_otp_sends(
+    State(state): State<AppState>,
+    req: Request<axum::body::Body>,
+    next: Next,
+) -> Result<Response, ApiError> {
+    if let Some(ConnectInfo(addr)) = req.extensions().get::<ConnectInfo<SocketAddr>>() {
+        let now = chrono::Utc::now();
+        let mut log = state.otp_ip_log.write().await;
+        let hits: &mut Vec<chrono::DateTime<chrono::Utc>> = log.entry(addr.ip()).or_default();
+        hits.retain(|t| now.signed_duration_since(*t).num_seconds() <= 600);
+        if hits.len() >= 20 {
+            return Err(ApiError::TooManyRequests(
+                "Too many OTP requests from this address, try again later".into(),
+            ));
+        }
+        hits.push(now);
+    }
+    Ok(next.run(req).await)
+}
 
 pub fn create_router(state: AppState) -> Router {
     // CORS: lock down to known origins. Default is the production origin;
@@ -43,8 +74,14 @@ pub fn create_router(state: AppState) -> Router {
         ]);
 
     Router::new()
-        // Auth & Users
-        .route("/api/v1/auth/otp/send", post(routes::auth::otp_send))
+        // Auth & Users (OTP send carries its own per-IP rate-limit layer)
+        .route(
+            "/api/v1/auth/otp/send",
+            post(routes::auth::otp_send).route_layer(middleware::from_fn_with_state(
+                state.clone(),
+                rate_limit_otp_sends,
+            )),
+        )
         .route("/api/v1/auth/otp/verify", post(routes::auth::otp_verify))
         .route(
             "/api/v1/auth/token/refresh",

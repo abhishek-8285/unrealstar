@@ -8,6 +8,8 @@ fn origin() -> String {
     std::env::var("PUBLIC_ORIGIN").unwrap_or_else(|_| "https://us.avandab.com".to_string())
 }
 use tokio::net::TcpListener;
+use std::collections::HashSet;
+use std::net::SocketAddr;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -255,6 +257,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                     pk_opponent: seed.pk_opponent.map(str::to_string),
                     rank_tag: seed.rank_tag.map(str::to_string),
                     host_badge: seed.host_badge.map(str::to_string),
+                    present: HashSet::new(),
+                    viewers_base: seed.viewers,
                 },
             );
         }
@@ -389,7 +393,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 user_id: 1001,
                 phone: "+919000001001".into(),
                 nickname: "PRISHA RAJPUT".into(),
-                avatar_url: String::new(),
+                avatar_url: format!("{}/assets/avatars/a1.jpg", origin()),
                 bio: "ache logo ke sath bura bhi unke ache ke liye hota h".into(),
                 gender: "female".into(),
                 city: "Delhi".into(),
@@ -432,6 +436,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         tower_http::services::ServeDir::new(media_root).append_index_html_on_directories(false),
     );
 
-    axum::serve(listener, app).await?;
+    axum::serve(
+        listener,
+        app.into_make_service_with_connect_info::<SocketAddr>(),
+    )
+    .await?;
     Ok(())
 }

@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.camstar.live"
+    namespace = "com.unrealstar.live"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.camstar.live"
+        applicationId = "com.unrealstar.live"
         minSdk = 26
         targetSdk = 35
         versionCode = 1
@@ -77,6 +77,16 @@ dependencies {
     implementation("androidx.camera:camera-camera2:$cameraxVersion")
     implementation("androidx.camera:camera-lifecycle:$cameraxVersion")
     implementation("androidx.camera:camera-view:$cameraxVersion")
+    implementation("androidx.camera:camera-video:$cameraxVersion")
+
+    // Real-time publishing (Phase 1 next step): WebRTC publisher/subscriber.
+    // Pinned to 1.0.43577: 1.0.45036's PeerConnectionFactory$Builder references
+    // org.webrtc.Environment, which its own classes.jar omits -> runtime
+    // NoClassDefFoundError on device (verified 2026-10-15). 43577's Builder
+    // has zero Environment references (javap-verified).
+    implementation("com.infobip:google-webrtc:1.0.43577")
+    // Luxury full-screen gift effects (Phase 1 next step): PAG player.
+    implementation("com.tencent.tav:libpag:4.5.98-noffavc")
 
     // Video playback for the Home feed
     val media3Version = "1.4.1"
@@ -95,6 +105,9 @@ dependencies {
 
     // Coroutines
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1")
+
+    // Face tracking for AR stickers (throttled ML Kit, graceful-off without GMS)
+    implementation("com.google.mlkit:face-detection:16.1.7")
 
     testImplementation("junit:junit:4.13.2")
 }

@@ -1,0 +1,573 @@
+package com.unrealstar.live.api
+
+import com.unrealstar.live.BuildConfig
+import com.unrealstar.live.models.*
+import com.google.gson.Gson
+import com.google.gson.reflect.TypeToken
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import okhttp3.MediaType.Companion.toMediaType
+import okhttp3.OkHttpClient
+import okhttp3.Request
+import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
+import java.net.URLEncoder
+
+object UnrealStarApiClient {
+    // Over ADB reverse or emulator, localhost:3000 reaches the Axum backend
+    /** Debug talks to the device-local reverse tunnel; release to the public origin. */
+    private val BASE_URL = BuildConfig.API_BASE_URL
+
+    /**
+     * Rewrites an absolute media URL onto whichever host this build talks to.
+     * The API returns fully-qualified asset URLs, which would otherwise pin the
+     * device to the public origin even in a build aimed at localhost.
+     */
+    fun localise(url: String?): String? {
+        if (url.isNullOrBlank()) return null
+        val path = runCatching { java.net.URI(url).path }.getOrNull() ?: return url
+        return BASE_URL.substringBefore("/api/v1") + path
+    }
+    private val client = OkHttpClient.Builder()
+        .connectTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .readTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .writeTimeout(15, java.util.concurrent.TimeUnit.SECONDS)
+        .apply {
+            if (BuildConfig.DEBUG) {
+                addInterceptor(okhttp3.logging.HttpLoggingInterceptor().apply {
+                    level = okhttp3.logging.HttpLoggingInterceptor.Level.BASIC
+                })
+            }
+        }
+        .build()
+    private val gson = Gson()
+    private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+
+    suspend fun fetchWalletBalance(): WalletBalance = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/wallet/balance")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) {
+                throw IOException("wallet/balance HTTP ${response.code}")
+            }
+            val body = response.body?.string() ?: ""
+            gson.fromJson(body, WalletBalance::class.java)
+        }
+    }
+
+
+    /**
+     * One page of the feed. Pass the previous page's `next_cursor` to advance;
+     * null means the end of the feed.
+     */
+    /** Cheap call used to tell "signed out" apart from "server unreachable". */
+    enum class AuthState { SignedIn, SignedOut, Unreachable }
+
+    suspend fun probeAuth(): AuthState = withContext(Dispatchers.IO) {
+        if (!SessionStore.isSignedIn) return@withContext AuthState.SignedOut
+        val request = Request.Builder()
+            .url("$BASE_URL/wallet/balance")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                when {
+                    response.code == 401 || response.code == 403 -> AuthState.SignedOut
+                    response.isSuccessful -> AuthState.SignedIn
+                    else -> AuthState.Unreachable
+                }
+            }
+        } catch (e: IOException) {
+            AuthState.Unreachable
+        }
+    }
+
+    suspend fun fetchFeed(cursor: String? = null, limit: Int = 10): FeedPage =
+        withContext(Dispatchers.IO) {
+            val url = buildString {
+                append("$BASE_URL/feed/moments?limit=")
+                append(limit)
+                if (!cursor.isNullOrBlank()) {
+                    append("&cursor=")
+                    append(URLEncoder.encode(cursor, "UTF-8"))
+                }
+            }
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", SessionStore.authorization())
+                .get()
+                .build()
+
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        return@withContext FeedPage()
+                    }
+                    val body = response.body?.string() ?: ""
+                    gson.fromJson(body, FeedPage::class.java) ?: FeedPage()
+                }
+            } catch (e: IOException) {
+                FeedPage()
+            }
+        }
+
+    suspend fun fetchRooms(tab: String, page: Int): RoomPage = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/feed/rooms?tab=$tab&page=$page")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext RoomPage()
+                val body = response.body?.string() ?: ""
+                gson.fromJson(body, RoomPage::class.java) ?: RoomPage()
+            }
+        } catch (e: IOException) {
+            RoomPage()
+        }
+    }
+
+    suspend fun fetchOfficialNotices(section: String?): Result<OfficialNoticePage> =
+        withContext(Dispatchers.IO) {
+            val url = if (section == null) "$BASE_URL/inbox/official"
+            else "$BASE_URL/inbox/official?section=$section"
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", SessionStore.authorization())
+                .get()
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        return@withContext Result.failure(RuntimeException("HTTP ${response.code}"))
+                    }
+                    val page = gson.fromJson(response.body?.string() ?: "", OfficialNoticePage::class.java)
+                        ?: OfficialNoticePage()
+                    Result.success(page)
+                }
+            } catch (e: IOException) {
+                Result.failure(e)
+            }
+        }
+
+    suspend fun fetchMeDashboard(): MeDashboard = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/users/me/dashboard")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext MeDashboard()
+                gson.fromJson(response.body?.string() ?: "", MeDashboard::class.java)
+                    ?: MeDashboard()
+            }
+        } catch (e: IOException) {
+            MeDashboard()
+        }
+    }
+
+    suspend fun fetchInboxCategories(): InboxCategoryPage = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/inbox/categories")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext InboxCategoryPage()
+                gson.fromJson(response.body?.string() ?: "", InboxCategoryPage::class.java)
+                    ?: InboxCategoryPage()
+            }
+        } catch (e: IOException) {
+            InboxCategoryPage()
+        }
+    }
+
+    suspend fun fetchInbox(category: String?): InboxMessagePage = withContext(Dispatchers.IO) {
+        val url = if (category == null) "$BASE_URL/inbox"
+        else "$BASE_URL/inbox?category=$category"
+        val request = Request.Builder()
+            .url(url)
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext InboxMessagePage()
+                gson.fromJson(response.body?.string() ?: "", InboxMessagePage::class.java)
+                    ?: InboxMessagePage()
+            }
+        } catch (e: IOException) {
+            InboxMessagePage()
+        }
+    }
+
+    suspend fun fetchLiveBanners(): LiveBannerPage = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/feed/live/banners")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext LiveBannerPage()
+                val body = response.body?.string() ?: ""
+                gson.fromJson(body, LiveBannerPage::class.java) ?: LiveBannerPage()
+            }
+        } catch (e: IOException) {
+            LiveBannerPage()
+        }
+    }
+
+    suspend fun fetchComments(momentId: String): CommentList = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/feed/moments/$momentId/comments")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext CommentList()
+                val body = response.body?.string() ?: ""
+                gson.fromJson(body, CommentList::class.java) ?: CommentList()
+            }
+        } catch (e: IOException) {
+            CommentList()
+        }
+    }
+
+    suspend fun postComment(
+        momentId: String,
+        body: String,
+        parentId: String? = null,
+    ): Result<MomentEngagement> = withContext(Dispatchers.IO) {
+        val payload = gson
+            .toJson(linkedMapOf("body" to body, "parent_id" to parentId))
+            .toRequestBody(JSON_MEDIA_TYPE)
+        val request = Request.Builder()
+            .url("$BASE_URL/feed/moments/$momentId/comments")
+            .header("Authorization", SessionStore.authorization())
+            .post(payload)
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(
+                        IOException(response.body?.string() ?: "Failed")
+                    )
+                }
+                Result.success(
+                    gson.fromJson(response.body?.string() ?: "", MomentEngagement::class.java)
+                )
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun unlikeMoment(momentId: String): Result<MomentEngagement> =
+        postEmpty("$BASE_URL/feed/moments/$momentId/unlike")
+
+    suspend fun likeComment(commentId: String): Result<CommentLikeResponse> =
+        commentEngagement("$BASE_URL/feed/comments/$commentId/like")
+
+    suspend fun unlikeComment(commentId: String): Result<CommentLikeResponse> =
+        commentEngagement("$BASE_URL/feed/comments/$commentId/unlike")
+
+    private suspend fun commentEngagement(url: String): Result<CommentLikeResponse> =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", SessionStore.authorization())
+                .post("".toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        return@withContext Result.failure(
+                            IOException(response.body?.string() ?: "Request failed")
+                        )
+                    }
+                    Result.success(
+                        gson.fromJson(response.body?.string() ?: "", CommentLikeResponse::class.java)
+                    )
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    private suspend fun postEmpty(url: String): Result<MomentEngagement> =
+        withContext(Dispatchers.IO) {
+            val request = Request.Builder()
+                .url(url)
+                .header("Authorization", SessionStore.authorization())
+                .post("".toRequestBody(JSON_MEDIA_TYPE))
+                .build()
+            try {
+                client.newCall(request).execute().use { response ->
+                    if (!response.isSuccessful) {
+                        return@withContext Result.failure(
+                            IOException(response.body?.string() ?: "Request failed")
+                        )
+                    }
+                    Result.success(
+                        gson.fromJson(response.body?.string() ?: "", MomentEngagement::class.java)
+                    )
+                }
+            } catch (e: Exception) {
+                Result.failure(e)
+            }
+        }
+
+    /**
+     * Records one engagement action and returns the server's full counter
+     * snapshot, so every rail number can be reconciled from one response
+     * instead of guessing at the new local value.
+     */
+    private suspend fun bumpMoment(
+        momentId: String,
+        action: String,
+    ): Result<MomentEngagement> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/feed/moments/$momentId/$action")
+            .header("Authorization", SessionStore.authorization())
+            .post("".toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val err = response.body?.string() ?: "Request failed"
+                    return@withContext Result.failure(IOException(err))
+                }
+                val body = response.body?.string() ?: ""
+                Result.success(gson.fromJson(body, MomentEngagement::class.java))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun likeMoment(momentId: String): Result<MomentEngagement> =
+        bumpMoment(momentId, "like")
+
+    suspend fun shareMoment(momentId: String): Result<MomentEngagement> =
+        bumpMoment(momentId, "share")
+
+    suspend fun giftMoment(momentId: String): Result<MomentEngagement> =
+        bumpMoment(momentId, "gift")
+
+    suspend fun sendGift(req: SendGiftRequest): Result<SendGiftResponse> = withContext(Dispatchers.IO) {
+        val json = gson.toJson(req)
+        val body = json.toRequestBody(JSON_MEDIA_TYPE)
+        val request = Request.Builder()
+            .url("$BASE_URL/gifts/send")
+            .header("Authorization", SessionStore.authorization())
+            .post(body)
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val err = response.body?.string() ?: "Gifting failed"
+                    return@withContext Result.failure(IOException(err))
+                }
+                val resBody = response.body?.string() ?: ""
+                val giftRes = gson.fromJson(resBody, SendGiftResponse::class.java)
+                Result.success(giftRes)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun spinWheel(req: SpinWheelRequest): Result<SpinWheelResponse> = withContext(Dispatchers.IO) {
+        val json = gson.toJson(req)
+        val body = json.toRequestBody(JSON_MEDIA_TYPE)
+        val request = Request.Builder()
+            .url("$BASE_URL/games/turntable/spin")
+            .header("Authorization", SessionStore.authorization())
+            .post(body)
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val err = response.body?.string() ?: "Spin failed"
+                    return@withContext Result.failure(IOException(err))
+                }
+                val resBody = response.body?.string() ?: ""
+                val spinRes = gson.fromJson(resBody, SpinWheelResponse::class.java)
+                Result.success(spinRes)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun digShovel(req: ShovelDigRequest): Result<ShovelDigResponse> = withContext(Dispatchers.IO) {
+        val json = gson.toJson(req)
+        val body = json.toRequestBody(JSON_MEDIA_TYPE)
+        val request = Request.Builder()
+            .url("$BASE_URL/games/shovel/dig")
+            .header("Authorization", SessionStore.authorization())
+            .post(body)
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val err = response.body?.string() ?: "Shovel dig failed"
+                    return@withContext Result.failure(IOException(err))
+                }
+                val resBody = response.body?.string() ?: ""
+                val shovelRes = gson.fromJson(resBody, ShovelDigResponse::class.java)
+                Result.success(shovelRes)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun wishMagicLamp(req: MagicLampWishRequest): Result<MagicLampWishResponse> = withContext(Dispatchers.IO) {
+        val json = gson.toJson(req)
+        val body = json.toRequestBody(JSON_MEDIA_TYPE)
+        val request = Request.Builder()
+            .url("$BASE_URL/games/magiclamp/wish")
+            .header("Authorization", SessionStore.authorization())
+            .post(body)
+            .build()
+
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    val err = response.body?.string() ?: "Magic lamp wish failed"
+                    return@withContext Result.failure(IOException(err))
+                }
+                val resBody = response.body?.string() ?: ""
+                val wishRes = gson.fromJson(resBody, MagicLampWishResponse::class.java)
+                Result.success(wishRes)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** OTP login step 1: send code. Debug builds echo debug_otp. */
+    suspend fun otpSend(phoneNumber: String): Result<OtpSendResponse> = withContext(Dispatchers.IO) {
+        val json = gson.toJson(mapOf("phone_number" to phoneNumber, "country_code" to "+91"))
+        val request = Request.Builder()
+            .url("$BASE_URL/auth/otp/send")
+            .post(json.toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException(response.body?.string() ?: "OTP send failed"))
+                }
+                Result.success(gson.fromJson(response.body?.string() ?: "", OtpSendResponse::class.java))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** OTP login step 2: verify code → tokens (persisted via SessionStore). */
+    suspend fun otpVerify(sessionId: String, code: String): Result<AuthTokensResponse> = withContext(Dispatchers.IO) {
+        val json = gson.toJson(mapOf("otp_session_id" to sessionId, "otp_code" to code, "device_uid" to "android-debug"))
+        val request = Request.Builder()
+            .url("$BASE_URL/auth/otp/verify")
+            .post(json.toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException(response.body?.string() ?: "OTP verify failed"))
+                }
+                Result.success(gson.fromJson(response.body?.string() ?: "", AuthTokensResponse::class.java))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Base for WS upgrades: http(s)://host/api/v1 → ws(s)://host. */
+    fun wsBaseUrl(): String {
+        val noApi = BASE_URL.substringBefore("/api/v1")
+        return when {
+            noApi.startsWith("https://") -> "wss://" + noApi.removePrefix("https://")
+            else -> "ws://" + noApi.removePrefix("http://")
+        }
+    }
+
+    /** Create a host room for the Go-Live flow. */
+    suspend fun createRoom(title: String, categoryId: String = "party"): Result<CreateRoomResponse> = withContext(Dispatchers.IO) {
+        val json = gson.toJson(mapOf("title" to title, "category_id" to categoryId))
+        val request = Request.Builder()
+            .url("$BASE_URL/rooms/create")
+            .header("Authorization", SessionStore.authorization())
+            .post(json.toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException(response.body?.string() ?: "Create room failed"))
+                }
+                Result.success(gson.fromJson(response.body?.string() ?: "", CreateRoomResponse::class.java))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Leave a live room (presence is dropped server-side). */
+    suspend fun leaveRoom(roomId: Long): Result<Unit> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/rooms/$roomId/leave")
+            .header("Authorization", SessionStore.authorization())
+            .post("".toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException(response.body?.string() ?: "Leave room failed"))
+                }
+                Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** Join a live room as a viewer (bans and closed rooms are rejected). */
+    suspend fun joinRoom(roomId: Long): Result<JoinRoomResponse> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/rooms/$roomId/join")
+            .header("Authorization", SessionStore.authorization())
+            .post("".toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException(response.body?.string() ?: "Join room failed"))
+                }
+                Result.success(gson.fromJson(response.body?.string() ?: "", JoinRoomResponse::class.java))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+}
+

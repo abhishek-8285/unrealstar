@@ -663,6 +663,13 @@ pub enum WsClientMessage {
     Join { user_id: u64, room_id: u64 },
     Chat { text: String },
     SeatSignal { is_muted: bool },
+    /// WebRTC signalling: opaque SDP offer/answer or ICE candidate JSON,
+    /// relayed verbatim to the room. `kind` is "offer" | "answer" | "ice".
+    RtcSignal {
+        target_user_id: u64,
+        kind: String,
+        sdp: String,
+    },
     Ping,
 }
 
@@ -709,6 +716,26 @@ pub enum WsServerMessage {
         pk_id: String,
         points_a: u64,
         points_b: u64,
+    },
+    /// Delta-free viewer count update (join / leave / WS open / close / kick).
+    ViewerCount {
+        viewers_count: u64,
+    },
+    /// The room was closed by the host; clients should leave the socket.
+    RoomClosed,
+    /// The target user was kicked or banned at room level. `banned` also
+    /// blocks rejoining; the client should close its own socket after acting.
+    KickedFromRoom {
+        user_id: u64,
+        banned: bool,
+    },
+    /// WebRTC signalling relay: clients filter on `target_user_id` and feed
+    /// `sdp` to their `PeerConnection`. The server never parses it.
+    RtcSignalRelay {
+        from_user_id: u64,
+        target_user_id: u64,
+        kind: String,
+        sdp: String,
     },
     Pong,
 }
