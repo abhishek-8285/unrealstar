@@ -329,17 +329,17 @@ pub async fn spin_turntable(
         (50, "Grand Crown"),
     ];
 
-    // Server-authoritative deterministic outcome seeded by nano-timestamp and user_id
-    let seed = ((Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64) ^ user_id) % 100;
+    // Server-authoritative CSPRNG outcome. EV ≈ 0.84 (~16% house edge).
+    // Sectors 6 (20x) and 7 (50x) are unreachable display slots.
+    let seed = u32::from_be_bytes(Uuid::new_v4().into_bytes()[..4].try_into().unwrap()) % 100;
     let target_sector: usize = match seed {
-        0..=34 => 0,  // 35% chance: 0x
-        35..=64 => 1, // 30% chance: 1x
-        65..=84 => 2, // 20% chance: 2x
-        85..=92 => 3, // 8% chance: 3x
-        93..=96 => 4, // 4% chance: 5x
-        97..=98 => 5, // 2% chance: 10x
-        99 => 6,      // 1% chance: 20x
-        _ => 7,
+        0..=54 => 0,  // 55% chance: 0x
+        55..=79 => 1, // 25% chance: 1x
+        80..=91 => 2, // 12% chance: 2x
+        92..=96 => 3, // 5% chance: 3x
+        97..=98 => 4, // 2% chance: 5x
+        99 => 5,      // 1% chance: 10x
+        _ => 0,
     };
 
     let (multiplier, tier) = sectors[target_sector];
@@ -482,20 +482,24 @@ pub async fn dig_shovel(
         .await
         .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
 
-    let (cost, mult_factor) = match req.shovel_type.to_lowercase().as_str() {
+    // mult_factor intentionally unused: it previously scaled the jackpot to 25x+,
+    // pushing EV far above 1. Cost tiers stay cosmetic (visual + stake size only).
+    let (cost, _mult_factor) = match req.shovel_type.to_lowercase().as_str() {
         "bronze" => (10i64, 1u32),
         "silver" => (50i64, 5u32),
         "gold" => (200i64, 20u32),
         _ => return Err(ApiError::BadRequest("Invalid shovel type (must be bronze, silver, gold)".into())),
     };
 
+    // Server-authoritative CSPRNG. EV ≈ 0.78 (~22% house edge).
     let bet = Money::from_minor(cost)?;
-    let seed = ((Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64) ^ (user_id + req.slot_index as u64)) % 100;
+    let seed = u32::from_be_bytes(Uuid::new_v4().into_bytes()[..4].try_into().unwrap()) % 100;
     let (prize_name, coins_won, diamonds_won, is_jackpot) = match seed {
-        0..=49 => ("Gold Bean Nugget", cost * 2, 0, false),
-        50..=79 => ("Diwali Sparkler Gem", cost * 3, cost, false),
-        80..=94 => ("Royal Silver Ingot", cost * 5, cost * 2, false),
-        _ => ("💎 Kohinoor Jackpot Chest", cost * 25 * (mult_factor as i64), cost * 10, true),
+        0..=59 => ("Better luck next time!", 0, 0, false),           // 60% miss
+        60..=79 => ("Gold Bean Nugget", cost, 0, false),             // 20%: 1x
+        80..=91 => ("Diwali Sparkler Gem", cost * 2, cost / 10, false), // 12%: 2x
+        92..=97 => ("Royal Silver Ingot", cost * 3, cost / 5, false),   // 6%: 3x
+        _ => ("💎 Kohinoor Jackpot Chest", cost * 8, cost / 2, true),    // 2%: 8x
     };
 
     let reward = Money::from_minor(coins_won)?;
@@ -518,22 +522,24 @@ pub async fn dig_shovel(
             ],
         )?;
 
-        ledger.post(
-            EntryKind::Adjustment,
-            &format!("{}_win", req.idempotency_key),
-            vec![
-                Line {
-                    account: crate::state::system_clearing_account(),
-                    direction: Direction::Debit,
-                    amount: reward,
-                },
-                Line {
-                    account: user_coins_account(user_id),
-                    direction: Direction::Credit,
-                    amount: reward,
-                },
-            ],
-        )?;
+        if coins_won > 0 {
+            ledger.post(
+                EntryKind::Adjustment,
+                &format!("{}_win", req.idempotency_key),
+                vec![
+                    Line {
+                        account: crate::state::system_clearing_account(),
+                        direction: Direction::Debit,
+                        amount: reward,
+                    },
+                    Line {
+                        account: user_coins_account(user_id),
+                        direction: Direction::Credit,
+                        amount: reward,
+                    },
+                ],
+            )?;
+        }
     }
 
     if is_jackpot && req.room_id > 0 {
@@ -579,13 +585,14 @@ pub async fn wish_magic_lamp(
     let cost = (wishes as i64) * 50;
     let bet = Money::from_minor(cost)?;
 
-    let seed = ((Utc::now().timestamp_nanos_opt().unwrap_or(0) as u64) ^ user_id) % 100;
+    // Server-authoritative CSPRNG. EV ≈ 0.75 (~25% house edge).
+    let seed = u32::from_be_bytes(Uuid::new_v4().into_bytes()[..4].try_into().unwrap()) % 100;
     let (mult, is_super) = match seed {
-        0..=59 => (2u32, false),
-        60..=84 => (4u32, false),
-        85..=94 => (10u32, false),
-        95..=98 => (25u32, true),
-        _ => (100u32, true),
+        0..=59 => (0u32, false),  // 60%: 0x
+        60..=82 => (1u32, false), // 23%: 1x
+        83..=93 => (2u32, false), // 11%: 2x
+        94..=98 => (4u32, false), // 5%: 4x
+        _ => (10u32, true),       // 1%: 10x super wish
     };
 
     let total_won = cost * (mult as i64);
@@ -610,22 +617,24 @@ pub async fn wish_magic_lamp(
             ],
         )?;
 
-        ledger.post(
-            EntryKind::Adjustment,
-            &format!("{}_lamp_win", req.idempotency_key),
-            vec![
-                Line {
-                    account: crate::state::system_clearing_account(),
-                    direction: Direction::Debit,
-                    amount: reward,
-                },
-                Line {
-                    account: user_coins_account(user_id),
-                    direction: Direction::Credit,
-                    amount: reward,
-                },
-            ],
-        )?;
+        if total_won > 0 {
+            ledger.post(
+                EntryKind::Adjustment,
+                &format!("{}_lamp_win", req.idempotency_key),
+                vec![
+                    Line {
+                        account: crate::state::system_clearing_account(),
+                        direction: Direction::Debit,
+                        amount: reward,
+                    },
+                    Line {
+                        account: user_coins_account(user_id),
+                        direction: Direction::Credit,
+                        amount: reward,
+                    },
+                ],
+            )?;
+        }
     }
 
     let ledger = state.ledger.read().await;
@@ -640,9 +649,16 @@ pub async fn wish_magic_lamp(
 }
 
 pub async fn handle_functag_rpc(
-    State(_state): State<AppState>,
+    headers: HeaderMap,
+    State(state): State<AppState>,
     Json(req): Json<FuncTagRequest>,
 ) -> Result<Json<FuncTagResponse>, ApiError> {
+    let auth_header = headers.get("Authorization").and_then(|h| h.to_str().ok());
+    let _user_id = state
+        .authenticate_header(auth_header)
+        .await
+        .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
+
     match req.func_tag {
         // FuncTag: 51050703 -> Lucky Paisa / Treasure Reward Claim
         51050703 => {

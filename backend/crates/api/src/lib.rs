@@ -82,6 +82,7 @@ pub fn create_router(state: AppState) -> Router {
         // Creator Payouts & KYC
         .route("/api/v1/kyc/status", get(routes::payouts::get_kyc_status))
         .route("/api/v1/kyc/submit", post(routes::payouts::submit_kyc))
+        .route("/api/v1/kyc/approve/{user_id}", post(routes::payouts::approve_kyc))
         .route("/api/v1/payouts/preview", get(routes::payouts::preview_payout))
         .route("/api/v1/payouts/request", post(routes::payouts::request_payout))
         .route("/api/v1/payouts/history", get(routes::payouts::payout_history))

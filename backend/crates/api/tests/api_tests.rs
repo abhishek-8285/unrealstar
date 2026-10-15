@@ -443,7 +443,7 @@ async fn test_creator_kyc_and_payout_with_194q_tds() {
         );
     }
 
-    // 1. Submit KYC
+    // 1. Submit KYC — lands in pending, no payout capability yet
     let req = Request::post("/api/v1/kyc/submit")
         .header("Authorization", format!("Bearer {host_token}"))
         .header("Content-Type", "application/json")
@@ -459,10 +459,20 @@ async fn test_creator_kyc_and_payout_with_194q_tds() {
 
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
     assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["status"], "pending");
+
+    // 2. Dev-only KYC approval (CAMSTAR_DEV_KYC / debug builds)
+    let req = Request::post(format!("/api/v1/kyc/approve/{host_id}"))
+        .body(Body::empty())
+        .unwrap();
+
+    let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
     assert_eq!(body["status"], "approved");
 
-    // 2. Preview Payout (10,000 diamonds -> ₹1,000 gross with 1% TDS = ₹10 TDS -> ₹990 net)
+    // 3. Preview Payout (10,000 diamonds -> ₹1,000 gross with 1% TDS = ₹10 TDS -> ₹990 net)
     let req = Request::get("/api/v1/payouts/preview?diamonds=10000")
+        .header("Authorization", format!("Bearer {host_token}"))
         .body(Body::empty())
         .unwrap();
 
@@ -472,7 +482,7 @@ async fn test_creator_kyc_and_payout_with_194q_tds() {
     assert_eq!(body["tds_194q_inr"], 10);
     assert_eq!(body["net_payout_inr"], 990);
 
-    // 3. Request Payout
+    // 4. Request Payout
     let req = Request::post("/api/v1/payouts/request")
         .header("Authorization", format!("Bearer {host_token}"))
         .header("Content-Type", "application/json")
@@ -600,11 +610,21 @@ async fn test_wheelpan_and_minigames_settlement() {
 
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
     assert_eq!(status, StatusCode::OK);
-    assert!(body["multiplier_hit"].as_u64().unwrap() >= 2);
+    // EV-rebalanced lamp: multiplier ∈ {0,1,2,4,10}; reward must match cost × multiplier.
+    let mult = body["multiplier_hit"].as_u64().unwrap();
+    assert!([0, 1, 2, 4, 10].contains(&mult));
+    assert_eq!(
+        body["total_reward_coins"].as_i64().unwrap(),
+        50 * (mult as i64)
+    );
+    if mult == 0 {
+        assert!(!body["is_super_wish"].as_bool().unwrap());
+    }
 
     // 4. FuncTag RPC Gateway (RangLive compatibility)
     let req = Request::post("/api/v1/gateway/rpc")
         .header("Content-Type", "application/json")
+        .header("Authorization", format!("Bearer {token}"))
         .body(Body::from(
             json!({
                 "FuncTag": 51050703,

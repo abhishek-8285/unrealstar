@@ -1,5 +1,5 @@
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::HeaderMap,
     Json,
 };
@@ -46,6 +46,17 @@ pub async fn get_kyc_status(
     }
 }
 
+/// Development-only KYC auto-approval gate. In debug builds and tests this is
+/// always on so local flows work; release builds require `CAMSTAR_DEV_KYC=1`
+/// explicitly, and production leaves it unset so approvals stay manual.
+pub fn dev_kyc_enabled() -> bool {
+    cfg!(debug_assertions)
+        || matches!(
+            std::env::var("CAMSTAR_DEV_KYC").as_deref(),
+            Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes") | Ok("YES")
+        )
+}
+
 pub async fn submit_kyc(
     headers: HeaderMap,
     State(state): State<AppState>,
@@ -65,28 +76,68 @@ pub async fn submit_kyc(
         aadhaar_last4: req.aadhaar_last4,
         bank_account_number: req.bank_account_number,
         ifsc_code: req.ifsc_code,
-        status: "approved".into(), // auto-approve for development
+        status: "pending".into(),
         rejection_reason: None,
     };
-
-    // Grant RequestPayout capability to user
-    {
-        let mut auth = state.authorizer.write().await;
-        auth.grant(user_id, camstar_roles::AccountType::Agency, Capability::RequestPayout, Scope::Platform, None);
-    }
 
     let mut kyc_records = state.kyc_records.write().await;
     kyc_records.insert(user_id, record);
 
     Ok(Json(serde_json::json!({
+        "status": "pending",
+        "message": "KYC submitted; awaiting review"
+    })))
+}
+
+/// Dev-only KYC approval. Marks the record approved and grants the
+/// `RequestPayout` capability. Gated by [`dev_kyc_enabled`]; in production
+/// this route is absent so a real review queue must own approvals.
+pub async fn approve_kyc(
+    Path(target_user_id): Path<u64>,
+    State(state): State<AppState>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    if !dev_kyc_enabled() {
+        return Err(ApiError::Forbidden("KYC approval is not enabled".into()));
+    }
+
+    {
+        let mut kyc_records = state.kyc_records.write().await;
+        let record = kyc_records
+            .get_mut(&target_user_id)
+            .ok_or_else(|| ApiError::NotFound("No KYC submission for user".into()))?;
+        record.status = "approved".into();
+        record.rejection_reason = None;
+    }
+
+    {
+        let mut auth = state.authorizer.write().await;
+        auth.grant(
+            target_user_id,
+            camstar_roles::AccountType::Agency,
+            Capability::RequestPayout,
+            Scope::Platform,
+            None,
+        );
+    }
+
+    Ok(Json(serde_json::json!({
         "status": "approved",
+        "user_id": target_user_id,
         "message": "KYC verified successfully"
     })))
 }
 
 pub async fn preview_payout(
+    headers: HeaderMap,
+    State(state): State<AppState>,
     Query(query): Query<PreviewQuery>,
 ) -> Result<Json<PayoutPreviewResponse>, ApiError> {
+    let auth_header = headers.get("Authorization").and_then(|h| h.to_str().ok());
+    state
+        .authenticate_header(auth_header)
+        .await
+        .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
+
     if query.diamonds <= 0 {
         return Err(ApiError::BadRequest("Diamonds must be positive".into()));
     }

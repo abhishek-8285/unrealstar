@@ -652,17 +652,21 @@ fn normalise_tags(tags: Option<Vec<String>>) -> Vec<String> {
 }
 
 pub async fn share_moment(
+    headers: HeaderMap,
     Path(moment_id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let _user_id = require_user(&state, &headers).await?;
     let snapshot = bump_moment(&state, &moment_id, Engagement::Share).await?;
     Ok(Json(snapshot))
 }
 
 pub async fn gift_moment(
+    headers: HeaderMap,
     Path(moment_id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
+    let _user_id = require_user(&state, &headers).await?;
     let snapshot = bump_moment(&state, &moment_id, Engagement::Gift).await?;
     Ok(Json(snapshot))
 }
