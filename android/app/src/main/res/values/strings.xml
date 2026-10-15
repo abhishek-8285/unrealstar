@@ -1,0 +1,150 @@
+<resources>
+    <string name="app_name">CamStar</string>
+    <string name="start_broadcast">Go Live</string>
+    <string name="beauty_filters">Filters</string>
+    <string name="gifts">Gifts</string>
+    <string name="chat_placeholder">Say something nice...</string>
+    <string name="send">Send</string>
+    <string name="flip_camera">Flip</string>
+    <string name="close_stream">End Stream</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_live">Live</string>
+    <string name="nav_inbox">Inbox</string>
+    <string name="nav_me">Me</string>
+    <string name="feed_tab_followed">Followed</string>
+    <string name="feed_tab_for_you">For you</string>
+    <string name="feed_empty_title">Nothing to watch yet</string>
+    <string name="feed_empty_body">Moments will appear here as creators post.</string>
+    <string name="feed_followed_title">Nothing from people you follow</string>
+    <string name="feed_followed_body">Follow some creators and their moments show up here.</string>
+    <string name="feed_offline_title">Can\'t reach the server</string>
+    <string name="feed_offline_body">Check your connection and try again.</string>
+    <string name="retry">Retry</string>
+    <string name="inbox_load_failed">Couldn\'t load official notices. Check your connection and try again.</string>
+    <string name="unlike">Unlike</string>
+    <string name="cover_image">Video cover</string>
+    <string name="comments_title">Comments</string>
+    <string name="comment_placeholder">Add a comment...</string>
+    <string name="no_comments">No comments yet</string>
+    <string name="tab_hot">Hot</string>
+    <string name="tab_nearby">Nearby</string>
+    <string name="tab_pk">PK</string>
+    <string name="tab_new_stars">New Stars</string>
+    <string name="rooms_empty">No one is live right now.</string>
+    <string name="reply_action">Reply</string>
+    <string name="reply_count">View %1$d replies</string>
+    <string name="replying_to">Replying to @%1$s</string>
+    <string name="cancel_reply">Cancel</string>
+    <string name="search">Search</string>
+    <string name="content_shield">Content shield</string>
+    <string name="dismiss">Dismiss</string>
+    <string name="creator_avatar">Creator avatar</string>
+    <string name="follow">Follow</string>
+    <string name="send_gift">Send gift</string>
+    <string name="like">Like</string>
+    <string name="liked">Liked</string>
+    <string name="paused">Paused</string>
+    <string name="mute">Mute</string>
+    <string name="unmute">Unmute</string>
+    <string name="action_failed">Action failed</string>
+    <string name="like_with_count">Like, %1$s likes</string>
+    <string name="comments_with_count">Comment, %1$s comments</string>
+    <string name="share_with_count">Share, %1$s shares</string>
+    <string name="gift_with_count">Send gift, %1$s gifts</string>
+    <string name="sign_in_title">You\'re signed out</string>
+    <string name="sign_in_body">Sign in to see the feed. Not wired up yet.</string>
+    <string name="comments">Comments</string>
+    <string name="share">Share</string>
+    <!-- Live tab -->
+    <string name="live_tab_party">Party</string>
+    <string name="live_tab_popular">Popular</string>
+    <string name="live_tab_new">New 🔥</string>
+    <string name="live_tab_pk">PK</string>
+    <string name="live_avatar_initial">E</string>
+    <string name="live_rank">Leaderboard</string>
+    <string name="live_rank_soon">Leaderboard coming soon</string>
+    <string name="live_room_cover">Room cover</string>
+    <string name="live_banner_image">Promotion</string>
+    <string name="live_chip_pk">PK · %1$s</string>
+    <string name="live_room_opening">Opening %1$s\'s room…</string>
+
+    <!-- Inbox -->
+    <string name="inbox_tab_official">Official</string>
+    <string name="inbox_tab_information">Information</string>
+    <string name="inbox_pin">Pin</string>
+    <string name="inbox_empty">Nothing here yet.</string>
+    <string name="inbox_official_soon">Official notices coming soon</string>
+    <string name="inbox_pin_soon">Pinned messages coming soon</string>
+
+    <!-- Me -->
+    <string name="me_space">OutSpace</string>
+    <string name="me_avatar">Profile photo</string>
+    <string name="me_gift">Gift</string>
+    <string name="me_creator_centre">Creator centre</string>
+    <string name="me_share_profile">Share profile</string>
+    <string name="me_settings">Settings</string>
+    <string name="me_following">Following</string>
+    <string name="me_followers">Followers</string>
+    <string name="me_likes">Likes</string>
+    <string name="me_diamonds">Diamonds</string>
+    <string name="me_tab_data">DATA</string>
+    <string name="me_tab_posts">POSTS</string>
+    <string name="me_tab_favorites">FAVORITES</string>
+    <string name="me_filter_activity">Activity</string>
+    <string name="me_filter_today">Today</string>
+    <string name="me_stat_videos">Videos Watched</string>
+    <string name="me_stat_lives">Lives Watched</string>
+    <string name="me_stat_time">Time Spent</string>
+    <string name="me_stat_active">Active Days</string>
+    <string name="me_soon">Coming soon</string>
+    <string name="me_age_years">%1$d yrs</string>
+    <string name="me_level">Lvl %1$d</string>
+    <string name="me_live_action">Live</string>
+    <string name="me_creator">Creator</string>
+    <string name="me_family">Family</string>
+    <string name="me_store">Store</string>
+    <string name="me_svip">SVIP</string>
+    <string name="me_wifi">Wifi</string>
+
+    <!-- Go Live: pre-broadcast setup -->
+    <string name="live_go_live">Go Live</string>
+    <string name="live_official_talent">Official Talent</string>
+    <string name="live_change_poster">Change Poster</string>
+    <string name="live_poster_tip">✨ Please upload a poster so that it can appear in the Popular column on the homepage.</string>
+    <string name="live_hide">Hide</string>
+    <string name="live_higher_grade">Get Higher Grade for More Exposure</string>
+    <string name="live_switch_camera">Switch Camera</string>
+    <string name="live_sticker_beauty">Sticker/Beauty</string>
+    <string name="live_connection_speed">Connection Speed</string>
+    <string name="live_mode_chat_party">Chat Party</string>
+    <string name="live_mode_video_party">Video Party</string>
+    <string name="live_share_facebook">Share to Facebook</string>
+    <string name="live_share_twitter">Share to Twitter</string>
+
+    <!-- Go Live: countdown -->
+    <string name="live_countdown">Go Live in %1$d</string>
+
+    <!-- Go Live: live HUD -->
+    <string name="live_hour_star">Hour Star</string>
+    <string name="live_zero_star">0 Star</string>
+    <string name="live_pk_sl">PK SL</string>
+    <string name="live_disclaimer">Sexual or violent content is strictly prohibited. All violators will be banned. Do not expose your personal info such as phone or location.</string>
+    <string name="live_top_up_offer">TOP-UP OFFER 2026</string>
+    <string name="live_viewers_count">%1$d</string>
+    <string name="live_host_chip">Himalaya</string>
+    <string name="live_like_plus_zero">+0</string>
+
+    <!-- Go Live: stream ended -->
+    <string name="live_ended_title">This Stream Has Ended</string>
+    <string name="live_host_display">Himalaya Rider220</string>
+    <string name="live_xp_to_next">9420 XP to next level</string>
+    <string name="live_xp_gain">+0 XP</string>
+    <string name="live_stat_duration">Stream Duration</string>
+    <string name="live_stat_viewers">Total Viewers</string>
+    <string name="live_stat_gems">Gems Revenue (Gifts Only)</string>
+    <string name="live_stat_fans">Fans Added</string>
+    <string name="live_stat_shares"># of Shares</string>
+    <string name="live_stat_duration_value">%1$dmin</string>
+    <string name="live_stat_zero">0</string>
+    <string name="live_brand">Streamkar</string>
+</resources>

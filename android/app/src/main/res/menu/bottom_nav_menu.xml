@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <item
+        android:id="@+id/nav_home"
+        android:icon="@drawable/ic_nav_home"
+        android:title="@string/nav_home" />
+    <item
+        android:id="@+id/nav_live"
+        android:icon="@drawable/ic_nav_live"
+        android:title="@string/nav_live" />
+    <!-- Invisible slot: reserves the centre so tabs match the reference rhythm. -->
+    <item
+        android:id="@+id/nav_create"
+        android:icon="@drawable/ic_nav_slot"
+        android:title="" />
+    <item
+        android:id="@+id/nav_inbox"
+        android:icon="@drawable/ic_nav_inbox"
+        android:title="@string/nav_inbox" />
+    <item
+        android:id="@+id/nav_me"
+        android:icon="@drawable/ic_nav_me"
+        android:title="@string/nav_me" />
+</menu>

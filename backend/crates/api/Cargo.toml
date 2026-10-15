@@ -1,0 +1,24 @@
+[package]
+name = "camstar-api"
+description = "REST and WebSocket API service for CamStar"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+camstar-ledger = { path = "../ledger" }
+camstar-roles = { path = "../roles" }
+axum.workspace = true
+tokio.workspace = true
+tower-http.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+uuid.workspace = true
+chrono.workspace = true
+futures-util.workspace = true
+rust_decimal.workspace = true
+
+[dev-dependencies]
+tower.workspace = true
+http-body-util.workspace = true

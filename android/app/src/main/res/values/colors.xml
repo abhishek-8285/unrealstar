@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="primary">#FF0055</color>
+    <color name="primary_variant">#D60047</color>
+    <color name="secondary">#FFD700</color>
+    <color name="background_dark">#121212</color>
+    <color name="surface_dark">#1E1E1E</color>
+    <color name="overlay_scrim">#80000000</color>
+    <color name="text_white">#FFFFFF</color>
+    <color name="text_muted">#AAAAAA</color>
+    <color name="me_tab_idle">#8E8EB0</color>
+    <color name="countdown_blue">#5AC8FA</color>
+    <color name="go_live_start">#FF3D8B</color>
+    <color name="go_live_mid">#A24BFF</color>
+    <color name="go_live_end">#2E9BFF</color>
+    <color name="poster_tip_purple">#B026FF</color>
+    <color name="pk_badge_purple">#9B4DFF</color>
+    <color name="disclaimer_green">#6EE7A0</color>
+    <color name="ended_scrim">#F2000000</color>
+    <color name="level_gold">#FFD54F</color>
+    <color name="xp_bar_blue">#4FC3F7</color>
+    <color name="topup_gold">#F5C542</color>
+    <color name="chip_translucent">#59FFFFFF</color>
+    <color name="icon_circle_translucent">#66000000</color>
+    <color name="countdown_circle">#99000000</color>
+    <color name="poster_card_bg">#66FFFFFF</color>
+    <color name="hour_star_track">#4A3B8F</color>
+    <color name="hour_star_fill">#7B61FF</color>
+    <color name="live_mode_dim">#B3FFFFFF</color>
+    <color name="topup_banner_start">#FFB300</color>
+    <color name="topup_banner_end">#FF6F00</color>
+    <color name="share_circle_white">#FFFFFF</color>
+    <color name="share_circle_dark">#333333</color>
+</resources>

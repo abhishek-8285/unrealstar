@@ -1,0 +1,445 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF1A1A1A">
+
+    <!-- Flat colour shown while there is no playable media. -->
+    <View
+        android:id="@+id/mediaBackground"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="#FF262626" />
+
+    <!-- Poster frame from cover_url, visible until the video decodes. -->
+    <ImageView
+        android:id="@+id/ivCover"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:contentDescription="@string/cover_image"
+        android:scaleType="centerCrop" />
+
+    <androidx.media3.ui.PlayerView
+        android:id="@+id/playerView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        app:resize_mode="zoom"
+        app:surface_type="texture_view"
+        app:use_controller="false" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="140dp"
+        android:layout_gravity="top"
+        android:background="@drawable/bg_feed_top_scrim" />
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="220dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/bg_feed_bottom_scrim" />
+
+    <!--
+      Transparent tap target for pause/play and double-tap-to-like. Sits below
+      the rail and creator chrome so their buttons stay on top, and above the
+      video so touches do not have to fight the RecyclerView for the surface.
+    -->
+    <View
+        android:id="@+id/tapSurface"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
+
+    <!-- Play/pause affordance shown on single tap. -->
+    <ImageView
+        android:id="@+id/ivPlayOverlay"
+        android:layout_width="72dp"
+        android:layout_height="72dp"
+        android:layout_gravity="center"
+        android:alpha="0.85"
+        android:contentDescription="@string/paused"
+        android:src="@drawable/ic_feed_play"
+        android:visibility="gone" />
+
+    <!-- Double-tap like burst. -->
+    <ImageView
+        android:id="@+id/ivHeartBurst"
+        android:layout_width="120dp"
+        android:layout_height="120dp"
+        android:layout_gravity="center"
+        android:contentDescription="@string/liked"
+        android:src="@drawable/ic_feed_heart"
+        android:visibility="gone" />
+
+    <!--
+      Promotional overlay. Top padding is applied at bind time from the live
+      header height, because the video runs full-bleed underneath it.
+    -->
+    <LinearLayout
+        android:id="@+id/banner"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="top"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content">
+
+            <TextView
+                android:id="@+id/tvBannerText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_gravity="start|top"
+                android:layout_marginStart="12dp"
+                android:layout_marginTop="26dp"
+                android:layout_marginEnd="12dp"
+                android:background="@drawable/bg_feed_banner"
+                android:ellipsize="end"
+                android:gravity="center_vertical"
+                android:maxLines="1"
+                android:paddingStart="14dp"
+                android:paddingTop="11dp"
+                android:paddingEnd="14dp"
+                android:paddingBottom="11dp"
+                android:textColor="#FFFFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvPaidBadge"
+                android:layout_width="wrap_content"
+                android:layout_height="24dp"
+                android:layout_gravity="start|top"
+                android:layout_marginStart="14dp"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/bg_feed_close_circle"
+                android:gravity="center"
+                android:minWidth="24dp"
+                android:paddingStart="6dp"
+                android:paddingEnd="6dp"
+                android:text="₹"
+                android:textColor="#FFFFC107"
+                android:textSize="14sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:id="@+id/ivBannerClose"
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:layout_gravity="start|top"
+                android:layout_marginStart="44dp"
+                android:layout_marginTop="2dp"
+                android:background="@drawable/bg_feed_close_circle"
+                android:contentDescription="@string/dismiss"
+                android:padding="5dp"
+                android:src="@drawable/ic_feed_close" />
+        </FrameLayout>
+
+        <TextView
+            android:id="@+id/tvBannerPill"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="10dp"
+            android:background="@drawable/bg_feed_pill_gold"
+            android:paddingStart="12dp"
+            android:paddingTop="5dp"
+            android:paddingEnd="12dp"
+            android:paddingBottom="5dp"
+            android:text="🔥 +100"
+            android:textColor="#FFFFFFFF"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvTimer"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="16dp"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_feed_pill"
+            android:paddingStart="8dp"
+            android:paddingTop="3dp"
+            android:paddingEnd="8dp"
+            android:paddingBottom="3dp"
+            android:textColor="#FFFFFFFF"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Right-hand action rail. Each action is a real button. -->
+    <LinearLayout
+        android:id="@+id/rail"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end|bottom"
+        android:layout_marginEnd="10dp"
+        android:layout_marginBottom="150dp"
+        android:gravity="center_horizontal"
+        android:orientation="vertical">
+
+        <FrameLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="18dp">
+
+            <ImageView
+                android:id="@+id/ivCreatorAvatar"
+                android:layout_width="46dp"
+                android:layout_height="46dp"
+                android:background="@drawable/bg_feed_avatar_ring"
+                android:contentDescription="@string/creator_avatar"
+                android:scaleType="centerCrop" />
+
+            <ImageView
+                android:id="@+id/ivFollowBadge"
+                android:layout_width="18dp"
+                android:layout_height="18dp"
+                android:layout_gravity="top|end"
+                android:layout_marginTop="-4dp"
+                android:layout_marginEnd="-4dp"
+                android:background="@drawable/bg_feed_follow_badge"
+                android:contentDescription="@string/follow"
+                android:padding="3dp"
+                android:src="@drawable/ic_nav_plus" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingBottom="16dp">
+
+            <ImageButton
+                android:id="@+id/btnGift"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/send_gift"
+                android:scaleType="center"
+                android:src="@drawable/ic_feed_gift" />
+
+            <TextView
+                android:id="@+id/tvGiftCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFFFF"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingBottom="16dp">
+
+            <ImageButton
+                android:id="@+id/btnLike"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/like"
+                android:scaleType="center"
+                android:src="@drawable/ic_feed_heart" />
+
+            <TextView
+                android:id="@+id/tvLikeCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFFFF"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical"
+            android:paddingBottom="16dp">
+
+            <ImageButton
+                android:id="@+id/btnComment"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/comments"
+                android:scaleType="center"
+                android:src="@drawable/ic_feed_comment" />
+
+            <TextView
+                android:id="@+id/tvCommentCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFFFF"
+                android:textSize="11sp" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_horizontal"
+            android:orientation="vertical">
+
+            <ImageButton
+                android:id="@+id/btnShare"
+                android:layout_width="40dp"
+                android:layout_height="40dp"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/share"
+                android:scaleType="center"
+                android:src="@drawable/ic_feed_share" />
+
+            <TextView
+                android:id="@+id/tvShareCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFFFF"
+                android:textSize="11sp" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Mute toggle, above the creator block. -->
+    <ImageButton
+        android:id="@+id/btnMute"
+        android:layout_width="36dp"
+        android:layout_height="36dp"
+        android:layout_gravity="start|bottom"
+        android:layout_marginStart="14dp"
+        android:layout_marginBottom="128dp"
+        android:background="@drawable/bg_feed_close_circle"
+        android:contentDescription="@string/mute"
+        android:padding="7dp"
+        android:src="@drawable/ic_feed_volume_on" />
+
+    <!-- Bottom-left creator block. -->
+    <LinearLayout
+        android:id="@+id/creatorBlock"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_gravity="bottom"
+        android:layout_marginStart="14dp"
+        android:layout_marginEnd="86dp"
+        android:layout_marginBottom="20dp"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:id="@+id/ivAuthorAvatar"
+                android:layout_width="36dp"
+                android:layout_height="36dp"
+                android:background="@drawable/bg_feed_avatar_ring"
+                android:contentDescription="@string/creator_avatar"
+                android:scaleType="centerCrop" />
+
+            <TextView
+                android:id="@+id/tvAuthor"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="10dp"
+                android:textColor="#FFFFFFFF"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:id="@+id/ivSmallHeart"
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginStart="12dp"
+                android:contentDescription="@string/like"
+                android:src="@drawable/ic_feed_heart"
+                app:tint="@color/primary" />
+
+            <TextView
+                android:id="@+id/tvSmallLikeCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:textColor="#FFFFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:layout_width="16dp"
+                android:layout_height="16dp"
+                android:layout_marginStart="10dp"
+                android:contentDescription="@string/send_gift"
+                android:src="@drawable/ic_feed_gift"
+                app:tint="@color/primary" />
+
+            <TextView
+                android:id="@+id/tvSmallGiftCount"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:textColor="#FFFFFFFF"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/tvCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="6dp"
+            android:ellipsize="end"
+            android:maxLines="2"
+            android:textColor="#FFFFFFFF"
+            android:textSize="14sp" />
+
+        <LinearLayout
+            android:id="@+id/suggestedRow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageView
+                android:layout_width="28dp"
+                android:layout_height="28dp"
+                android:background="@drawable/bg_feed_avatar_ring"
+                android:contentDescription="@string/creator_avatar"
+                android:scaleType="centerCrop" />
+
+            <TextView
+                android:id="@+id/tvSuggestedName"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:ellipsize="end"
+                android:maxLines="1"
+                android:textColor="#FFFFFFFF"
+                android:textSize="13sp" />
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:background="@drawable/bg_feed_follow_badge"
+                android:contentDescription="@string/follow"
+                android:padding="4dp"
+                android:src="@drawable/ic_nav_plus" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Playback progress. -->
+    <ProgressBar
+        android:id="@+id/pbProgress"
+        style="?android:attr/progressBarStyleHorizontal"
+        android:layout_width="match_parent"
+        android:layout_height="3dp"
+        android:layout_gravity="bottom"
+        android:background="@drawable/bg_feed_progress"
+        android:max="1000"
+        android:progress="0"
+        android:progressTint="#FFFFFFFF"
+        android:secondaryProgressTint="#66FFFFFF" />
+
+</FrameLayout>

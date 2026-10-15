@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The centre "+" button is drawn OUTSIDE BottomNavigationView on purpose.
+  BottomNavigationView applies itemIconTint to every item it owns, which would
+  flatten this gradient circle to a single colour. Keeping it as a sibling view
+  also lets it overhang the bar, like the reference design.
+-->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <item>
+        <shape android:shape="oval">
+            <gradient
+                android:angle="315"
+                android:startColor="#FF25F4EE"
+                android:centerColor="#FFA855F7"
+                android:endColor="#FFFE2C55"
+                android:type="linear" />
+        </shape>
+    </item>
+
+    <item
+        android:drawable="@drawable/ic_nav_plus"
+        android:width="18dp"
+        android:height="18dp"
+        android:gravity="center" />
+
+</layer-list>

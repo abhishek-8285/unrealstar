@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Colourful gift box to match the reference rail. The white Material outline
+  read as a placeholder next to the reference's purple/pink/gold box.
+-->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="32dp"
+    android:height="32dp"
+    android:viewportWidth="24"
+    android:viewportHeight="24">
+
+    <!-- bow, left loop -->
+    <path android:pathData="M8.6,6.2m-3.1,0a3.1,3.1 0 1,0 6.2,0a3.1,3.1 0 1,0 -6.2,0z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endColor="#FFFFD54F"
+                android:startColor="#FFFFA000"
+                android:type="linear" />
+        </aapt:attr>
+    </path>
+
+    <!-- bow, right loop -->
+    <path android:pathData="M15.4,6.2m-3.1,0a3.1,3.1 0 1,0 6.2,0a3.1,3.1 0 1,0 -6.2,0z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endColor="#FFFFD54F"
+                android:startColor="#FFFFA000"
+                android:type="linear" />
+        </aapt:attr>
+    </path>
+
+    <!-- knot -->
+    <path
+        android:fillColor="#FFFFC107"
+        android:pathData="M12,7.2m-1.7,0a1.7,1.7 0 1,0 3.4,0a1.7,1.7 0 1,0 -3.4,0z" />
+
+    <!-- lid -->
+    <path android:pathData="M1.8,8.9h20.4v3.6h-20.4z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endColor="#FF7B2FF2"
+                android:startColor="#FFB14BF0"
+                android:type="linear" />
+        </aapt:attr>
+    </path>
+
+    <!-- body -->
+    <path android:pathData="M3.8,12.5h16.4v9.3h-16.4z">
+        <aapt:attr name="android:fillColor">
+            <gradient
+                android:endColor="#FFFE2C55"
+                android:startColor="#FF9B51E0"
+                android:type="linear" />
+        </aapt:attr>
+    </path>
+
+    <!-- vertical ribbon -->
+    <path
+        android:fillColor="#FFFFD700"
+        android:pathData="M10.4,8.9h3.2v12.9h-3.2z" />
+</vector>

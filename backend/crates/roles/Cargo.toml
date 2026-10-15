@@ -1,0 +1,11 @@
+[package]
+name = "camstar-roles"
+description = "Multi-role account model, scoped capabilities and derived status for CamStar"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+camstar-ledger = { path = "../ledger" }
+serde.workspace = true
+thiserror.workspace = true

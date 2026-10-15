@@ -1,0 +1,128 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/surface_dark"
+    android:gravity="center_horizontal"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <!-- Header bar with title and balance -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="🎡 Lucky Wheel of Fortune"
+            android:textColor="@color/secondary"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tvWheelCoinsBalance"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@color/overlay_scrim"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="4dp"
+            android:text="🪙 1,000 Coins"
+            android:textColor="@color/text_white"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <ImageButton
+            android:id="@+id/btnCloseWheel"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_marginStart="8dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            app:tint="@color/text_white" />
+    </LinearLayout>
+
+    <!-- The 8-sector Wheel View -->
+    <com.camstar.live.PrivateWheelView
+        android:id="@+id/wheelView"
+        android:layout_width="280dp"
+        android:layout_height="280dp"
+        android:layout_marginTop="16dp" />
+
+    <!-- Result Banner -->
+    <TextView
+        android:id="@+id/tvSpinResult"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:gravity="center"
+        android:text="Choose bet and test your luck!"
+        android:textColor="@color/text_muted"
+        android:textSize="14sp"
+        android:textStyle="bold" />
+
+    <!-- Bet Selector Chips -->
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnBet10"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginEnd="6dp"
+            android:text="10 🪙"
+            android:textColor="@color/text_white"
+            app:strokeColor="@color/secondary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnBet50"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginEnd="6dp"
+            android:text="50 🪙"
+            android:textColor="@color/text_white"
+            app:strokeColor="@color/secondary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnBet100"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:layout_marginEnd="6dp"
+            android:text="100 🪙"
+            android:textColor="@color/text_white"
+            app:strokeColor="@color/secondary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/btnBet500"
+            style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+            android:layout_width="wrap_content"
+            android:layout_height="40dp"
+            android:text="500 🪙"
+            android:textColor="@color/text_white"
+            app:strokeColor="@color/secondary" />
+    </LinearLayout>
+
+    <!-- Spin Action Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnSpinWheelAction"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:layout_marginTop="16dp"
+        android:backgroundTint="@color/secondary"
+        android:text="SPIN WHEEL (10 COINS)"
+        android:textColor="@color/background_dark"
+        android:textSize="16sp"
+        android:textStyle="bold"
+        app:cornerRadius="26dp" />
+
+</LinearLayout>

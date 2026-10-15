@@ -1,0 +1,22 @@
+[package]
+name = "camstar-ledger"
+description = "Append-only double-entry wallet ledger for CamStar"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+rust_decimal.workspace = true
+serde.workspace = true
+thiserror.workspace = true
+sqlx = { workspace = true, optional = true }
+tokio = { workspace = true, optional = true }
+
+[features]
+default = []
+postgres = ["dep:sqlx", "dep:tokio"]
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+sqlx = { workspace = true }
+uuid = { workspace = true }
