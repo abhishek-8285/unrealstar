@@ -8,15 +8,39 @@ use axum::{
     Router,
 };
 use std::path::PathBuf;
-use tower_http::cors::{Any, CorsLayer};
+use tower_http::cors::CorsLayer;
 
 pub use state::{system_clearing_account, user_coins_account, user_diamonds_account, AppState};
 
 pub fn create_router(state: AppState) -> Router {
+    // CORS: lock down to known origins. Default is the production origin;
+    // `CAMSTAR_ALLOWED_ORIGINS` (comma-separated) overrides for local dev.
+    let allowed_origins: Vec<String> = std::env::var("CAMSTAR_ALLOWED_ORIGINS")
+        .map(|s| {
+            s.split(',')
+                .map(str::trim)
+                .filter(|s| !s.is_empty())
+                .map(String::from)
+                .collect()
+        })
+        .unwrap_or_else(|_| vec![public_origin()]);
     let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
+        .allow_origin(
+            allowed_origins
+                .iter()
+                .filter_map(|o| o.parse().ok())
+                .collect::<Vec<_>>(),
+        )
+        .allow_methods([
+            axum::http::Method::GET,
+            axum::http::Method::POST,
+            axum::http::Method::PUT,
+            axum::http::Method::DELETE,
+        ])
+        .allow_headers([
+            axum::http::header::AUTHORIZATION,
+            axum::http::header::CONTENT_TYPE,
+        ]);
 
     Router::new()
         // Auth & Users

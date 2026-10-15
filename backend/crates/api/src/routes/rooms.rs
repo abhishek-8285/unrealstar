@@ -1,12 +1,13 @@
 use axum::{
     extract::{
         ws::{Message, WebSocket},
-        Path, State, WebSocketUpgrade,
+        Path, Query, State, WebSocketUpgrade,
     },
     http::HeaderMap,
     response::IntoResponse,
     Json,
 };
+use serde::Deserialize;
 use camstar_roles::{RoomRoster, SeatRole};
 use futures_util::{SinkExt, StreamExt};
 use tokio::sync::broadcast;
@@ -331,12 +332,30 @@ pub async fn moderate(
     })))
 }
 
+/// Query-string carrier for the access token on the WS upgrade request
+/// (browsers cannot set an Authorization header on a WebSocket handshake).
+#[derive(Debug, Deserialize)]
+pub struct WsAuthQuery {
+    pub token: Option<String>,
+}
+
 pub async fn ws_handler(
     ws: WebSocketUpgrade,
     Path(room_id): Path<u64>,
     State(state): State<AppState>,
+    Query(query): Query<WsAuthQuery>,
 ) -> impl IntoResponse {
+    // Browsers cannot set Authorization headers on WS upgrades; accept the
+    // access token via `?token=` (same scheme, different carrier).
+    let Some(token) = query.token else {
+        return ApiError::Unauthorized("Missing or invalid token".to_string()).into_response();
+    };
+    let auth_header = format!("Bearer {token}");
+    if state.authenticate_header(Some(&auth_header)).await.is_none() {
+        return ApiError::Unauthorized("Missing or invalid token".to_string()).into_response();
+    }
     ws.on_upgrade(move |socket| handle_socket(socket, room_id, state))
+        .into_response()
 }
 
 async fn handle_socket(socket: WebSocket, room_id: u64, state: AppState) {
