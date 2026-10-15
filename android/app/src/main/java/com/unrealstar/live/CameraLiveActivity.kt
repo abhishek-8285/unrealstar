@@ -544,6 +544,19 @@ class CameraLiveActivity : AppCompatActivity() {
             dialog.show(supportFragmentManager, LuckyWheelDialog.TAG)
         }
 
+        binding.tvLiveEdgeBadge.setOnClickListener {
+            lifecycleScope.launch {
+                Toast.makeText(this@CameraLiveActivity, "⚔️ Initiating PK Battle Match...", Toast.LENGTH_SHORT).show()
+                val res = UnrealStarApiClient.requestPkMatch(liveRoomId)
+                res.onSuccess { ticket ->
+                    addChatMessage(0L, "System", "⚔️ PK Battle search active (Ticket: $ticket)")
+                    signalClient?.sendChat("⚔️ PK Battle Challenge is LIVE!")
+                }.onFailure {
+                    Toast.makeText(this@CameraLiveActivity, "PK: ${it.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
         binding.btnSwitchCamera.setOnClickListener {
             lensFacing = if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
                 CameraSelector.LENS_FACING_BACK

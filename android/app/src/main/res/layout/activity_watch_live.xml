@@ -52,6 +52,61 @@
             android:textSize="18sp" />
     </LinearLayout>
 
+    <!-- PK Battle Bar (Dual-colored Red vs Blue with Points & Timer) -->
+    <LinearLayout
+        android:id="@+id/layoutPkBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="56dp"
+        android:paddingHorizontal="16dp"
+        android:orientation="vertical">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="28dp"
+            android:background="@drawable/bg_chip_translucent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="8dp">
+
+            <TextView
+                android:id="@+id/tvPkHostAPoints"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:textColor="#2196F3"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:text="🔵 Blue: 0"
+                tools:ignore="HardcodedText" />
+
+            <TextView
+                android:id="@+id/tvPkStatus"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_pk_edge_badge"
+                android:paddingHorizontal="8dp"
+                android:paddingVertical="2dp"
+                android:textColor="@color/text_white"
+                android:textSize="11sp"
+                android:textStyle="bold"
+                android:text="⚔️ PK BATTLE"
+                tools:ignore="HardcodedText" />
+
+            <TextView
+                android:id="@+id/tvPkHostBPoints"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:gravity="end"
+                android:textColor="#F44336"
+                android:textSize="12sp"
+                android:textStyle="bold"
+                android:text="0 :Red 🔴"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+    </LinearLayout>
+
     <!-- Bottom Container: Chat messages + Input / Actions -->
     <LinearLayout
         android:layout_width="match_parent"
@@ -59,6 +114,21 @@
         android:layout_gravity="bottom"
         android:orientation="vertical"
         android:padding="12dp">
+
+        <!-- Gift & VIP Entrance Floating Banner -->
+        <TextView
+            android:id="@+id/tvGiftBanner"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="8dp"
+            android:background="@drawable/bg_topup_badge"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp"
+            android:textColor="@color/background_dark"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:text="✨ VIP Star_1001 entered the room!" />
 
         <TextView
             android:id="@+id/tvStatus"

@@ -337,3 +337,33 @@ data class KycStatus(
     val rejection_reason: String? = null
 )
 
+/** GET /family/leaderboard */
+data class FamilyItem(
+    val family_id: String = "",
+    val name: String = "",
+    val badge: String = "",
+    val level: Int = 1,
+    val members_count: Int = 0,
+    val leader_name: String = "",
+    val exp: Long = 0,
+    val rank: Int = 0
+)
+
+/** GET /family/my */
+data class MyFamilyResponse(
+    val family: FamilyItem? = null,
+    val my_role: String = "none",
+    val contribution_score: Long = 0
+)
+
+/** PK Battle status (Trendo Live PK) */
+data class PkStatusResponse(
+    val pk_id: String = "",
+    val host_a_id: Long = 0,
+    val host_b_id: Long = 0,
+    val host_a_points: Long = 0,
+    val host_b_points: Long = 0,
+    val time_remaining_secs: Int = 0,
+    val status: String = "matching"
+)
+

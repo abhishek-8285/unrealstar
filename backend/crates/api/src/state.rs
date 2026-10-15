@@ -12,7 +12,7 @@ use chrono::{DateTime, Utc};
 use uuid::Uuid;
 
 use crate::models::{
-    BeautyAssetItem, BeautyCategory, CoinPackage, DailyTaskItem, GiftItem, KycRecord,
+    BeautyAssetItem, BeautyCategory, CoinPackage, DailyTaskItem, FamilyItem, GiftItem, KycRecord,
     MomentComment, MomentItem, PayoutRecord, PkStatusResponse, UserProfile, VipTierItem,
     WsServerMessage,
 };
@@ -349,6 +349,8 @@ pub struct AppState {
     pub ws_rooms: Arc<RwLock<HashMap<u64, broadcast::Sender<WsServerMessage>>>>,
     pub beauty_manifest: Arc<Vec<BeautyCategory>>,
     pub vip_tiers: Arc<Vec<VipTierItem>>,
+    pub families: Arc<RwLock<Vec<FamilyItem>>>,
+    pub user_family: Arc<RwLock<HashMap<u64, String>>>,
 }
 
 impl Default for AppState {
@@ -552,6 +554,59 @@ impl AppState {
             },
         ];
 
+        let initial_families = vec![
+            FamilyItem {
+                family_id: "fam_lions".into(),
+                name: "Royal Lions".into(),
+                badge: "🦁 LION".into(),
+                level: 15,
+                members_count: 88,
+                leader_name: "Kabir_King".into(),
+                exp: 250000,
+                rank: 1,
+            },
+            FamilyItem {
+                family_id: "fam_warriors".into(),
+                name: "Desi Warriors".into(),
+                badge: "⚔️ WARRIOR".into(),
+                level: 12,
+                members_count: 75,
+                leader_name: "Rohit_Live".into(),
+                exp: 180000,
+                rank: 2,
+            },
+            FamilyItem {
+                family_id: "fam_beats".into(),
+                name: "Bollywood Beats".into(),
+                badge: "🎵 BEATS".into(),
+                level: 10,
+                members_count: 60,
+                leader_name: "Priya_Sharma".into(),
+                exp: 120000,
+                rank: 3,
+            },
+            FamilyItem {
+                family_id: "fam_star".into(),
+                name: "Star Clan".into(),
+                badge: "⭐ STAR".into(),
+                level: 8,
+                members_count: 45,
+                leader_name: "Ananya_Star".into(),
+                exp: 95000,
+                rank: 4,
+            },
+            FamilyItem {
+                family_id: "fam_kings".into(),
+                name: "Punjab Kings".into(),
+                badge: "👑 KINGS".into(),
+                level: 7,
+                members_count: 38,
+                leader_name: "Gurjant_Singh".into(),
+                exp: 72000,
+                rank: 5,
+            },
+        ];
+
         AppState {
             ledger,
             authorizer: Arc::new(RwLock::new(authorizer)),
@@ -581,6 +636,8 @@ impl AppState {
             ws_rooms: Arc::new(RwLock::new(HashMap::new())),
             beauty_manifest: Arc::new(beauty_manifest),
             vip_tiers: Arc::new(vip_tiers),
+            families: Arc::new(RwLock::new(initial_families)),
+            user_family: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 

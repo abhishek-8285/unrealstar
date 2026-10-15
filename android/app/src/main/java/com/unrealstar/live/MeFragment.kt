@@ -67,6 +67,9 @@ class MeFragment : Fragment() {
                     R.string.me_store -> {
                         DailyTasksBottomSheet(onRewardClaimed = { load() }).show(childFragmentManager, DailyTasksBottomSheet.TAG)
                     }
+                    R.string.me_family -> {
+                        FamilyBottomSheet().show(childFragmentManager, FamilyBottomSheet.TAG)
+                    }
                     R.string.me_creator -> {
                         lifecycleScope.launch {
                             val kyc = UnrealStarApiClient.fetchKycStatus().getOrNull()

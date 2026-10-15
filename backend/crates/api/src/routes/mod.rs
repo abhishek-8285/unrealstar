@@ -1,5 +1,6 @@
 pub mod auth;
 pub mod config;
+pub mod family;
 pub mod gamification;
 pub mod gifts;
 pub mod inbox;

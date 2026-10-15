@@ -94,11 +94,39 @@ class WatchLiveActivity : AppCompatActivity() {
         }
     }
 
+    private var hostAPoints = 0L
+
     private fun addChatMessage(userId: Long, nickname: String, text: String) {
         val position = chatMessages.size
         chatMessages.add(ChatMessage(userId, nickname, text))
         chatAdapter.notifyItemInserted(position)
         binding.rvChat.scrollToPosition(position)
+
+        if (text.contains("🎁") || text.contains("VIP") || text.contains("joined")) {
+            showGiftBanner(text)
+        }
+    }
+
+    private fun showGiftBanner(text: String) {
+        binding.tvGiftBanner.text = text
+        binding.tvGiftBanner.visibility = android.view.View.VISIBLE
+        binding.tvGiftBanner.alpha = 1f
+        binding.tvGiftBanner.removeCallbacks(hideBannerRunnable)
+        binding.tvGiftBanner.postDelayed(hideBannerRunnable, 3500)
+    }
+
+    private val hideBannerRunnable = Runnable {
+        binding.tvGiftBanner.animate()
+            .alpha(0f)
+            .setDuration(400)
+            .withEndAction {
+                binding.tvGiftBanner.visibility = android.view.View.GONE
+            }
+    }
+
+    private fun addPkPoints(points: Long) {
+        hostAPoints += points
+        binding.tvPkHostAPoints.text = "🔵 Blue: $hostAPoints"
     }
 
     private fun sendSampleGift() {
@@ -116,6 +144,8 @@ class WatchLiveActivity : AppCompatActivity() {
                 Toast.makeText(this@WatchLiveActivity, "✨ Gift sent! (Remaining coins: ${it.remaining_coins})", Toast.LENGTH_SHORT).show()
                 addChatMessage(SessionStore.userId, "System", "🎁 You sent Diwali Sparkler to host!")
                 signalClient?.sendChat("🎁 sent Diwali Sparkler!")
+                addPkPoints(99)
+                showGiftBanner("✨ Combo x1! Sent Diwali Sparkler (+99 pts)")
             }.onFailure {
                 Toast.makeText(this@WatchLiveActivity, "Gifting note: ${it.message}", Toast.LENGTH_SHORT).show()
             }

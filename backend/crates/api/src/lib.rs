@@ -245,6 +245,16 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/vip/tiers",
             get(routes::gamification::get_vip_tiers),
         )
+        // Family Guilds (Trendo)
+        .route("/api/v1/family/my", get(routes::family::get_my_family))
+        .route(
+            "/api/v1/family/leaderboard",
+            get(routes::family::get_family_leaderboard),
+        )
+        .route(
+            "/api/v1/family/join/{family_id}",
+            post(routes::family::join_family),
+        )
         // Creator Payouts & KYC
         .route("/api/v1/kyc/status", get(routes::payouts::get_kyc_status))
         .route("/api/v1/kyc/submit", post(routes::payouts::submit_kyc))

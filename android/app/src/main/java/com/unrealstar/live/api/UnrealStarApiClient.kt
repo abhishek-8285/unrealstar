@@ -661,5 +661,132 @@ object UnrealStarApiClient {
             Result.failure(e)
         }
     }
+
+    suspend fun fetchMyFamily(): Result<com.unrealstar.live.models.MyFamilyResponse> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/family/my")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.MyFamilyResponse::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchFamilyLeaderboard(): Result<List<com.unrealstar.live.models.FamilyItem>> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/family/leaderboard")
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val type = object : TypeToken<List<com.unrealstar.live.models.FamilyItem>>() {}.type
+                Result.success(gson.fromJson(response.body?.string() ?: "[]", type))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun joinFamily(familyId: String): Result<com.unrealstar.live.models.MyFamilyResponse> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/family/join/$familyId")
+            .header("Authorization", SessionStore.authorization())
+            .post("{}".toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.MyFamilyResponse::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun requestPkMatch(roomId: Long): Result<String> = withContext(Dispatchers.IO) {
+        val json = JSONObject().apply { put("room_id", roomId) }
+        val request = Request.Builder()
+            .url("$BASE_URL/pk/match/request")
+            .header("Authorization", SessionStore.authorization())
+            .post(json.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = JSONObject(response.body?.string() ?: "{}")
+                Result.success(res.optString("match_ticket_id", "ticket_ok"))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun sendPkInvite(fromRoomId: Long, toHostId: Long, durationSecs: Int = 300): Result<String> = withContext(Dispatchers.IO) {
+        val json = JSONObject().apply {
+            put("from_room_id", fromRoomId)
+            put("to_host_id", toHostId)
+            put("duration_secs", durationSecs)
+        }
+        val request = Request.Builder()
+            .url("$BASE_URL/pk/invite")
+            .header("Authorization", SessionStore.authorization())
+            .post(json.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = JSONObject(response.body?.string() ?: "{}")
+                Result.success(res.optString("invite_id", ""))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchPkStatus(pkId: String): Result<com.unrealstar.live.models.PkStatusResponse> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/pk/$pkId/status")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.PkStatusResponse::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun respondPkInvite(inviteId: String, accept: Boolean): Result<com.unrealstar.live.models.PkStatusResponse> = withContext(Dispatchers.IO) {
+        val json = JSONObject().apply {
+            put("action", if (accept) "accept" else "decline")
+        }
+        val request = Request.Builder()
+            .url("$BASE_URL/pk/invite/$inviteId/respond")
+            .header("Authorization", SessionStore.authorization())
+            .post(json.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.PkStatusResponse::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 

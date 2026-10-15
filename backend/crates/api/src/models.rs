@@ -575,6 +575,25 @@ pub struct VipTierItem {
     pub privileges: Vec<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct FamilyItem {
+    pub family_id: String,
+    pub name: String,
+    pub badge: String,
+    pub level: u32,
+    pub members_count: u32,
+    pub leader_name: String,
+    pub exp: u64,
+    pub rank: u32,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MyFamilyResponse {
+    pub family: Option<FamilyItem>,
+    pub my_role: String,
+    pub contribution_score: u64,
+}
+
 // ---------------------------------------------------------------------------
 // KYC & Creator Payouts
 // ---------------------------------------------------------------------------

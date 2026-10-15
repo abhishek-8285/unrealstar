@@ -179,4 +179,58 @@ class ModelsSerializationTest {
         assertEquals("Priya Sharma", kyc.payer_name)
         assertFalse(kyc.status == "rejected")
     }
+
+    @Test
+    fun testFamilyModelsDeserialization() {
+        val json = """
+            {
+                "family": {
+                    "family_id": "fam_lions",
+                    "name": "Royal Lions",
+                    "badge": "🦁 LION",
+                    "level": 15,
+                    "members_count": 88,
+                    "leader_name": "Kabir_King",
+                    "exp": 250000,
+                    "rank": 1
+                },
+                "my_role": "member",
+                "contribution_score": 5200
+            }
+        """.trimIndent()
+
+        val resp = gson.fromJson(json, com.unrealstar.live.models.MyFamilyResponse::class.java)
+        assertEquals("member", resp.my_role)
+        assertEquals(5200L, resp.contribution_score)
+        val fam = resp.family
+        assertEquals("fam_lions", fam?.family_id)
+        assertEquals("Royal Lions", fam?.name)
+        assertEquals(15, fam?.level)
+        assertEquals(88, fam?.members_count)
+        assertEquals(1, fam?.rank)
+    }
+
+    @Test
+    fun testPkStatusResponseDeserialization() {
+        val json = """
+            {
+                "pk_id": "pk_test_123",
+                "host_a_id": 1001,
+                "host_b_id": 2002,
+                "host_a_points": 500,
+                "host_b_points": 350,
+                "time_remaining_secs": 180,
+                "status": "in_battle"
+            }
+        """.trimIndent()
+
+        val pk = gson.fromJson(json, com.unrealstar.live.models.PkStatusResponse::class.java)
+        assertEquals("pk_test_123", pk.pk_id)
+        assertEquals(1001L, pk.host_a_id)
+        assertEquals(2002L, pk.host_b_id)
+        assertEquals(500L, pk.host_a_points)
+        assertEquals(350L, pk.host_b_points)
+        assertEquals(180, pk.time_remaining_secs)
+        assertEquals("in_battle", pk.status)
+    }
 }

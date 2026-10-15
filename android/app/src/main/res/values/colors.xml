@@ -3,6 +3,7 @@
     <color name="primary">#FF0055</color>
     <color name="primary_variant">#D60047</color>
     <color name="secondary">#FFD700</color>
+    <color name="gold">#FFD700</color>
     <color name="background_dark">#121212</color>
     <color name="surface_dark">#1E1E1E</color>
     <color name="bg_card">#1E1E1E</color>

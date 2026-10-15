@@ -228,3 +228,55 @@ async fn test_social_follow_and_engagement() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["is_following"], false);
 }
+
+#[tokio::test]
+async fn test_trendo_family_lifecycle() {
+    let state = AppState::new();
+    let app = create_router(state);
+
+    let (user_token, _user_id) = common::login_user(&app, "+919876543215").await;
+
+    // 1. Initial state: user has no family
+    let req = Request::get("/api/v1/family/my")
+        .header("Authorization", format!("Bearer {user_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = common::json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["my_role"], "none");
+    assert!(body["family"].is_null());
+
+    // 2. Fetch Family Leaderboard
+    let req = Request::get("/api/v1/family/leaderboard")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = common::json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    let families = body.as_array().expect("family list");
+    assert!(!families.is_empty(), "seeded families must exist");
+    let target_family_id = families[0]["family_id"].as_str().unwrap();
+    let initial_members = families[0]["members_count"].as_u64().unwrap();
+
+    // 3. User joins family
+    let req = Request::post(format!("/api/v1/family/join/{target_family_id}"))
+        .header("Authorization", format!("Bearer {user_token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from("{}"))
+        .unwrap();
+    let (status, body) = common::json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["my_role"], "member");
+    assert_eq!(body["family"]["family_id"], target_family_id);
+    assert_eq!(body["family"]["members_count"], initial_members + 1);
+
+    // 4. Verify user's family is now reflected in /api/v1/family/my
+    let req = Request::get("/api/v1/family/my")
+        .header("Authorization", format!("Bearer {user_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = common::json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["my_role"], "member");
+    assert_eq!(body["family"]["family_id"], target_family_id);
+}
+
