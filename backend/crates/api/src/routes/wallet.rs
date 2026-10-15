@@ -13,7 +13,10 @@ use crate::{
         BalanceResponse, CoinPackage, CreateOrderRequest, CreateOrderResponse, TransactionItem,
         WebhookPayload,
     },
-    state::{system_clearing_account, user_coins_account, user_diamonds_account, AppState},
+    state::{
+        system_clearing_account, user_coins_account, user_diamonds_account, webhook_secret,
+        AppState, PendingOrder,
+    },
 };
 
 pub async fn get_balance(
@@ -91,14 +94,86 @@ pub async fn create_order(
         package.price_inr
     );
 
-    // In a test or direct sandbox environment, simulate crediting coins right away via ledger
-    let coins_to_credit = package.coins + package.bonus_coins;
-    let mut ledger = state.ledger.write().await;
-    let amount = Money::from_minor(coins_to_credit)?;
+    // Register the order as pending. Coins are NOT credited here; the
+    // payment webhook confirms the order and mints the coins exactly once.
+    let coins_pending = package.coins + package.bonus_coins;
+    state.pending_orders.write().await.insert(
+        order_id.clone(),
+        PendingOrder {
+            user_id,
+            coins: coins_pending,
+            created_at: Utc::now(),
+        },
+    );
 
-    let _entry_id = ledger.post(
+    Ok(Json(CreateOrderResponse {
+        order_id,
+        payment_url: format!(
+            "https://checkout.camstar.live/pay?order={}",
+            package.package_id
+        ),
+        upi_intent_uri: upi_intent,
+        amount_inr: package.price_inr,
+        coins_pending,
+    }))
+}
+
+pub async fn payment_webhook(
+    Path(provider): Path<String>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(payload): Json<WebhookPayload>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    // Enforce the shared webhook secret when one is configured.
+    if let Some(expected) = webhook_secret() {
+        let got = headers
+            .get("X-Webhook-Secret")
+            .and_then(|h| h.to_str().ok())
+            .unwrap_or("");
+        if got != expected {
+            return Err(ApiError::Unauthorized("Invalid webhook secret".into()));
+        }
+    }
+
+    // Only "success" (or "paid") credits coins; anything else is recorded
+    // as reconciled but does not move money.
+    if payload.status != "success" && payload.status != "paid" {
+        return Ok(Json(serde_json::json!({
+            "status": "ignored",
+            "provider": provider,
+            "order_id": payload.order_id,
+            "reconciled": true
+        })));
+    }
+
+    // Remove the pending order. If it is missing the order either does not
+    // exist or has already been credited (idempotent retry). Either way we
+    // do NOT credit coins again.
+    let order = state
+        .pending_orders
+        .write()
+        .await
+        .remove(&payload.order_id);
+
+    let Some(order) = order else {
+        // Order not found or already processed — treat as idempotent success.
+        return Ok(Json(serde_json::json!({
+            "status": "success",
+            "provider": provider,
+            "order_id": payload.order_id,
+            "credited": false,
+            "reconciled": true
+        })));
+    };
+
+    // Credit coins now that the provider has confirmed payment.
+    // The order_id doubles as the idempotency key so ledger.post refuses
+    // a duplicate even if this handler is retried concurrently.
+    let mut ledger = state.ledger.write().await;
+    let amount = Money::from_minor(order.coins)?;
+    ledger.post(
         EntryKind::TopUp,
-        &req.idempotency_key,
+        &payload.order_id,
         vec![
             Line {
                 account: system_clearing_account(),
@@ -106,32 +181,18 @@ pub async fn create_order(
                 amount,
             },
             Line {
-                account: user_coins_account(user_id),
+                account: user_coins_account(order.user_id),
                 direction: Direction::Credit,
                 amount,
             },
         ],
     )?;
 
-    Ok(Json(CreateOrderResponse {
-        order_id,
-        payment_url: format!("https://checkout.camstar.live/pay?order={}", package.package_id),
-        upi_intent_uri: upi_intent,
-        amount_inr: package.price_inr,
-        coins_credited: coins_to_credit,
-    }))
-}
-
-pub async fn payment_webhook(
-    Path(provider): Path<String>,
-    State(_state): State<AppState>,
-    Json(payload): Json<WebhookPayload>,
-) -> Result<Json<serde_json::Value>, ApiError> {
-    // Webhook verification endpoint (Razorpay/Cashfree reconciliation)
     Ok(Json(serde_json::json!({
         "status": "success",
         "provider": provider,
         "order_id": payload.order_id,
+        "credited": true,
         "reconciled": true
     })))
 }

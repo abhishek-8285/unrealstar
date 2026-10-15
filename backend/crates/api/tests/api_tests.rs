@@ -112,7 +112,8 @@ async fn test_wallet_and_payin_order() {
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["coins"], 0);
 
-    // 3. Create Top-up Order (buying 150 coins package)
+    // 3. Create Top-up Order (buying 150 coins package).
+    //    Coins are NOT credited yet — only registered as pending.
     let req = Request::post("/api/v1/payments/orders/create")
         .header("Authorization", format!("Bearer {token}"))
         .header("Content-Type", "application/json")
@@ -124,10 +125,47 @@ async fn test_wallet_and_payin_order() {
         .unwrap();
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
     assert_eq!(status, StatusCode::OK);
-    assert_eq!(body["coins_credited"], 165); // 150 + 15 bonus
+    assert_eq!(body["coins_pending"], 165); // 150 + 15 bonus
     assert!(body["upi_intent_uri"].as_str().unwrap().starts_with("upi://pay"));
+    let order_id = body["order_id"].as_str().unwrap().to_string();
 
-    // 4. Verify balance is now 165 coins in Ledger
+    // 3b. Balance must still be 0 — coins are not spendable until the
+    //     payment provider webhook confirms the order.
+    let req = Request::get("/api/v1/wallet/balance")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["coins"], 0);
+
+    // 4. Simulate the provider webhook confirming payment — this credits coins.
+    let req = Request::post("/api/v1/payments/webhook/test-provider")
+        .header("Content-Type", "application/json")
+        .body(Body::from(json!({
+            "order_id": order_id,
+            "status": "success",
+            "provider_reference": "pay_ref_123"
+        }).to_string()))
+        .unwrap();
+    let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["credited"], true);
+
+    // 4b. A duplicate webhook for the same order must be idempotent.
+    let req = Request::post("/api/v1/payments/webhook/test-provider")
+        .header("Content-Type", "application/json")
+        .body(Body::from(json!({
+            "order_id": order_id,
+            "status": "success",
+            "provider_reference": "pay_ref_123"
+        }).to_string()))
+        .unwrap();
+    let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["credited"], false); // already processed — no double credit
+
+    // 5. Verify balance is now 165 coins in Ledger (credited exactly once)
     let req = Request::get("/api/v1/wallet/balance")
         .header("Authorization", format!("Bearer {token}"))
         .body(Body::empty())
@@ -135,6 +173,102 @@ async fn test_wallet_and_payin_order() {
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["coins"], 165);
+}
+
+#[tokio::test]
+async fn test_red_packet_escrow_and_claim() {
+    let state = AppState::new();
+    let app = create_router(state.clone());
+
+    // Two users: dropper (1002) and claimer (1003). Seed dropper with coins.
+    let dropper = state.create_user("+919876543220", 0).await;
+    let claimer = state.create_user("+919876543221", 0).await;
+    let dropper_token = format!("tok_{dropper}_drop");
+    let claimer_token = format!("tok_{claimer}_claim");
+    state.grant_test_token(&dropper_token, dropper).await;
+    state.grant_test_token(&claimer_token, claimer).await;
+
+    {
+        use camstar_ledger::{Direction, EntryKind, Line, Money};
+        let mut ledger = state.ledger.write().await;
+        ledger.post(
+            EntryKind::Adjustment,
+            &format!("seed_{dropper}"),
+            vec![
+                Line {
+                    account: camstar_api::system_clearing_account(),
+                    direction: Direction::Debit,
+                    amount: Money::from_minor(100).unwrap(),
+                },
+                Line {
+                    account: camstar_api::user_coins_account(dropper),
+                    direction: Direction::Credit,
+                    amount: Money::from_minor(100).unwrap(),
+                },
+            ],
+        )
+        .unwrap();
+    }
+
+    // 1. Drop a 100-coin, 3-split red packet.
+    let req = Request::post("/api/v1/gifts/red-packet/drop")
+        .header("Authorization", format!("Bearer {dropper_token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            json!({
+                "room_id": 1,
+                "total_coins": 100,
+                "split_count": 3,
+                "idempotency_key": "drop_test_1"
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    let packet_id = body["packet_id"].as_str().unwrap().to_string();
+
+    // Dropper's balance is now 0 — coins are escrowed in clearing.
+    let req = Request::get("/api/v1/wallet/balance")
+        .header("Authorization", format!("Bearer {dropper_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["coins"], 0);
+
+    // 2. Claimer claims — gets an equal split (100/3 = 33).
+    let req = Request::post(format!("/api/v1/gifts/red-packet/{packet_id}/claim"))
+        .header("Authorization", format!("Bearer {claimer_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    let first_claim = body["coins_claimed"].as_u64().unwrap();
+    assert_eq!(first_claim, 33);
+    let remaining = body["remaining_splits"].as_u64().unwrap();
+    assert_eq!(remaining, 2);
+
+    // Claimer balance reflects the claim.
+    let req = Request::get("/api/v1/wallet/balance")
+        .header("Authorization", format!("Bearer {claimer_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["coins"], first_claim);
+
+    // 3. Same claimer tries again — must be rejected (one claim per user).
+    let req = Request::post(format!("/api/v1/gifts/red-packet/{packet_id}/claim"))
+        .header("Authorization", format!("Bearer {claimer_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, _body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::CONFLICT);
+
+    // 4. Ledger remains zero-sum after escrow + claim.
+    let ledger = state.ledger.read().await;
+    assert_eq!(ledger.total_of_all_accounts().to_minor(), 0);
 }
 
 #[tokio::test]

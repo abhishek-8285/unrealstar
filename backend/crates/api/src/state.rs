@@ -82,6 +82,35 @@ pub fn guest_tokens_enabled() -> bool {
     )
 }
 
+/// A coin top-up order that has been created but not yet confirmed by the
+/// payment provider's webhook. Coins are credited only when the webhook fires.
+#[derive(Debug, Clone)]
+pub struct PendingOrder {
+    pub user_id: u64,
+    pub coins: i64,
+    pub created_at: chrono::DateTime<Utc>,
+}
+
+/// Optional shared secret for the payment webhook. When set, the webhook
+/// handler requires a matching `X-Webhook-Secret` header. When unset, the
+/// webhook accepts any payload (dev convenience; production must set it).
+pub fn webhook_secret() -> Option<String> {
+    std::env::var("CAMSTAR_WEBHOOK_SECRET").ok().filter(|s| !s.is_empty())
+}
+
+/// An active red-packet drop. The dropper's coins were already debited into
+/// the clearing account at drop time; claims only redistribute the escrowed
+/// amount, never mint new coins.
+#[derive(Debug, Clone)]
+pub struct RedPacketDrop {
+    pub dropper_user_id: u64,
+    pub total_coins: i64,
+    pub split_count: u32,
+    /// Users who have already claimed this packet; a user may claim only once.
+    pub claimants: HashSet<u64>,
+    pub expires_at: chrono::DateTime<Utc>,
+}
+
 #[derive(Debug, Clone)]
 pub struct RoomSession {
     pub room_id: u64,
@@ -111,6 +140,10 @@ pub struct AppState {
     pub phone_to_user: Arc<RwLock<HashMap<String, u64>>>,
     pub tokens_to_user: Arc<RwLock<HashMap<String, TokenRecord>>>,
     pub otp_sessions: Arc<RwLock<HashMap<String, OtpSession>>>,
+    /// Coin top-up orders awaiting provider webhook confirmation.
+    pub pending_orders: Arc<RwLock<HashMap<String, PendingOrder>>>,
+    /// Active red-packet drops, keyed by packet_id.
+    pub red_packets: Arc<RwLock<HashMap<String, RedPacketDrop>>>,
     pub rooms: Arc<RwLock<HashMap<u64, RoomSession>>>,
     pub gifts: Arc<Vec<GiftItem>>,
     pub coin_packages: Arc<Vec<CoinPackage>>,
@@ -322,6 +355,8 @@ impl AppState {
             phone_to_user: Arc::new(RwLock::new(HashMap::new())),
             tokens_to_user: Arc::new(RwLock::new(HashMap::new())),
             otp_sessions: Arc::new(RwLock::new(HashMap::new())),
+            pending_orders: Arc::new(RwLock::new(HashMap::new())),
+            red_packets: Arc::new(RwLock::new(HashMap::new())),
             rooms: Arc::new(RwLock::new(HashMap::new())),
             gifts: Arc::new(gifts),
             coin_packages: Arc::new(coin_packages),

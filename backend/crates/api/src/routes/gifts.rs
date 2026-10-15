@@ -1,5 +1,5 @@
 use axum::{
-    extract::State,
+    extract::{Path, State},
     http::HeaderMap,
     Json,
 };
@@ -143,7 +143,14 @@ pub async fn drop_red_packet(
         .await
         .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
 
-    // Deduct coins from dropper
+    if req.total_coins <= 0 || req.split_count == 0 {
+        return Err(ApiError::BadRequest(
+            "total_coins and split_count must be positive".into(),
+        ));
+    }
+
+    // Escrow: debit dropper's coins into clearing. The coins sit here until
+    // claimed; claims only redistribute this escrow, never mint.
     let amount = Money::from_minor(req.total_coins)?;
     {
         let mut ledger = state.ledger.write().await;
@@ -168,6 +175,36 @@ pub async fn drop_red_packet(
     let packet_id = format!("packet_{user_id}_{}", Uuid::new_v4());
     let expires_at = Utc::now() + Duration::minutes(5);
 
+    state.red_packets.write().await.insert(
+        packet_id.clone(),
+        crate::state::RedPacketDrop {
+            dropper_user_id: user_id,
+            total_coins: req.total_coins,
+            split_count: req.split_count,
+            claimants: std::collections::HashSet::new(),
+            expires_at,
+        },
+    );
+
+    if req.room_id > 0 {
+        let ws_rooms = state.ws_rooms.read().await;
+        if let Some(tx) = ws_rooms.get(&req.room_id) {
+            let dropper_nickname = {
+                let users = state.users.read().await;
+                users
+                    .get(&user_id)
+                    .map(|u| u.nickname.clone())
+                    .unwrap_or_else(|| format!("User_{user_id}"))
+            };
+            let _ = tx.send(crate::models::WsServerMessage::MarqueeBroadcast {
+                message: format!(
+                    "🧧 {dropper_nickname} dropped a Red Packet of {} coins ({} splits)!",
+                    req.total_coins, req.split_count
+                ),
+            });
+        }
+    }
+
     Ok(Json(RedPacketDropResponse {
         packet_id,
         expires_at,
@@ -175,6 +212,7 @@ pub async fn drop_red_packet(
 }
 
 pub async fn claim_red_packet(
+    Path(packet_id): Path<String>,
     headers: HeaderMap,
     State(state): State<AppState>,
 ) -> Result<Json<RedPacketClaimResponse>, ApiError> {
@@ -184,14 +222,55 @@ pub async fn claim_red_packet(
         .await
         .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
 
-    let claimed_amount = 5; // e.g., 5 coins won
-    let amount = Money::from_minor(claimed_amount)?;
+    // Claim under write lock so check-and-mark is atomic.
+    let claimed_amount = {
+        let mut packets = state.red_packets.write().await;
+        let packet = packets
+            .get_mut(&packet_id)
+            .ok_or_else(|| ApiError::NotFound("Red packet not found".into()))?;
 
+        if Utc::now() > packet.expires_at {
+            packets.remove(&packet_id);
+            return Err(ApiError::BadRequest("Red packet expired".into()));
+        }
+
+        if packet.claimants.contains(&user_id) {
+            return Err(ApiError::Conflict("Already claimed this red packet".into()));
+        }
+
+        if packet.claimants.len() as u32 >= packet.split_count {
+            packets.remove(&packet_id);
+            return Err(ApiError::BadRequest("Red packet fully claimed".into()));
+        }
+
+        // Split: each claimer gets total_coins / split_count; the last
+        // claimer absorbs the remainder so the full escrow is distributed.
+        let already_claimed: i64 = packet.claimants.len() as i64 * (packet.total_coins / packet.split_count as i64);
+        let remaining_splits = packet.split_count as i64 - packet.claimants.len() as i64;
+        let amount = if remaining_splits == 1 {
+            packet.total_coins - already_claimed
+        } else {
+            packet.total_coins / packet.split_count as i64
+        };
+
+        packet.claimants.insert(user_id);
+
+        // Remove packet once fully claimed.
+        if packet.claimants.len() as u32 >= packet.split_count {
+            packets.remove(&packet_id);
+        }
+
+        amount
+    };
+
+    // Transfer escrowed coins: clearing → claimer. No mint — just redistribute
+    // the amount the dropper already paid in.
+    let amount = Money::from_minor(claimed_amount)?;
     {
         let mut ledger = state.ledger.write().await;
-        let _ = ledger.post(
+        ledger.post(
             EntryKind::Adjustment,
-            &format!("claim_{user_id}_{}", Uuid::new_v4()),
+            &format!("claim_{user_id}_{packet_id}"),
             vec![
                 Line {
                     account: crate::state::system_clearing_account(),
@@ -204,12 +283,21 @@ pub async fn claim_red_packet(
                     amount,
                 },
             ],
-        );
+        )?;
     }
+
+    // Report remaining splits (best-effort; packet may already be removed).
+    let remaining = state
+        .red_packets
+        .read()
+        .await
+        .get(&packet_id)
+        .map(|p| p.split_count - p.claimants.len() as u32)
+        .unwrap_or(0);
 
     Ok(Json(RedPacketClaimResponse {
         coins_claimed: claimed_amount,
-        remaining_splits: 4,
+        remaining_splits: remaining,
     }))
 }
 

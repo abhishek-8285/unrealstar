@@ -10,7 +10,7 @@ use axum::{
 use std::path::PathBuf;
 use tower_http::cors::{Any, CorsLayer};
 
-pub use state::AppState;
+pub use state::{system_clearing_account, user_coins_account, user_diamonds_account, AppState};
 
 pub fn create_router(state: AppState) -> Router {
     let cors = CorsLayer::new()

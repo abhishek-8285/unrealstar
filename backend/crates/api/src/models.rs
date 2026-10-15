@@ -119,7 +119,9 @@ pub struct CreateOrderResponse {
     pub payment_url: String,
     pub upi_intent_uri: String,
     pub amount_inr: u32,
-    pub coins_credited: i64,
+    /// Coins that will be credited when the provider webhook confirms
+    /// payment. Not yet spendable at order-creation time.
+    pub coins_pending: i64,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -230,6 +232,7 @@ pub struct SendGiftResponse {
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct RedPacketDropRequest {
+    #[serde(default)]
     pub room_id: u64,
     pub total_coins: i64,
     pub split_count: u32,
