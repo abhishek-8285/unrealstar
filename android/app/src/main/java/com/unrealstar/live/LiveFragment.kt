@@ -78,7 +78,7 @@ class LiveFragment : Fragment() {
         binding.rvRooms.adapter = adapter
 
         binding.btnRank.setOnClickListener {
-            Toast.makeText(requireContext(), R.string.live_rank_soon, Toast.LENGTH_SHORT).show()
+            LeaderboardBottomSheet().show(childFragmentManager, LeaderboardBottomSheet.TAG)
         }
 
         // Two columns means ~4 rows of prefetch is plenty to keep the wall

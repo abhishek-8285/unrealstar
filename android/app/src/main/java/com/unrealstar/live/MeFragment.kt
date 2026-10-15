@@ -86,10 +86,16 @@ class MeFragment : Fragment() {
         val soon = {
             Toast.makeText(requireContext(), R.string.me_soon, Toast.LENGTH_SHORT).show()
         }
-        binding.btnFilterActivity.setOnClickListener { soon() }
-        binding.btnFilterToday.setOnClickListener { soon() }
+        binding.btnFilterActivity.setOnClickListener {
+            DailyTasksBottomSheet(onRewardClaimed = { load() }).show(childFragmentManager, DailyTasksBottomSheet.TAG)
+        }
+        binding.btnFilterToday.setOnClickListener {
+            VipTiersBottomSheet().show(childFragmentManager, VipTiersBottomSheet.TAG)
+        }
         binding.btnGift.setOnClickListener { soon() }
-        binding.btnCrown.setOnClickListener { soon() }
+        binding.btnCrown.setOnClickListener {
+            DailyTasksBottomSheet(onRewardClaimed = { load() }).show(childFragmentManager, DailyTasksBottomSheet.TAG)
+        }
         binding.btnShare.setOnClickListener { soon() }
         binding.btnSettings.setOnClickListener {
             startActivity(android.content.Intent(requireContext(), OtpLoginActivity::class.java))

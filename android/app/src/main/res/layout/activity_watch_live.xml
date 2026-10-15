@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@android:color/black">
@@ -9,6 +11,7 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
+    <!-- Top HUD -->
     <LinearLayout
         android:id="@+id/hud"
         android:layout_width="match_parent"
@@ -49,30 +52,90 @@
             android:textSize="18sp" />
     </LinearLayout>
 
+    <!-- Bottom Container: Chat messages + Input / Actions -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:orientation="horizontal"
-        android:padding="16dp">
+        android:orientation="vertical"
+        android:padding="12dp">
 
         <TextView
             android:id="@+id/tvStatus"
-            android:layout_width="0dp"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:textColor="@android:color/white"
-            android:textSize="14sp"
+            android:layout_marginBottom="4dp"
+            android:textColor="@color/secondary"
+            android:textSize="12sp"
             android:text="@string/watch_connecting" />
 
-        <TextView
-            android:id="@+id/tvChat"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_weight="2"
-            android:textColor="@android:color/white"
-            android:textSize="14sp"
-            android:maxLines="1"
-            android:ellipsize="end" />
+        <!-- Chat Stream (up to 160dp) -->
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvChat"
+            android:layout_width="match_parent"
+            android:layout_height="160dp"
+            android:layout_marginBottom="8dp"
+            android:scrollbars="none" />
+
+        <!-- Input & Action Bar -->
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="44dp"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <EditText
+                android:id="@+id/etChatInput"
+                android:layout_width="0dp"
+                android:layout_height="38dp"
+                android:layout_weight="1"
+                android:background="@drawable/bg_chip_translucent"
+                android:hint="@string/chat_placeholder"
+                android:imeOptions="actionSend"
+                android:inputType="text"
+                android:maxLines="1"
+                android:paddingHorizontal="12dp"
+                android:textColor="@color/text_white"
+                android:textColorHint="@color/text_muted"
+                android:textSize="13sp" />
+
+            <TextView
+                android:id="@+id/btnSendChat"
+                android:layout_width="wrap_content"
+                android:layout_height="38dp"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_chip_translucent"
+                android:gravity="center"
+                android:paddingHorizontal="12dp"
+                android:text="Send"
+                android:textColor="@color/primary"
+                android:textSize="13sp"
+                android:textStyle="bold"
+                tools:ignore="HardcodedText" />
+
+            <!-- Wheel Minigame Button -->
+            <TextView
+                android:id="@+id/btnToggleWheel"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_chip_translucent"
+                android:gravity="center"
+                android:text="🎡"
+                android:textSize="18sp"
+                tools:ignore="HardcodedText" />
+
+            <!-- Send Gift Button -->
+            <TextView
+                android:id="@+id/btnToggleGifts"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_chip_translucent"
+                android:gravity="center"
+                android:text="🎁"
+                android:textSize="18sp"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
     </LinearLayout>
 </FrameLayout>

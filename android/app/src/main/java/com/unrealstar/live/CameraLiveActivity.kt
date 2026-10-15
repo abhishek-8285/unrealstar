@@ -524,6 +524,7 @@ class CameraLiveActivity : AppCompatActivity() {
             val text = binding.etChatInput.text.toString().trim()
             if (text.isNotEmpty()) {
                 addChatMessage(SessionStore.userId, "You", text)
+                signalClient?.sendChat(text)
                 binding.etChatInput.setText("")
             }
         }

@@ -302,3 +302,31 @@ data class CreateRoomResponse(
     val rtc_channel_id: String = "",
     val ws_url: String = ""
 )
+
+/** GET /leaderboards */
+data class LeaderboardItem(
+    val rank: Long = 0,
+    val user_id: Long = 0,
+    val nickname: String = "",
+    val avatar_url: String = "",
+    val score: Long = 0
+)
+
+/** GET /tasks/daily */
+data class DailyTaskItem(
+    val task_id: String = "",
+    val title: String = "",
+    val progress: Int = 0,
+    val target: Int = 0,
+    val reward_coins: Long = 0,
+    val is_claimed: Boolean = false
+)
+
+/** GET /vip/tiers */
+data class VipTierItem(
+    val tier_id: String = "",
+    val name: String = "",
+    val price_inr: Int = 0,
+    val privileges: List<String> = emptyList()
+)
+

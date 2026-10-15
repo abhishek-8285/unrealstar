@@ -1,20 +1,27 @@
 package com.unrealstar.live
 
 import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.ViewGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.unrealstar.live.api.SessionStore
 import com.unrealstar.live.api.UnrealStarApiClient
 import com.unrealstar.live.databinding.ActivityWatchLiveBinding
+import com.unrealstar.live.databinding.ItemChatMessageBinding
+import com.unrealstar.live.models.ChatMessage
+import com.unrealstar.live.models.SendGiftRequest
 import kotlinx.coroutines.launch
-import org.webrtc.PeerConnection
 import org.webrtc.IceCandidate
+import org.webrtc.PeerConnection
+import java.util.UUID
 
 /**
- * Minimal watch screen: join a live room, open the viewer's WebRTC session,
- * render the host stream. Chat is intentionally read-only here (the input
- * flow lands with the room messaging phase).
+ * Watch screen: join a live room, open the viewer's WebRTC session,
+ * render the host stream, live chat, gifting, and in-room minigames.
  */
 class WatchLiveActivity : AppCompatActivity() {
 
@@ -23,6 +30,8 @@ class WatchLiveActivity : AppCompatActivity() {
     private var hostId = 0L
     private var viewer: RtcViewer? = null
     private var signalClient: RtcSignalClient? = null
+    private val chatMessages = mutableListOf<ChatMessage>()
+    private lateinit var chatAdapter: ChatAdapter
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -39,6 +48,32 @@ class WatchLiveActivity : AppCompatActivity() {
         binding.tvStatus.text = getString(R.string.watch_connecting)
         binding.tvViewers.text = getString(R.string.watch_connecting)
 
+        chatAdapter = ChatAdapter(chatMessages)
+        binding.rvChat.layoutManager = LinearLayoutManager(this).apply {
+            stackFromEnd = true
+        }
+        binding.rvChat.adapter = chatAdapter
+
+        binding.btnSendChat.setOnClickListener {
+            val text = binding.etChatInput.text.toString().trim()
+            if (text.isNotEmpty()) {
+                addChatMessage(SessionStore.userId, "You", text)
+                signalClient?.sendChat(text)
+                binding.etChatInput.setText("")
+            }
+        }
+
+        binding.btnToggleGifts.setOnClickListener {
+            sendSampleGift()
+        }
+
+        binding.btnToggleWheel.setOnClickListener {
+            val dialog = LuckyWheelDialog(roomId = roomId) { remainingCoins ->
+                addChatMessage(SessionStore.userId, "System", "🎡 Wheel balance updated: $remainingCoins Coins")
+            }
+            dialog.show(supportFragmentManager, LuckyWheelDialog.TAG)
+        }
+
         lifecycleScope.launch {
             if (!SessionStore.isSignedIn) {
                 Toast.makeText(this@WatchLiveActivity, R.string.watch_sign_in_required, Toast.LENGTH_SHORT).show()
@@ -54,7 +89,36 @@ class WatchLiveActivity : AppCompatActivity() {
             hostId = room.host_id
             binding.tvHostName.text = room.host_nickname
             binding.tvViewers.text = "👁 ${room.viewers_count}"
+            addChatMessage(0L, "System", "Welcome to ${room.host_nickname}'s room!")
             startWatching()
+        }
+    }
+
+    private fun addChatMessage(userId: Long, nickname: String, text: String) {
+        val position = chatMessages.size
+        chatMessages.add(ChatMessage(userId, nickname, text))
+        chatAdapter.notifyItemInserted(position)
+        binding.rvChat.scrollToPosition(position)
+    }
+
+    private fun sendSampleGift() {
+        lifecycleScope.launch {
+            val giftReq = SendGiftRequest(
+                room_id = roomId,
+                recipient_id = hostId,
+                gift_id = "gift_sparkler",
+                count = 1,
+                combo_seq = 1,
+                idempotency_key = "gift_${UUID.randomUUID()}"
+            )
+            val result = UnrealStarApiClient.sendGift(giftReq)
+            result.onSuccess {
+                Toast.makeText(this@WatchLiveActivity, "✨ Gift sent! (Remaining coins: ${it.remaining_coins})", Toast.LENGTH_SHORT).show()
+                addChatMessage(SessionStore.userId, "System", "🎁 You sent Diwali Sparkler to host!")
+                signalClient?.sendChat("🎁 sent Diwali Sparkler!")
+            }.onFailure {
+                Toast.makeText(this@WatchLiveActivity, "Gifting note: ${it.message}", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 
@@ -108,7 +172,7 @@ class WatchLiveActivity : AppCompatActivity() {
 
                 override fun onChat(fromUserId: Long, nickname: String, text: String) {
                     runOnUiThread {
-                        binding.tvChat.text = "$nickname: $text"
+                        addChatMessage(fromUserId, nickname, text)
                     }
                 }
 
@@ -120,8 +184,6 @@ class WatchLiveActivity : AppCompatActivity() {
                                 val answer = v.acceptHostOffer(fromUserId, sdp)
                                 signalClient?.sendSignal(fromUserId, "answer", answer.description)
                             } catch (t: Throwable) {
-                                // A rejected offer/answer kills the stream for
-                                // this viewer and must be visible in the log.
                                 android.util.Log.w("UnrealStarRtc", "answer to host $fromUserId failed", t)
                                 runOnUiThread {
                                     binding.tvStatus.text = getString(R.string.watch_stream_error)
@@ -157,11 +219,8 @@ class WatchLiveActivity : AppCompatActivity() {
             }
             signalClient = client
             client.sendJoin()
-            // Ask the host for video. "{}" is a deliberate placeholder: the
-            // server only requires a non-empty opaque sdp payload.
             client.sendSignal(hostId, "request", "{}")
         } catch (t: Throwable) {
-            // Media-stack failures degrade to the error status, never a crash.
             android.util.Log.w("UnrealStarRtc", "watch unavailable", t)
             binding.tvStatus.text = getString(R.string.watch_stream_error)
         }
@@ -179,6 +238,26 @@ class WatchLiveActivity : AppCompatActivity() {
                 runCatching { UnrealStarApiClient.leaveRoom(rid) }
             }
         }
+    }
+
+    inner class ChatAdapter(private val list: List<ChatMessage>) :
+        RecyclerView.Adapter<ChatAdapter.ChatViewHolder>() {
+
+        inner class ChatViewHolder(val b: ItemChatMessageBinding) :
+            RecyclerView.ViewHolder(b.root)
+
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ChatViewHolder {
+            val b = ItemChatMessageBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+            return ChatViewHolder(b)
+        }
+
+        override fun onBindViewHolder(holder: ChatViewHolder, position: Int) {
+            val msg = list[position]
+            holder.b.tvSender.text = "${msg.nickname}:"
+            holder.b.tvMessage.text = msg.message
+        }
+
+        override fun getItemCount() = list.size
     }
 
     companion object {

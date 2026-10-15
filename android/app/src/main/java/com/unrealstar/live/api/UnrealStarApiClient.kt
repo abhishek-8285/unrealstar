@@ -12,6 +12,7 @@ import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.net.URLEncoder
+import org.json.JSONObject
 
 object UnrealStarApiClient {
     // Over ADB reverse or emulator, localhost:3000 reaches the Axum backend
@@ -564,6 +565,74 @@ object UnrealStarApiClient {
                     return@withContext Result.failure(IOException(response.body?.string() ?: "Join room failed"))
                 }
                 Result.success(gson.fromJson(response.body?.string() ?: "", JoinRoomResponse::class.java))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchLeaderboards(): Result<List<LeaderboardItem>> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/leaderboards")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val type = object : TypeToken<List<LeaderboardItem>>() {}.type
+                Result.success(gson.fromJson(response.body?.string() ?: "[]", type))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchDailyTasks(): Result<List<DailyTaskItem>> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/tasks/daily")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val type = object : TypeToken<List<DailyTaskItem>>() {}.type
+                Result.success(gson.fromJson(response.body?.string() ?: "[]", type))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun claimDailyTask(taskId: String): Result<Long> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/tasks/claim/$taskId")
+            .header("Authorization", SessionStore.authorization())
+            .post("{}".toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val json = JSONObject(response.body?.string() ?: "{}")
+                Result.success(json.optLong("reward_coins", 0L))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun fetchVipTiers(): Result<List<VipTierItem>> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/vip/tiers")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val type = object : TypeToken<List<VipTierItem>>() {}.type
+                Result.success(gson.fromJson(response.body?.string() ?: "[]", type))
             }
         } catch (e: Exception) {
             Result.failure(e)

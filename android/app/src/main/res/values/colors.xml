@@ -5,6 +5,7 @@
     <color name="secondary">#FFD700</color>
     <color name="background_dark">#121212</color>
     <color name="surface_dark">#1E1E1E</color>
+    <color name="bg_card">#1E1E1E</color>
     <color name="overlay_scrim">#80000000</color>
     <color name="text_white">#FFFFFF</color>
     <color name="text_muted">#AAAAAA</color>
