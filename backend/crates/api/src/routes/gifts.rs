@@ -120,6 +120,16 @@ pub async fn send_gift(
         }
     }
 
+    // Push fan-out point: count recipient devices for FCM delivery once a
+    // service-account key is provisioned (see routes::push).
+    let push_devices = crate::routes::push::recipient_device_count(&state, req.recipient_id).await;
+    if push_devices > 0 {
+        eprintln!(
+            "push: gift {} x{} to user {} ({} device(s) registered; FCM send needs CAMSTAR_FCM_KEY)",
+            req.gift_id, req.count, req.recipient_id, push_devices
+        );
+    }
+
     let remaining_coins = state.ledger.balance(sender_coins_acct).await?.to_minor();
     let recipient_diamonds = state
         .ledger
