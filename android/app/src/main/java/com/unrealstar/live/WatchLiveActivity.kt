@@ -169,12 +169,16 @@ class WatchLiveActivity : AppCompatActivity() {
 
     override fun onDestroy() {
         super.onDestroy()
-        // No server-side leave call exists on UnrealStarApiClient — closing
-        // the signal channel + viewer teardown below is the leave.
         try { signalClient?.close() } catch (_: Exception) {}
         signalClient = null
         viewer?.close()
         viewer = null
+        val rid = roomId
+        if (rid > 0) {
+            kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.Dispatchers.IO).launch {
+                runCatching { UnrealStarApiClient.leaveRoom(rid) }
+            }
+        }
     }
 
     companion object {
