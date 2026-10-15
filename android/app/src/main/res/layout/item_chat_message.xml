@@ -4,8 +4,37 @@
     android:layout_height="wrap_content"
     android:layout_marginBottom="4dp"
     android:background="@color/overlay_scrim"
+    android:gravity="center_vertical"
     android:orientation="horizontal"
     android:padding="6dp">
+
+    <!-- Optional Clan / Family Badge Tag -->
+    <TextView
+        android:id="@+id/tvFamilyTag"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="4dp"
+        android:background="@drawable/bg_badge_family"
+        android:paddingHorizontal="4dp"
+        android:paddingVertical="1dp"
+        android:textColor="@color/gold"
+        android:textSize="9sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
+
+    <!-- Optional VIP / Level Tag -->
+    <TextView
+        android:id="@+id/tvVipTag"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginEnd="4dp"
+        android:background="@drawable/bg_topup_badge"
+        android:paddingHorizontal="4dp"
+        android:paddingVertical="1dp"
+        android:textColor="@color/background_dark"
+        android:textSize="9sp"
+        android:textStyle="bold"
+        android:visibility="gone" />
 
     <TextView
         android:id="@+id/tvSender"

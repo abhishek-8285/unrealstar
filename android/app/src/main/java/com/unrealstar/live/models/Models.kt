@@ -131,7 +131,9 @@ data class LiveBannerPage(
 data class ChatMessage(
     val senderId: Long,
     val nickname: String,
-    val message: String
+    val message: String,
+    val familyBadge: String? = null,
+    val vipLevel: Int = 0
 )
 
 data class SendGiftRequest(

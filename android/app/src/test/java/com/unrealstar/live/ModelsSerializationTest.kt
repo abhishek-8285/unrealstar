@@ -1,6 +1,7 @@
 package com.unrealstar.live
 
 import com.google.gson.Gson
+import com.unrealstar.live.models.ChatMessage
 import com.unrealstar.live.models.DailyTaskItem
 import com.unrealstar.live.models.FeedPage
 import com.unrealstar.live.models.FeedPost
@@ -232,5 +233,25 @@ class ModelsSerializationTest {
         assertEquals(350L, pk.host_b_points)
         assertEquals(180, pk.time_remaining_secs)
         assertEquals("in_battle", pk.status)
+    }
+
+    @Test
+    fun testChatMessageSerialization() {
+        val msg = ChatMessage(
+            senderId = 1001L,
+            nickname = "StarKing",
+            message = "Hello Trendo Family!",
+            familyBadge = "🦁 LION",
+            vipLevel = 3
+        )
+
+        val json = gson.toJson(msg)
+        val deserialized = gson.fromJson(json, ChatMessage::class.java)
+
+        assertEquals(1001L, deserialized.senderId)
+        assertEquals("StarKing", deserialized.nickname)
+        assertEquals("Hello Trendo Family!", deserialized.message)
+        assertEquals("🦁 LION", deserialized.familyBadge)
+        assertEquals(3, deserialized.vipLevel)
     }
 }

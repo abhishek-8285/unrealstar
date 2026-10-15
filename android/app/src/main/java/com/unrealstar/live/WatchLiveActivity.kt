@@ -2,6 +2,7 @@ package com.unrealstar.live
 
 import android.os.Bundle
 import android.view.LayoutInflater
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
@@ -288,6 +289,18 @@ class WatchLiveActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: ChatViewHolder, position: Int) {
             val msg = list[position]
+            if (!msg.familyBadge.isNullOrEmpty()) {
+                holder.b.tvFamilyTag.text = msg.familyBadge
+                holder.b.tvFamilyTag.visibility = View.VISIBLE
+            } else {
+                holder.b.tvFamilyTag.visibility = View.GONE
+            }
+            if (msg.vipLevel > 0) {
+                holder.b.tvVipTag.text = "VIP ${msg.vipLevel}"
+                holder.b.tvVipTag.visibility = View.VISIBLE
+            } else {
+                holder.b.tvVipTag.visibility = View.GONE
+            }
             holder.b.tvSender.text = "${msg.nickname}:"
             holder.b.tvMessage.text = msg.message
         }

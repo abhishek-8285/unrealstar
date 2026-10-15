@@ -544,18 +544,9 @@ class CameraLiveActivity : AppCompatActivity() {
             dialog.show(supportFragmentManager, LuckyWheelDialog.TAG)
         }
 
-        binding.tvLiveEdgeBadge.setOnClickListener {
-            lifecycleScope.launch {
-                Toast.makeText(this@CameraLiveActivity, "⚔️ Initiating PK Battle Match...", Toast.LENGTH_SHORT).show()
-                val res = UnrealStarApiClient.requestPkMatch(liveRoomId)
-                res.onSuccess { ticket ->
-                    addChatMessage(0L, "System", "⚔️ PK Battle search active (Ticket: $ticket)")
-                    signalClient?.sendChat("⚔️ PK Battle Challenge is LIVE!")
-                }.onFailure {
-                    Toast.makeText(this@CameraLiveActivity, "PK: ${it.message}", Toast.LENGTH_SHORT).show()
-                }
-            }
-        }
+        binding.tvLiveEdgeBadge.setOnClickListener { triggerPkMatch() }
+        binding.tvPkBadge.setOnClickListener { triggerPkMatch() }
+        binding.btnPk.setOnClickListener { triggerPkMatch() }
 
         binding.btnSwitchCamera.setOnClickListener {
             lensFacing = if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
@@ -600,6 +591,19 @@ class CameraLiveActivity : AppCompatActivity() {
         }
     }
 
+    private fun triggerPkMatch() {
+        lifecycleScope.launch {
+            Toast.makeText(this@CameraLiveActivity, "⚔️ Initiating PK Battle Match...", Toast.LENGTH_SHORT).show()
+            val res = UnrealStarApiClient.requestPkMatch(liveRoomId)
+            res.onSuccess { ticket ->
+                addChatMessage(0L, "System", "⚔️ PK Battle search active (Ticket: $ticket)")
+                signalClient?.sendChat("⚔️ PK Battle Challenge is LIVE!")
+            }.onFailure {
+                Toast.makeText(this@CameraLiveActivity, "PK: ${it.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     inner class ChatAdapter(private val list: List<ChatMessage>) : RecyclerView.Adapter<ChatAdapter.ChatViewHolder>() {
         inner class ChatViewHolder(val binding: ItemChatMessageBinding) : RecyclerView.ViewHolder(binding.root)
 
@@ -610,6 +614,18 @@ class CameraLiveActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: ChatViewHolder, position: Int) {
             val msg = list[position]
+            if (!msg.familyBadge.isNullOrEmpty()) {
+                holder.binding.tvFamilyTag.text = msg.familyBadge
+                holder.binding.tvFamilyTag.visibility = View.VISIBLE
+            } else {
+                holder.binding.tvFamilyTag.visibility = View.GONE
+            }
+            if (msg.vipLevel > 0) {
+                holder.binding.tvVipTag.text = "VIP ${msg.vipLevel}"
+                holder.binding.tvVipTag.visibility = View.VISIBLE
+            } else {
+                holder.binding.tvVipTag.visibility = View.GONE
+            }
             holder.binding.tvSender.text = "${msg.nickname}:"
             holder.binding.tvMessage.text = msg.message
         }
