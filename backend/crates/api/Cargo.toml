@@ -6,7 +6,7 @@ edition.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-camstar-ledger = { path = "../ledger" }
+camstar-ledger = { path = "../ledger", features = ["postgres"] }
 camstar-roles = { path = "../roles" }
 axum.workspace = true
 tokio.workspace = true
@@ -18,6 +18,10 @@ uuid.workspace = true
 chrono.workspace = true
 futures-util.workspace = true
 rust_decimal.workspace = true
+sqlx.workspace = true
+hmac.workspace = true
+sha2.workspace = true
+hex.workspace = true
 
 [dev-dependencies]
 tower.workspace = true

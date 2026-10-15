@@ -84,7 +84,11 @@ impl RoomRoster {
         if self.seats.len() >= MAX_SEATS {
             return Err(Denial::SeatFull);
         }
-        let seat = Seat { slot, occupant: account, role };
+        let seat = Seat {
+            slot,
+            occupant: account,
+            role,
+        };
         self.seats.insert(slot, seat);
         Ok(self.seats.get(&slot).expect("just inserted"))
     }
@@ -132,8 +136,8 @@ impl RoomRoster {
 
 #[cfg(test)]
 mod tests {
-    use crate::roles::AccountState;
     use super::*;
+    use crate::roles::AccountState;
 
     fn roster() -> RoomRoster {
         RoomRoster::new(1, 100)
@@ -161,7 +165,9 @@ mod tests {
     #[test]
     fn a_seated_moderator_cannot_gift() {
         let mut roster = roster();
-        roster.take_seat(200, 0, SeatRole::Moderator).expect("seat taken");
+        roster
+            .take_seat(200, 0, SeatRole::Moderator)
+            .expect("seat taken");
         assert_eq!(roster.can_send_gift(200), Err(Denial::NotSeated));
         assert_eq!(roster.can_receive_gift(200), Err(Denial::NotSeated));
     }
@@ -169,7 +175,9 @@ mod tests {
     #[test]
     fn a_moderator_can_still_gift_after_being_demoted_to_guest() {
         let mut roster = roster();
-        roster.take_seat(200, 0, SeatRole::Moderator).expect("seat taken");
+        roster
+            .take_seat(200, 0, SeatRole::Moderator)
+            .expect("seat taken");
         roster.set_role(200, SeatRole::Guest).expect("role changed");
         assert_eq!(roster.can_send_gift(200), Ok(()));
     }
@@ -191,29 +199,44 @@ mod tests {
         }
         assert_eq!(roster.seat_count(), MAX_SEATS);
         let overflow = roster.take_seat(9999, 0, SeatRole::Guest);
-        assert!(matches!(overflow, Err(Denial::SeatOccupied) | Err(Denial::SeatFull)));
+        assert!(matches!(
+            overflow,
+            Err(Denial::SeatOccupied) | Err(Denial::SeatFull)
+        ));
     }
 
     #[test]
     fn an_account_cannot_hold_two_seats() {
         let mut roster = roster();
-        roster.take_seat(200, 0, SeatRole::Guest).expect("first seat");
-        assert_eq!(roster.take_seat(200, 1, SeatRole::Guest), Err(Denial::AlreadySeated));
+        roster
+            .take_seat(200, 0, SeatRole::Guest)
+            .expect("first seat");
+        assert_eq!(
+            roster.take_seat(200, 1, SeatRole::Guest),
+            Err(Denial::AlreadySeated)
+        );
     }
 
     #[test]
     fn leaving_frees_the_slot_for_someone_else() {
         let mut roster = roster();
-        roster.take_seat(200, 3, SeatRole::Guest).expect("seat taken");
+        roster
+            .take_seat(200, 3, SeatRole::Guest)
+            .expect("seat taken");
         roster.leave(200).expect("left");
         assert_eq!(roster.seat_of(200), None);
-        roster.take_seat(201, 3, SeatRole::CoHost).expect("slot reused");
+        roster
+            .take_seat(201, 3, SeatRole::CoHost)
+            .expect("slot reused");
     }
 
     #[test]
     fn slot_numbers_outside_capacity_are_refused() {
         let mut roster = roster();
-        assert_eq!(roster.take_seat(200, MAX_SEATS as u8, SeatRole::Guest), Err(Denial::SlotOutOfRange));
+        assert_eq!(
+            roster.take_seat(200, MAX_SEATS as u8, SeatRole::Guest),
+            Err(Denial::SlotOutOfRange)
+        );
     }
 
     #[test]
@@ -229,7 +252,9 @@ mod tests {
         let mut roster = RoomRoster::new(1, 555);
         assert!(roster.is_host(555));
         assert_eq!(roster.seat_count(), 0);
-        roster.take_seat(556, 0, SeatRole::CoHost).expect("a room can start with just a host");
+        roster
+            .take_seat(556, 0, SeatRole::CoHost)
+            .expect("a room can start with just a host");
     }
 
     #[test]

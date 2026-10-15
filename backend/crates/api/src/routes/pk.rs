@@ -90,9 +90,15 @@ pub async fn respond_invite(
 }
 
 pub async fn get_status(
+    headers: HeaderMap,
     Path(pk_id): Path<String>,
     State(state): State<AppState>,
 ) -> Result<Json<PkStatusResponse>, ApiError> {
+    let auth_header = headers.get("Authorization").and_then(|h| h.to_str().ok());
+    state
+        .authenticate_header(auth_header)
+        .await
+        .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
     let pks = state.pks.read().await;
     let pk = pks
         .get(&pk_id)

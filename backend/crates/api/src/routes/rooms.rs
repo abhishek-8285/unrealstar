@@ -7,16 +7,17 @@ use axum::{
     response::IntoResponse,
     Json,
 };
-use serde::Deserialize;
 use camstar_roles::{RoomRoster, SeatRole};
 use futures_util::{SinkExt, StreamExt};
+use serde::Deserialize;
 use tokio::sync::broadcast;
 
 use crate::{
     error::ApiError,
     models::{
         CloseRoomResponse, CreateRoomRequest, CreateRoomResponse, JoinRoomResponse,
-        ModerateRequest, SeatActionRequest, SeatInfo, SeatRequest, WsClientMessage, WsServerMessage,
+        ModerateRequest, SeatActionRequest, SeatInfo, SeatRequest, WsClientMessage,
+        WsServerMessage,
     },
     state::{AppState, RoomSession},
 };
@@ -40,12 +41,15 @@ pub async fn create_room(
             .ok_or_else(|| ApiError::NotFound("User not found".into()))?;
 
         if !profile.can_publish {
-            return Err(ApiError::Forbidden("Account is not eligible to publish".into()));
+            return Err(ApiError::Forbidden(
+                "Account is not eligible to publish".into(),
+            ));
         }
     }
 
     let mut rooms = state.rooms.write().await;
-    let room_id = (rooms.len() as u64) + 1001;
+    // Monotonic id: max + 1, never collides after deletes/restarts-in-session.
+    let room_id = rooms.keys().max().map(|m| m + 1).unwrap_or(1001);
 
     let roster = RoomRoster::new(room_id, user_id);
 
@@ -107,6 +111,17 @@ pub async fn join_room(
         .await
         .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
 
+    {
+        let bans = state.room_bans.read().await;
+        if bans
+            .get(&room_id)
+            .map(|s| s.contains(&user_id))
+            .unwrap_or(false)
+        {
+            return Err(ApiError::Forbidden("You are banned from this room".into()));
+        }
+    }
+
     let mut rooms = state.rooms.write().await;
     let room = rooms
         .get_mut(&room_id)
@@ -123,37 +138,38 @@ pub async fn join_room(
     }
 
     let users = state.users.read().await;
-    let host_profile = users
-        .get(&room.host_id)
-        .cloned()
-        .unwrap_or_else(|| crate::models::UserProfile {
-            user_id: room.host_id,
-            phone: "".into(),
-            nickname: format!("Host_{}", room.host_id),
-            avatar_url: "".into(),
-            bio: "".into(),
-            gender: "".into(),
-            city: "".into(),
-            age: 20,
-            can_publish: true,
-            creator_status: camstar_roles::CreatorStatus::Viewer,
-            wealth_tier: camstar_roles::Tier::Newcomer,
-            vip_level: camstar_roles::VipLevel::None,
-            followers_count: 0,
-            following_count: 0,
-            is_live: true,
-            live_room_id: Some(room_id),
-            likes_received: 0,
-        });
+    let host_profile =
+        users
+            .get(&room.host_id)
+            .cloned()
+            .unwrap_or_else(|| crate::models::UserProfile {
+                user_id: room.host_id,
+                phone: "".into(),
+                nickname: format!("Host_{}", room.host_id),
+                avatar_url: "".into(),
+                bio: "".into(),
+                gender: "".into(),
+                city: "".into(),
+                age: 20,
+                can_publish: true,
+                creator_status: camstar_roles::CreatorStatus::Viewer,
+                wealth_tier: camstar_roles::Tier::Newcomer,
+                vip_level: camstar_roles::VipLevel::None,
+                followers_count: 0,
+                following_count: 0,
+                is_live: true,
+                live_room_id: Some(room_id),
+                likes_received: 0,
+            });
 
-    let active_seats: Vec<SeatInfo> = (1..=15)
+    let active_seats: Vec<SeatInfo> = (0u8..15)
         .filter_map(|slot| {
             room.roster.seat(slot).map(|seat| SeatInfo {
-                slot: seat.slot,
+                slot: seat.slot + 1,
                 occupant_id: seat.occupant,
                 nickname: format!("Seat_{}", seat.occupant),
                 avatar_url: format!("https://cdn.camstar.live/avatars/{}.png", seat.occupant),
-                is_muted: false,
+                is_muted: seat.role == camstar_roles::SeatRole::Moderator,
             })
         })
         .collect();
@@ -210,7 +226,9 @@ pub async fn close_room(
         .ok_or_else(|| ApiError::NotFound("Room not found".into()))?;
 
     if room.host_id != user_id {
-        return Err(ApiError::Forbidden("Only the host can close the room".into()));
+        return Err(ApiError::Forbidden(
+            "Only the host can close the room".into(),
+        ));
     }
 
     room.is_active = false;
@@ -248,7 +266,10 @@ pub async fn request_seat(
         .get_mut(&room_id)
         .ok_or_else(|| ApiError::NotFound("Room not found".into()))?;
 
-    let slot_idx = req.slot.saturating_sub(1);
+    if !(1..=15).contains(&req.slot) {
+        return Err(ApiError::BadRequest("slot must be 1..15".into()));
+    }
+    let slot_idx = req.slot - 1;
     room.roster
         .take_seat(user_id, slot_idx, SeatRole::Guest)
         .map_err(ApiError::RoomDenial)?;
@@ -291,10 +312,47 @@ pub async fn seat_action(
         return Err(ApiError::Forbidden("Only host can manage seats".into()));
     }
 
-    if req.action == "kick" {
-        room.roster
-            .leave(req.target_user_id)
-            .map_err(ApiError::RoomDenial)?;
+    match req.action.as_str() {
+        "kick" => {
+            room.roster
+                .leave(req.target_user_id)
+                .map_err(ApiError::RoomDenial)?;
+        }
+        "mute_mic" => {
+            // Muted = Moderator role (cannot gift, listed as muted).
+            room.roster
+                .set_role(req.target_user_id, camstar_roles::SeatRole::Moderator)
+                .map_err(ApiError::RoomDenial)?;
+        }
+        "unmute_mic" => {
+            room.roster
+                .set_role(req.target_user_id, camstar_roles::SeatRole::Guest)
+                .map_err(ApiError::RoomDenial)?;
+        }
+        "approve" => {
+            // Approve a pending request: seat them as CoHost if not seated,
+            // otherwise promote the existing seat.
+            if room.roster.seat_of(req.target_user_id).is_none() {
+                // Host must supply slot via request_seat in this build; without
+                // a slot we cannot place them — report clearly.
+                return Err(ApiError::BadRequest(
+                    "approve requires the guest to hold a seat request; use seats/request first"
+                        .into(),
+                ));
+            }
+            room.roster
+                .set_role(req.target_user_id, camstar_roles::SeatRole::CoHost)
+                .map_err(ApiError::RoomDenial)?;
+        }
+        "reject" => {
+            // Reject = ensure they hold no seat.
+            let _ = room.roster.leave(req.target_user_id);
+        }
+        _ => {
+            return Err(ApiError::BadRequest(
+                "Unknown seat action (approve/reject/kick/mute_mic/unmute_mic)".into(),
+            ))
+        }
     }
 
     Ok(Json(serde_json::json!({
@@ -316,13 +374,54 @@ pub async fn moderate(
         .await
         .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
 
-    let rooms = state.rooms.read().await;
+    let mut rooms = state.rooms.write().await;
     let room = rooms
-        .get(&room_id)
+        .get_mut(&room_id)
         .ok_or_else(|| ApiError::NotFound("Room not found".into()))?;
 
     if room.host_id != user_id {
-        return Err(ApiError::Forbidden("Only host can perform moderation".into()));
+        return Err(ApiError::Forbidden(
+            "Only host can perform moderation".into(),
+        ));
+    }
+
+    match req.action.as_str() {
+        "kick_room" => {
+            let _ = room.roster.leave(req.target_user_id);
+            let viewers = room.roster.viewer_count();
+            if viewers > 0 {
+                room.roster.set_viewer_count(viewers - 1);
+            }
+        }
+        "ban_room" => {
+            let _ = room.roster.leave(req.target_user_id);
+            let viewers = room.roster.viewer_count();
+            if viewers > 0 {
+                room.roster.set_viewer_count(viewers - 1);
+            }
+            state
+                .room_bans
+                .write()
+                .await
+                .entry(room_id)
+                .or_default()
+                .insert(req.target_user_id);
+        }
+        "mute_chat" => {
+            // Chat-mute is represented as a Moderator (muted) seat when seated;
+            // viewers without seats are simply acknowledged — durable mute list
+            // lands with persistence (Phase 0 follow-up).
+            if room.roster.seat_of(req.target_user_id).is_some() {
+                let _ = room
+                    .roster
+                    .set_role(req.target_user_id, camstar_roles::SeatRole::Moderator);
+            }
+        }
+        _ => {
+            return Err(ApiError::BadRequest(
+                "Unknown moderation action (mute_chat/kick_room/ban_room)".into(),
+            ))
+        }
     }
 
     Ok(Json(serde_json::json!({
@@ -351,14 +450,14 @@ pub async fn ws_handler(
         return ApiError::Unauthorized("Missing or invalid token".to_string()).into_response();
     };
     let auth_header = format!("Bearer {token}");
-    if state.authenticate_header(Some(&auth_header)).await.is_none() {
+    let Some(user_id) = state.authenticate_header(Some(&auth_header)).await else {
         return ApiError::Unauthorized("Missing or invalid token".to_string()).into_response();
-    }
-    ws.on_upgrade(move |socket| handle_socket(socket, room_id, state))
+    };
+    ws.on_upgrade(move |socket| handle_socket(socket, room_id, state, user_id))
         .into_response()
 }
 
-async fn handle_socket(socket: WebSocket, room_id: u64, state: AppState) {
+async fn handle_socket(socket: WebSocket, room_id: u64, state: AppState, user_id: u64) {
     let (mut sender, mut receiver) = socket.split();
 
     // Subscribe to room broadcast channel
@@ -387,20 +486,84 @@ async fn handle_socket(socket: WebSocket, room_id: u64, state: AppState) {
     let mut recv_task = tokio::spawn(async move {
         while let Some(Ok(Message::Text(text))) = receiver.next().await {
             if let Ok(client_msg) = serde_json::from_str::<WsClientMessage>(&text) {
-                let ws_rooms = state_clone.ws_rooms.read().await;
-                if let Some(tx) = ws_rooms.get(&room_id) {
-                    match client_msg {
-                        WsClientMessage::Chat { text } => {
+                match client_msg {
+                    WsClientMessage::Chat { text } => {
+                        let nickname = {
+                            let users = state_clone.users.read().await;
+                            users
+                                .get(&user_id)
+                                .map(|u| u.nickname.clone())
+                                .unwrap_or_else(|| format!("User_{user_id}"))
+                        };
+                        let ws_rooms = state_clone.ws_rooms.read().await;
+                        if let Some(tx) = ws_rooms.get(&room_id) {
                             let _ = tx.send(WsServerMessage::ChatBroadcast {
-                                user_id: 1,
-                                nickname: "Viewer".into(),
+                                user_id,
+                                nickname,
                                 text,
                             });
                         }
-                        WsClientMessage::Ping => {
+                    }
+                    WsClientMessage::Join {
+                        room_id: join_room, ..
+                    } => {
+                        // Send a room_state snapshot to all subscribers so the
+                        // joiner (and room) converge on viewer/seat truth.
+                        let (viewers, seats) = {
+                            let rooms = state_clone.rooms.read().await;
+                            match rooms.get(&join_room) {
+                                Some(r) => (
+                                    r.roster.viewer_count(),
+                                    (0u8..15)
+                                        .filter_map(|slot| {
+                                            r.roster.seat(slot).map(|s| SeatInfo {
+                                                slot: s.slot + 1,
+                                                occupant_id: s.occupant,
+                                                nickname: format!("Seat_{}", s.occupant),
+                                                avatar_url: format!(
+                                                    "https://cdn.camstar.live/avatars/{}.png",
+                                                    s.occupant
+                                                ),
+                                                is_muted: s.role
+                                                    == camstar_roles::SeatRole::Moderator,
+                                            })
+                                        })
+                                        .collect::<Vec<_>>(),
+                                ),
+                                None => continue,
+                            }
+                        };
+                        let ws_rooms = state_clone.ws_rooms.read().await;
+                        if let Some(tx) = ws_rooms.get(&room_id) {
+                            let _ = tx.send(WsServerMessage::RoomState {
+                                viewers_count: viewers,
+                                seats,
+                            });
+                        }
+                    }
+                    WsClientMessage::SeatSignal { is_muted } => {
+                        let slot = {
+                            let rooms = state_clone.rooms.read().await;
+                            rooms
+                                .get(&room_id)
+                                .and_then(|r| r.roster.seat_of(user_id))
+                                .map(|s| s.slot + 1)
+                                .unwrap_or(0)
+                        };
+                        let ws_rooms = state_clone.ws_rooms.read().await;
+                        if let Some(tx) = ws_rooms.get(&room_id) {
+                            let _ = tx.send(WsServerMessage::SeatUpdated {
+                                slot,
+                                occupant_id: user_id,
+                                is_muted,
+                            });
+                        }
+                    }
+                    WsClientMessage::Ping => {
+                        let ws_rooms = state_clone.ws_rooms.read().await;
+                        if let Some(tx) = ws_rooms.get(&room_id) {
                             let _ = tx.send(WsServerMessage::Pong);
                         }
-                        _ => {}
                     }
                 }
             }

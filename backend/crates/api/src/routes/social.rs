@@ -1,10 +1,10 @@
-use std::collections::HashSet;
 use axum::{
     extract::{Path, Query, State},
     http::HeaderMap,
     Json,
 };
 use chrono::Utc;
+use std::collections::HashSet;
 use uuid::Uuid;
 
 use crate::{
@@ -29,8 +29,14 @@ pub async fn follow_user(
         .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
 
     let mut follows = state.follows.write().await;
+    if target_user_id == user_id {
+        return Err(ApiError::BadRequest("Cannot follow yourself".into()));
+    }
     let user_follows = follows.entry(user_id).or_insert_with(HashSet::new);
-    user_follows.insert(target_user_id);
+    if !user_follows.insert(target_user_id) {
+        // Already following — idempotent, do not double-count.
+        return Ok(Json(serde_json::json!({ "is_following": true })));
+    }
 
     // Increment follower count
     let mut users = state.users.write().await;
@@ -56,8 +62,13 @@ pub async fn unfollow_user(
         .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
 
     let mut follows = state.follows.write().await;
-    if let Some(user_follows) = follows.get_mut(&user_id) {
-        user_follows.remove(&target_user_id);
+    let was_following = follows
+        .get_mut(&user_id)
+        .map(|s| s.remove(&target_user_id))
+        .unwrap_or(false);
+    if !was_following {
+        // Idempotent: not following — do not decrement counters.
+        return Ok(Json(serde_json::json!({ "is_following": false })));
     }
 
     let mut users = state.users.write().await;
@@ -98,7 +109,7 @@ pub async fn feed_rooms(
                 .map(|u| u.nickname.clone())
                 .unwrap_or_else(|| format!("Host_{}", r.host_id));
 
-FeedRoomItem {
+            FeedRoomItem {
                 room_id: r.room_id,
                 title: r.title.clone(),
                 cover_image_url: r.cover_image_url.clone(),
@@ -131,11 +142,7 @@ FeedRoomItem {
     let total = items.len();
     let total_pages = total.div_ceil(page_size).max(1) as u32;
     let start = (page as usize) * page_size;
-    let paged: Vec<FeedRoomItem> = items
-        .into_iter()
-        .skip(start)
-        .take(page_size)
-        .collect();
+    let paged: Vec<FeedRoomItem> = items.into_iter().skip(start).take(page_size).collect();
 
     Json(RoomPage {
         rooms: paged,
@@ -451,18 +458,17 @@ pub async fn comment_moment(
     // one level deep so replies can never nest without bound.
     if let Some(parent_id) = req.parent_id.as_deref() {
         let comments = state.moment_comments.read().await;
-        match comments.get(&moment_id).and_then(|list| {
-            list.iter().find(|c| c.comment_id == parent_id)
-        }) {
+        match comments
+            .get(&moment_id)
+            .and_then(|list| list.iter().find(|c| c.comment_id == parent_id))
+        {
             Some(parent) if parent.parent_id.is_none() => {}
             Some(_) => {
                 return Err(ApiError::BadRequest(
                     "Replies are limited to one level".into(),
                 ))
             }
-            None => {
-                return Err(ApiError::NotFound("Parent comment not found".into()))
-            }
+            None => return Err(ApiError::NotFound("Parent comment not found".into())),
         }
     }
 
@@ -516,21 +522,21 @@ pub async fn list_comments(
 
     let list: Vec<MomentComment> = comments
         .get(&moment_id)
-                .map(|raw| {
-                    raw.iter()
-                        .map(|c| {
-                            let mut c = c.clone();
-                            c.liked_by_me = match viewer {
-                                Some(uid) => likes
-                                    .get(&c.comment_id)
-                                    .map(|s| s.contains(&uid))
-                                    .unwrap_or(false),
-                                None => false,
-                            };
-                            c
-                        })
-                        .collect()
+        .map(|raw| {
+            raw.iter()
+                .map(|c| {
+                    let mut c = c.clone();
+                    c.liked_by_me = match viewer {
+                        Some(uid) => likes
+                            .get(&c.comment_id)
+                            .map(|s| s.contains(&uid))
+                            .unwrap_or(false),
+                        None => false,
+                    };
+                    c
                 })
+                .collect()
+        })
         .unwrap_or_default();
 
     Json(CommentList { comments: list })

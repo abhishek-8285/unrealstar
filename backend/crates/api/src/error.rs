@@ -56,8 +56,14 @@ impl IntoResponse for ApiError {
             ApiError::Internal(m) => (StatusCode::INTERNAL_SERVER_ERROR, m),
             ApiError::Ledger(err) => (StatusCode::UNPROCESSABLE_ENTITY, err.to_string()),
             ApiError::Money(err) => (StatusCode::BAD_REQUEST, err.to_string()),
-            ApiError::RoomDenial(denial) => (StatusCode::FORBIDDEN, format!("room operation denied: {denial:?}")),
-            ApiError::AuthDenial(denial) => (StatusCode::FORBIDDEN, format!("capability denied: {denial:?}")),
+            ApiError::RoomDenial(denial) => (
+                StatusCode::FORBIDDEN,
+                format!("room operation denied: {denial:?}"),
+            ),
+            ApiError::AuthDenial(denial) => (
+                StatusCode::FORBIDDEN,
+                format!("capability denied: {denial:?}"),
+            ),
         };
 
         let body = Json(ErrorResponse {

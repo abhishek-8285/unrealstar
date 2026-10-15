@@ -22,18 +22,102 @@ impl PostgresLedger {
         &self.pool
     }
 
+    /// Connect to PostgreSQL and run embedded migrations in one step.
+    pub async fn connect_and_migrate(database_url: &str) -> Result<Self, LedgerError> {
+        let pool = PgPool::connect(database_url)
+            .await
+            .map_err(|e| LedgerError::Database(e.to_string()))?;
+        let ledger = Self::new(pool);
+        ledger
+            .migrate()
+            .await
+            .map_err(|e| LedgerError::Database(e.to_string()))?;
+        Ok(ledger)
+    }
+
     pub async fn migrate(&self) -> Result<(), sqlx::migrate::MigrateError> {
         sqlx::migrate!("./migrations").run(&self.pool).await
     }
 
-    pub async fn register_account(&self, account: AccountId, kind: AccountKind) -> Result<(), LedgerError> {
+    /// Look up an entry id by its idempotency key.
+    pub async fn find_by_idempotency_key(
+        &self,
+        idempotency_key: &str,
+    ) -> Result<Option<EntryId>, LedgerError> {
+        let row = sqlx::query("SELECT id FROM entries WHERE idempotency_key = $1")
+            .bind(idempotency_key)
+            .fetch_optional(&self.pool)
+            .await
+            .map_err(|e| LedgerError::Database(e.to_string()))?;
+        Ok(row.map(|r| EntryId(r.get("id"))))
+    }
+
+    /// Fetch every entry with its lines, ordered by id.
+    pub async fn entries(&self) -> Result<Vec<crate::ledger::Entry>, LedgerError> {
+        let entry_rows = sqlx::query("SELECT id, idempotency_key, kind FROM entries ORDER BY id")
+            .fetch_all(&self.pool)
+            .await
+            .map_err(|e| LedgerError::Database(e.to_string()))?;
+
+        let line_rows = sqlx::query(
+            "SELECT entry_id, account_id, direction, amount_paise FROM lines ORDER BY entry_id, id",
+        )
+        .fetch_all(&self.pool)
+        .await
+        .map_err(|e| LedgerError::Database(e.to_string()))?;
+
+        let mut entries: Vec<crate::ledger::Entry> = Vec::with_capacity(entry_rows.len());
+        for row in entry_rows {
+            let id: i64 = row.get("id");
+            let kind_str: String = row.get("kind");
+            let kind = match kind_str.as_str() {
+                "TopUp" => EntryKind::TopUp,
+                "GiftSpend" => EntryKind::GiftSpend,
+                "Payout" => EntryKind::Payout,
+                "Reversal" => EntryKind::Reversal,
+                _ => EntryKind::Adjustment,
+            };
+            entries.push(crate::ledger::Entry {
+                id: EntryId(id),
+                idempotency_key: row.get("idempotency_key"),
+                kind,
+                lines: Vec::new(),
+            });
+        }
+
+        for row in line_rows {
+            let entry_id: i64 = row.get("entry_id");
+            if let Some(entry) = entries.iter_mut().find(|e| e.id.0 == entry_id) {
+                let direction_str: String = row.get("direction");
+                let direction = if direction_str == "Credit" {
+                    Direction::Credit
+                } else {
+                    Direction::Debit
+                };
+                let amount_paise: i64 = row.get("amount_paise");
+                entry.lines.push(Line {
+                    account: AccountId(row.get("account_id")),
+                    direction,
+                    amount: Money::from_minor(amount_paise).map_err(LedgerError::from)?,
+                });
+            }
+        }
+
+        Ok(entries)
+    }
+
+    pub async fn register_account(
+        &self,
+        account: AccountId,
+        kind: AccountKind,
+    ) -> Result<(), LedgerError> {
         let kind_str = match kind {
             AccountKind::Owned => "Owned",
             AccountKind::External => "External",
         };
         sqlx::query(
             "INSERT INTO accounts (id, kind) VALUES ($1, $2) \
-             ON CONFLICT (id) DO UPDATE SET kind = EXCLUDED.kind"
+             ON CONFLICT (id) DO UPDATE SET kind = EXCLUDED.kind",
         )
         .bind(account.0)
         .bind(kind_str)
@@ -78,6 +162,20 @@ impl PostgresLedger {
         Money::from_minor(balance_paise).map_err(LedgerError::from)
     }
 
+    /// Sum of every account balance; zero for a healthy double-entry ledger.
+    pub async fn total_of_all_accounts(&self) -> Result<Money, LedgerError> {
+        let row = sqlx::query(
+            "SELECT COALESCE(SUM(CASE WHEN direction = 'Credit' THEN amount_paise ELSE -amount_paise END), 0)::BIGINT as total \
+             FROM lines"
+        )
+        .fetch_one(&self.pool)
+        .await
+        .map_err(|e| LedgerError::Database(e.to_string()))?;
+
+        let total_paise: i64 = row.get("total");
+        Money::from_minor(total_paise).map_err(LedgerError::from)
+    }
+
     pub async fn post(
         &self,
         idempotency_key: &str,
@@ -105,7 +203,11 @@ impl PostgresLedger {
             return Err(LedgerError::Unbalanced);
         }
 
-        let mut tx = self.pool.begin().await.map_err(|e| LedgerError::Database(e.to_string()))?;
+        let mut tx = self
+            .pool
+            .begin()
+            .await
+            .map_err(|e| LedgerError::Database(e.to_string()))?;
 
         // 1. Check idempotency
         let existing = sqlx::query("SELECT id FROM entries WHERE idempotency_key = $1")
@@ -116,7 +218,9 @@ impl PostgresLedger {
 
         if let Some(row) = existing {
             let id: i64 = row.get("id");
-            tx.rollback().await.map_err(|e| LedgerError::Database(e.to_string()))?;
+            tx.rollback()
+                .await
+                .map_err(|e| LedgerError::Database(e.to_string()))?;
             return Ok(EntryId(id));
         }
 
@@ -150,7 +254,9 @@ impl PostgresLedger {
                     let current_balance_paise: i64 = bal_row.get("balance");
                     let available = Money::from_minor(current_balance_paise)?;
                     if available < line.amount {
-                        tx.rollback().await.map_err(|e| LedgerError::Database(e.to_string()))?;
+                        tx.rollback()
+                            .await
+                            .map_err(|e| LedgerError::Database(e.to_string()))?;
                         return Err(LedgerError::InsufficientFunds {
                             account: line.account,
                             available,
@@ -163,11 +269,13 @@ impl PostgresLedger {
 
         // 3. Ensure all accounts exist in accounts table
         for line in lines {
-            sqlx::query("INSERT INTO accounts (id, kind) VALUES ($1, 'Owned') ON CONFLICT (id) DO NOTHING")
-                .bind(line.account.0)
-                .execute(&mut *tx)
-                .await
-                .map_err(|e| LedgerError::Database(e.to_string()))?;
+            sqlx::query(
+                "INSERT INTO accounts (id, kind) VALUES ($1, 'Owned') ON CONFLICT (id) DO NOTHING",
+            )
+            .bind(line.account.0)
+            .execute(&mut *tx)
+            .await
+            .map_err(|e| LedgerError::Database(e.to_string()))?;
         }
 
         // 4. Insert entry
@@ -179,12 +287,13 @@ impl PostgresLedger {
             EntryKind::Adjustment => "Adjustment",
         };
 
-        let entry_row = sqlx::query("INSERT INTO entries (idempotency_key, kind) VALUES ($1, $2) RETURNING id")
-            .bind(idempotency_key)
-            .bind(kind_str)
-            .fetch_one(&mut *tx)
-            .await
-            .map_err(|e| LedgerError::Database(e.to_string()))?;
+        let entry_row =
+            sqlx::query("INSERT INTO entries (idempotency_key, kind) VALUES ($1, $2) RETURNING id")
+                .bind(idempotency_key)
+                .bind(kind_str)
+                .fetch_one(&mut *tx)
+                .await
+                .map_err(|e| LedgerError::Database(e.to_string()))?;
 
         let entry_id: i64 = entry_row.get("id");
 
@@ -206,7 +315,9 @@ impl PostgresLedger {
             .map_err(|e| LedgerError::Database(e.to_string()))?;
         }
 
-        tx.commit().await.map_err(|e| LedgerError::Database(e.to_string()))?;
+        tx.commit()
+            .await
+            .map_err(|e| LedgerError::Database(e.to_string()))?;
 
         Ok(EntryId(entry_id))
     }

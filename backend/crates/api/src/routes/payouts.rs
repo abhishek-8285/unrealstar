@@ -11,9 +11,7 @@ use uuid::Uuid;
 
 use crate::{
     error::ApiError,
-    models::{
-        KycRecord, KycSubmitRequest, PayoutPreviewResponse, PayoutRecord, PayoutRequest,
-    },
+    models::{KycRecord, KycSubmitRequest, PayoutPreviewResponse, PayoutRecord, PayoutRequest},
     state::{system_clearing_account, user_diamonds_account, AppState},
 };
 
@@ -68,14 +66,52 @@ pub async fn submit_kyc(
         .await
         .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
 
+    let pan = req.pan_number.trim().to_uppercase();
+    let ifsc = req.ifsc_code.trim().to_uppercase();
+    let aadhaar = req.aadhaar_last4.trim();
+    let bank = req.bank_account_number.trim();
+    if req.payer_name.trim().is_empty() || req.payer_address.trim().is_empty() {
+        return Err(ApiError::BadRequest(
+            "payer_name and payer_address are required".into(),
+        ));
+    }
+    // PAN: 5 letters + 4 digits + 1 letter (e.g. ABCDE1234F).
+    if pan.len() != 10
+        || !pan.chars().take(5).all(|c| c.is_ascii_uppercase())
+        || !pan.chars().skip(5).take(4).all(|c| c.is_ascii_digit())
+        || !pan
+            .chars()
+            .nth(9)
+            .map(|c| c.is_ascii_uppercase())
+            .unwrap_or(false)
+    {
+        return Err(ApiError::BadRequest("Invalid PAN format".into()));
+    }
+    if aadhaar.len() != 4 || !aadhaar.chars().all(|c| c.is_ascii_digit()) {
+        return Err(ApiError::BadRequest(
+            "aadhaar_last4 must be 4 digits".into(),
+        ));
+    }
+    // IFSC: 4 letters + '0' + 6 alphanumerics.
+    if ifsc.len() != 11
+        || !ifsc.chars().take(4).all(|c| c.is_ascii_uppercase())
+        || ifsc.chars().nth(4) != Some('0')
+        || !ifsc.chars().skip(5).all(|c| c.is_ascii_alphanumeric())
+    {
+        return Err(ApiError::BadRequest("Invalid IFSC format".into()));
+    }
+    if bank.len() < 9 || bank.len() > 18 || !bank.chars().all(|c| c.is_ascii_digit()) {
+        return Err(ApiError::BadRequest("Invalid bank account number".into()));
+    }
+
     let record = KycRecord {
         user_id,
-        payer_name: req.payer_name,
-        payer_address: req.payer_address,
-        pan_number: req.pan_number,
-        aadhaar_last4: req.aadhaar_last4,
-        bank_account_number: req.bank_account_number,
-        ifsc_code: req.ifsc_code,
+        payer_name: req.payer_name.trim().to_string(),
+        payer_address: req.payer_address.trim().to_string(),
+        pan_number: pan,
+        aadhaar_last4: aadhaar.to_string(),
+        bank_account_number: bank.to_string(),
+        ifsc_code: ifsc,
         status: "pending".into(),
         rejection_reason: None,
     };
@@ -169,7 +205,19 @@ pub async fn request_payout(
         .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
 
     if req.diamonds_amount <= 0 {
-        return Err(ApiError::BadRequest("Diamonds amount must be greater than zero".into()));
+        return Err(ApiError::BadRequest(
+            "Diamonds amount must be greater than zero".into(),
+        ));
+    }
+    // Minimum 100 diamonds (= ₹10 gross) avoids dust payouts where TDS
+    // integer division would zero out the tax line.
+    if req.diamonds_amount < 100 {
+        return Err(ApiError::BadRequest(
+            "Minimum payout is 100 diamonds".into(),
+        ));
+    }
+    if req.idempotency_key.trim().is_empty() {
+        return Err(ApiError::BadRequest("idempotency_key is required".into()));
     }
 
     // Check KYC status
@@ -180,7 +228,9 @@ pub async fn request_payout(
             .ok_or_else(|| ApiError::Forbidden("KYC documents must be submitted first".into()))?;
 
         if record.status != "approved" {
-            return Err(ApiError::Forbidden("KYC documents are not yet approved".into()));
+            return Err(ApiError::Forbidden(
+                "KYC documents are not yet approved".into(),
+            ));
         }
     }
 
@@ -201,9 +251,9 @@ pub async fn request_payout(
     let amount = Money::from_minor(req.diamonds_amount)?;
     let diamonds_acct = user_diamonds_account(user_id);
 
-    {
-        let mut ledger = state.ledger.write().await;
-        ledger.post(
+    state
+        .ledger
+        .post(
             EntryKind::Payout,
             &req.idempotency_key,
             vec![
@@ -218,8 +268,8 @@ pub async fn request_payout(
                     amount,
                 },
             ],
-        )?;
-    }
+        )
+        .await?;
 
     let gross_inr = req.diamonds_amount / 10;
     let tds_194q_inr = gross_inr / 100;

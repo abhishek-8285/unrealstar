@@ -178,17 +178,21 @@ pub async fn otp_verify(
         if let Some(&uid) = phone_map.get(&phone) {
             (uid, false)
         } else {
-            let mut ledger = state.ledger.write().await;
-
             // Highest existing id, not count: seeded demo users (1001, 9999)
             // must not collide with the next registered account.
             let uid = users.keys().max().copied().unwrap_or(0) + 1;
 
-            ledger.register_account(user_coins_account(uid), camstar_ledger::AccountKind::Owned);
-            ledger.register_account(
-                user_diamonds_account(uid),
-                camstar_ledger::AccountKind::Owned,
-            );
+            state
+                .ledger
+                .register_account(user_coins_account(uid), camstar_ledger::AccountKind::Owned)
+                .await?;
+            state
+                .ledger
+                .register_account(
+                    user_diamonds_account(uid),
+                    camstar_ledger::AccountKind::Owned,
+                )
+                .await?;
 
             let profile = UserProfile {
                 user_id: uid,
@@ -383,7 +387,7 @@ pub async fn get_me_dashboard(
 
     // Engagement totals are derived from live state where available so the
     // numbers move when the user actually likes or gifts.
-        let likes_count = profile.as_ref().map(|p| p.likes_received).unwrap_or(0);
+    let likes_count = profile.as_ref().map(|p| p.likes_received).unwrap_or(0);
 
     Ok(Json(MeDashboard {
         user_id,

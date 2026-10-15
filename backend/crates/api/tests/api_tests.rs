@@ -22,10 +22,13 @@ async fn test_auth_and_user_lifecycle() {
     // 1. Send OTP
     let req = Request::post("/api/v1/auth/otp/send")
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "phone_number": "+919876543210",
-            "country_code": "+91"
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "phone_number": "+919876543210",
+                "country_code": "+91"
+            })
+            .to_string(),
+        ))
         .unwrap();
 
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
@@ -36,11 +39,14 @@ async fn test_auth_and_user_lifecycle() {
     // 2. Verify OTP
     let req = Request::post("/api/v1/auth/otp/verify")
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "otp_session_id": session_id,
-            "otp_code": otp_code,
-            "device_uid": "dev_test_123"
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "otp_session_id": session_id,
+                "otp_code": otp_code,
+                "device_uid": "dev_test_123"
+            })
+            .to_string(),
+        ))
         .unwrap();
 
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
@@ -63,10 +69,13 @@ async fn test_auth_and_user_lifecycle() {
     let req = Request::put("/api/v1/users/me")
         .header("Authorization", format!("Bearer {token}"))
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "nickname": "Priya_Live",
-            "bio": "Bollywood dancer & singer"
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "nickname": "Priya_Live",
+                "bio": "Bollywood dancer & singer"
+            })
+            .to_string(),
+        ))
         .unwrap();
 
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
@@ -76,10 +85,13 @@ async fn test_auth_and_user_lifecycle() {
     // 5. Rotate Token
     let req = Request::post("/api/v1/auth/token/refresh")
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "refresh_token": refresh_token,
-            "device_uid": "dev_test_123"
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "refresh_token": refresh_token,
+                "device_uid": "dev_test_123"
+            })
+            .to_string(),
+        ))
         .unwrap();
 
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
@@ -117,16 +129,22 @@ async fn test_wallet_and_payin_order() {
     let req = Request::post("/api/v1/payments/orders/create")
         .header("Authorization", format!("Bearer {token}"))
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "package_id": "pkg_150",
-            "provider": "razorpay",
-            "idempotency_key": "pay_test_order_1"
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "package_id": "pkg_150",
+                "provider": "razorpay",
+                "idempotency_key": "pay_test_order_1"
+            })
+            .to_string(),
+        ))
         .unwrap();
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["coins_pending"], 165); // 150 + 15 bonus
-    assert!(body["upi_intent_uri"].as_str().unwrap().starts_with("upi://pay"));
+    assert!(body["upi_intent_uri"]
+        .as_str()
+        .unwrap()
+        .starts_with("upi://pay"));
     let order_id = body["order_id"].as_str().unwrap().to_string();
 
     // 3b. Balance must still be 0 — coins are not spendable until the
@@ -142,11 +160,14 @@ async fn test_wallet_and_payin_order() {
     // 4. Simulate the provider webhook confirming payment — this credits coins.
     let req = Request::post("/api/v1/payments/webhook/test-provider")
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "order_id": order_id,
-            "status": "success",
-            "provider_reference": "pay_ref_123"
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "order_id": order_id,
+                "status": "success",
+                "provider_reference": "pay_ref_123"
+            })
+            .to_string(),
+        ))
         .unwrap();
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
     assert_eq!(status, StatusCode::OK);
@@ -155,11 +176,14 @@ async fn test_wallet_and_payin_order() {
     // 4b. A duplicate webhook for the same order must be idempotent.
     let req = Request::post("/api/v1/payments/webhook/test-provider")
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "order_id": order_id,
-            "status": "success",
-            "provider_reference": "pay_ref_123"
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "order_id": order_id,
+                "status": "success",
+                "provider_reference": "pay_ref_123"
+            })
+            .to_string(),
+        ))
         .unwrap();
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
     assert_eq!(status, StatusCode::OK);
@@ -190,24 +214,26 @@ async fn test_red_packet_escrow_and_claim() {
 
     {
         use camstar_ledger::{Direction, EntryKind, Line, Money};
-        let mut ledger = state.ledger.write().await;
-        ledger.post(
-            EntryKind::Adjustment,
-            &format!("seed_{dropper}"),
-            vec![
-                Line {
-                    account: camstar_api::system_clearing_account(),
-                    direction: Direction::Debit,
-                    amount: Money::from_minor(100).unwrap(),
-                },
-                Line {
-                    account: camstar_api::user_coins_account(dropper),
-                    direction: Direction::Credit,
-                    amount: Money::from_minor(100).unwrap(),
-                },
-            ],
-        )
-        .unwrap();
+        state
+            .ledger
+            .post(
+                EntryKind::Adjustment,
+                &format!("seed_{dropper}"),
+                vec![
+                    Line {
+                        account: camstar_api::system_clearing_account(),
+                        direction: Direction::Debit,
+                        amount: Money::from_minor(100).unwrap(),
+                    },
+                    Line {
+                        account: camstar_api::user_coins_account(dropper),
+                        direction: Direction::Credit,
+                        amount: Money::from_minor(100).unwrap(),
+                    },
+                ],
+            )
+            .await
+            .unwrap();
     }
 
     // 1. Drop a 100-coin, 3-split red packet.
@@ -267,8 +293,8 @@ async fn test_red_packet_escrow_and_claim() {
     assert_eq!(status, StatusCode::CONFLICT);
 
     // 4. Ledger remains zero-sum after escrow + claim.
-    let ledger = state.ledger.read().await;
-    assert_eq!(ledger.total_of_all_accounts().to_minor(), 0);
+    let total = state.ledger.total_of_all_accounts().await.unwrap();
+    assert_eq!(total.to_minor(), 0);
 }
 
 #[tokio::test]
@@ -287,10 +313,13 @@ async fn test_room_lifecycle_and_seating() {
     let req = Request::post("/api/v1/rooms/create")
         .header("Authorization", format!("Bearer {host_token}"))
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "title": "Bollywood Singing Night",
-            "category_id": "music"
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "title": "Bollywood Singing Night",
+                "category_id": "music"
+            })
+            .to_string(),
+        ))
         .unwrap();
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
     assert_eq!(status, StatusCode::OK);
@@ -309,9 +338,12 @@ async fn test_room_lifecycle_and_seating() {
     let req = Request::post(format!("/api/v1/rooms/{room_id}/seats/request"))
         .header("Authorization", format!("Bearer {guest_token}"))
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "slot": 1
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "slot": 1
+            })
+            .to_string(),
+        ))
         .unwrap();
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
     assert_eq!(status, StatusCode::OK);
@@ -343,10 +375,13 @@ async fn test_gifting_and_ledger_transfer() {
     let req = Request::post("/api/v1/rooms/create")
         .header("Authorization", format!("Bearer {host_token}"))
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "title": "Late Night Chat",
-            "category_id": "chat"
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "title": "Late Night Chat",
+                "category_id": "chat"
+            })
+            .to_string(),
+        ))
         .unwrap();
     let (_, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
     let room_id = body["room_id"].as_u64().unwrap();
@@ -355,14 +390,17 @@ async fn test_gifting_and_ledger_transfer() {
     let req = Request::post("/api/v1/gifts/send")
         .header("Authorization", format!("Bearer {sender_token}"))
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "room_id": room_id,
-            "recipient_id": host_id,
-            "gift_id": "gift_fireworks",
-            "count": 1,
-            "combo_seq": 1,
-            "idempotency_key": "gift_tx_test_1"
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "room_id": room_id,
+                "recipient_id": host_id,
+                "gift_id": "gift_fireworks",
+                "count": 1,
+                "combo_seq": 1,
+                "idempotency_key": "gift_tx_test_1"
+            })
+            .to_string(),
+        ))
         .unwrap();
 
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
@@ -384,10 +422,13 @@ async fn test_anti_fraud_host_cannot_gift_to_self() {
     let req = Request::post("/api/v1/rooms/create")
         .header("Authorization", format!("Bearer {host_token}"))
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "title": "Music Live",
-            "category_id": "music"
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "title": "Music Live",
+                "category_id": "music"
+            })
+            .to_string(),
+        ))
         .unwrap();
     let (_, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
     let room_id = body["room_id"].as_u64().unwrap();
@@ -396,19 +437,25 @@ async fn test_anti_fraud_host_cannot_gift_to_self() {
     let req = Request::post("/api/v1/gifts/send")
         .header("Authorization", format!("Bearer {host_token}"))
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "room_id": room_id,
-            "recipient_id": host_id,
-            "gift_id": "gift_rose",
-            "count": 1,
-            "combo_seq": 1,
-            "idempotency_key": "self_gift_attempt"
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "room_id": room_id,
+                "recipient_id": host_id,
+                "gift_id": "gift_rose",
+                "count": 1,
+                "combo_seq": 1,
+                "idempotency_key": "self_gift_attempt"
+            })
+            .to_string(),
+        ))
         .unwrap();
 
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
     assert_eq!(status, StatusCode::FORBIDDEN);
-    assert!(body["message"].as_str().unwrap().contains("HostCannotGiftToSelf"));
+    assert!(body["message"]
+        .as_str()
+        .unwrap()
+        .contains("HostCannotGiftToSelf"));
 }
 
 #[tokio::test]
@@ -423,38 +470,43 @@ async fn test_creator_kyc_and_payout_with_194q_tds() {
 
     // Seed diamonds in host's diamond account
     {
-        let mut ledger = state.ledger.write().await;
         let amount = camstar_ledger::Money::from_minor(10_000).unwrap();
-        let _ = ledger.post(
-            camstar_ledger::EntryKind::TopUp,
-            "seed_diamonds",
-            vec![
-                camstar_ledger::Line {
-                    account: camstar_api::state::system_clearing_account(),
-                    direction: camstar_ledger::Direction::Debit,
-                    amount,
-                },
-                camstar_ledger::Line {
-                    account: camstar_api::state::user_diamonds_account(host_id),
-                    direction: camstar_ledger::Direction::Credit,
-                    amount,
-                },
-            ],
-        );
+        let _ = state
+            .ledger
+            .post(
+                camstar_ledger::EntryKind::TopUp,
+                "seed_diamonds",
+                vec![
+                    camstar_ledger::Line {
+                        account: camstar_api::state::system_clearing_account(),
+                        direction: camstar_ledger::Direction::Debit,
+                        amount,
+                    },
+                    camstar_ledger::Line {
+                        account: camstar_api::state::user_diamonds_account(host_id),
+                        direction: camstar_ledger::Direction::Credit,
+                        amount,
+                    },
+                ],
+            )
+            .await;
     }
 
     // 1. Submit KYC — lands in pending, no payout capability yet
     let req = Request::post("/api/v1/kyc/submit")
         .header("Authorization", format!("Bearer {host_token}"))
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "payer_name": "Aarav Sharma",
-            "payer_address": "Bandra West, Mumbai",
-            "pan_number": "ABCDE1234F",
-            "aadhaar_last4": "5678",
-            "bank_account_number": "123456789012",
-            "ifsc_code": "HDFC0001234"
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "payer_name": "Aarav Sharma",
+                "payer_address": "Bandra West, Mumbai",
+                "pan_number": "ABCDE1234F",
+                "aadhaar_last4": "5678",
+                "bank_account_number": "123456789012",
+                "ifsc_code": "HDFC0001234"
+            })
+            .to_string(),
+        ))
         .unwrap();
 
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
@@ -486,10 +538,13 @@ async fn test_creator_kyc_and_payout_with_194q_tds() {
     let req = Request::post("/api/v1/payouts/request")
         .header("Authorization", format!("Bearer {host_token}"))
         .header("Content-Type", "application/json")
-        .body(Body::from(json!({
-            "diamonds_amount": 10000,
-            "idempotency_key": "payout_req_1"
-        }).to_string()))
+        .body(Body::from(
+            json!({
+                "diamonds_amount": 10000,
+                "idempotency_key": "payout_req_1"
+            })
+            .to_string(),
+        ))
         .unwrap();
 
     let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
@@ -522,8 +577,8 @@ async fn test_beauty_assets_manifest_104_items() {
 
 #[tokio::test]
 async fn test_wheelpan_and_minigames_settlement() {
-    use camstar_ledger::{Direction, EntryKind, Line, Money};
     use camstar_api::state::user_coins_account;
+    use camstar_ledger::{Direction, EntryKind, Line, Money};
 
     let state = AppState::new();
     let app = create_router(state.clone());
@@ -533,8 +588,8 @@ async fn test_wheelpan_and_minigames_settlement() {
 
     // Fund user with 2,000 coins in ledger
     {
-        let mut ledger = state.ledger.write().await;
-        ledger
+        state
+            .ledger
             .post(
                 EntryKind::TopUp,
                 "fund_user_wheel_test",
@@ -551,6 +606,7 @@ async fn test_wheelpan_and_minigames_settlement() {
                     },
                 ],
             )
+            .await
             .unwrap();
     }
 
@@ -641,6 +697,6 @@ async fn test_wheelpan_and_minigames_settlement() {
     assert_eq!(body["data"]["rewardId"], 42);
 
     // 5. Total zero-sum double-entry ledger invariant verified
-    let ledger = state.ledger.read().await;
-    assert_eq!(ledger.total_of_all_accounts().to_minor(), 0);
+    let total = state.ledger.total_of_all_accounts().await.unwrap();
+    assert_eq!(total.to_minor(), 0);
 }

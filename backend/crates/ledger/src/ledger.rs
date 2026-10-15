@@ -100,7 +100,10 @@ impl Ledger {
     }
 
     pub fn account_kind(&self, account: AccountId) -> AccountKind {
-        self.kinds.get(&account).copied().unwrap_or(AccountKind::Owned)
+        self.kinds
+            .get(&account)
+            .copied()
+            .unwrap_or(AccountKind::Owned)
     }
 
     pub fn balance(&self, account: AccountId) -> Money {
@@ -119,9 +122,16 @@ impl Ledger {
         self.idempotency.get(key).copied()
     }
 
-    pub fn post(&mut self, kind: EntryKind, idempotency_key: &str, lines: Vec<Line>) -> Result<EntryId, LedgerError> {
+    pub fn post(
+        &mut self,
+        kind: EntryKind,
+        idempotency_key: &str,
+        lines: Vec<Line>,
+    ) -> Result<EntryId, LedgerError> {
         if let Some(existing) = self.idempotency.get(idempotency_key) {
-            return Err(LedgerError::IdempotencyConflict { existing: *existing });
+            return Err(LedgerError::IdempotencyConflict {
+                existing: *existing,
+            });
         }
         let entry = self.build(kind, idempotency_key, lines)?;
         let id = entry.id;
@@ -129,14 +139,24 @@ impl Ledger {
         Ok(id)
     }
 
-    pub fn post_idempotent(&mut self, kind: EntryKind, idempotency_key: &str, lines: Vec<Line>) -> Result<EntryId, LedgerError> {
+    pub fn post_idempotent(
+        &mut self,
+        kind: EntryKind,
+        idempotency_key: &str,
+        lines: Vec<Line>,
+    ) -> Result<EntryId, LedgerError> {
         if let Some(existing) = self.idempotency.get(idempotency_key) {
             return Ok(*existing);
         }
         self.post(kind, idempotency_key, lines)
     }
 
-    fn build(&mut self, kind: EntryKind, idempotency_key: &str, lines: Vec<Line>) -> Result<Entry, LedgerError> {
+    fn build(
+        &mut self,
+        kind: EntryKind,
+        idempotency_key: &str,
+        lines: Vec<Line>,
+    ) -> Result<Entry, LedgerError> {
         if lines.len() < 2 {
             return Err(LedgerError::TooFewLines);
         }
@@ -188,7 +208,8 @@ impl Ledger {
             let closing = opening.checked_add(signed).expect("validated in build");
             self.balances.insert(line.account, closing);
         }
-        self.idempotency.insert(entry.idempotency_key.clone(), entry.id);
+        self.idempotency
+            .insert(entry.idempotency_key.clone(), entry.id);
         self.entries.push(entry);
         self.next_entry_id += 1;
     }
@@ -196,7 +217,9 @@ impl Ledger {
     pub fn total_of_all_accounts(&self) -> Money {
         let mut total = Money::zero();
         for balance in self.balances.values() {
-            total = total.checked_add(*balance).expect("cannot overflow in practice");
+            total = total
+                .checked_add(*balance)
+                .expect("cannot overflow in practice");
         }
         total
     }
@@ -222,8 +245,16 @@ mod tests {
                 EntryKind::TopUp,
                 "topup-seed",
                 vec![
-                    Line { account: EXTERNAL, direction: Direction::Debit, amount: money(minor) },
-                    Line { account: USER_WALLET, direction: Direction::Credit, amount: money(minor) },
+                    Line {
+                        account: EXTERNAL,
+                        direction: Direction::Debit,
+                        amount: money(minor),
+                    },
+                    Line {
+                        account: USER_WALLET,
+                        direction: Direction::Credit,
+                        amount: money(minor),
+                    },
                 ],
             )
             .expect("seed");
@@ -232,8 +263,16 @@ mod tests {
 
     fn gift_lines(amount: i64) -> Vec<Line> {
         vec![
-            Line { account: USER_WALLET, direction: Direction::Debit, amount: money(amount) },
-            Line { account: CREATOR_REVENUE, direction: Direction::Credit, amount: money(amount) },
+            Line {
+                account: USER_WALLET,
+                direction: Direction::Debit,
+                amount: money(amount),
+            },
+            Line {
+                account: CREATOR_REVENUE,
+                direction: Direction::Credit,
+                amount: money(amount),
+            },
         ]
     }
 
@@ -252,8 +291,16 @@ mod tests {
             EntryKind::GiftSpend,
             "gift-1",
             vec![
-                Line { account: USER_WALLET, direction: Direction::Debit, amount: money(500) },
-                Line { account: CREATOR_REVENUE, direction: Direction::Credit, amount: money(499) },
+                Line {
+                    account: USER_WALLET,
+                    direction: Direction::Debit,
+                    amount: money(500),
+                },
+                Line {
+                    account: CREATOR_REVENUE,
+                    direction: Direction::Credit,
+                    amount: money(499),
+                },
             ],
         );
         assert_eq!(result, Err(LedgerError::Unbalanced));
@@ -274,7 +321,9 @@ mod tests {
     #[test]
     fn spending_exactly_the_balance_is_allowed() {
         let mut ledger = seeded_ledger(1000);
-        ledger.post(EntryKind::GiftSpend, "gift-1", gift_lines(1000)).expect("spend to zero is legal");
+        ledger
+            .post(EntryKind::GiftSpend, "gift-1", gift_lines(1000))
+            .expect("spend to zero is legal");
         assert_eq!(ledger.balance(USER_WALLET).to_minor(), 0);
         assert_eq!(ledger.balance(CREATOR_REVENUE).to_minor(), 1000);
     }
@@ -282,8 +331,12 @@ mod tests {
     #[test]
     fn retried_request_never_double_charges() {
         let mut ledger = seeded_ledger(1000);
-        let first = ledger.post(EntryKind::GiftSpend, "gift-abc", gift_lines(300)).expect("first succeeds");
-        let second = ledger.post_idempotent(EntryKind::GiftSpend, "gift-abc", gift_lines(300)).expect("retry is safe");
+        let first = ledger
+            .post(EntryKind::GiftSpend, "gift-abc", gift_lines(300))
+            .expect("first succeeds");
+        let second = ledger
+            .post_idempotent(EntryKind::GiftSpend, "gift-abc", gift_lines(300))
+            .expect("retry is safe");
 
         assert_eq!(first, second);
         assert_eq!(ledger.balance(USER_WALLET).to_minor(), 700);
@@ -293,7 +346,9 @@ mod tests {
     #[test]
     fn a_retry_of_a_spend_that_would_now_overdraw_still_returns_the_original() {
         let mut ledger = seeded_ledger(1000);
-        ledger.post(EntryKind::GiftSpend, "gift-abc", gift_lines(800)).expect("first succeeds");
+        ledger
+            .post(EntryKind::GiftSpend, "gift-abc", gift_lines(800))
+            .expect("first succeeds");
 
         let retry = ledger.post_idempotent(EntryKind::GiftSpend, "gift-abc", gift_lines(800));
         assert_eq!(retry, Ok(EntryId(2)));
@@ -304,9 +359,16 @@ mod tests {
     #[test]
     fn duplicate_key_on_strict_post_is_reported() {
         let mut ledger = seeded_ledger(1000);
-        ledger.post(EntryKind::GiftSpend, "gift-abc", gift_lines(300)).expect("first succeeds");
+        ledger
+            .post(EntryKind::GiftSpend, "gift-abc", gift_lines(300))
+            .expect("first succeeds");
         let repeat = ledger.post(EntryKind::GiftSpend, "gift-abc", gift_lines(300));
-        assert_eq!(repeat, Err(LedgerError::IdempotencyConflict { existing: EntryId(2) }));
+        assert_eq!(
+            repeat,
+            Err(LedgerError::IdempotencyConflict {
+                existing: EntryId(2)
+            })
+        );
     }
 
     #[test]
@@ -316,8 +378,16 @@ mod tests {
             EntryKind::GiftSpend,
             "gift-tamper",
             vec![
-                Line { account: USER_WALLET, direction: Direction::Debit, amount: money(1) },
-                Line { account: CREATOR_REVENUE, direction: Direction::Credit, amount: money(9999) },
+                Line {
+                    account: USER_WALLET,
+                    direction: Direction::Debit,
+                    amount: money(1),
+                },
+                Line {
+                    account: CREATOR_REVENUE,
+                    direction: Direction::Credit,
+                    amount: money(9999),
+                },
             ],
         );
         assert_eq!(result, Err(LedgerError::Unbalanced));
@@ -331,8 +401,16 @@ mod tests {
             EntryKind::GiftSpend,
             "gift-zero",
             vec![
-                Line { account: USER_WALLET, direction: Direction::Debit, amount: Money::zero() },
-                Line { account: CREATOR_REVENUE, direction: Direction::Credit, amount: Money::zero() },
+                Line {
+                    account: USER_WALLET,
+                    direction: Direction::Debit,
+                    amount: Money::zero(),
+                },
+                Line {
+                    account: CREATOR_REVENUE,
+                    direction: Direction::Credit,
+                    amount: Money::zero(),
+                },
             ],
         );
         assert_eq!(result, Err(LedgerError::ZeroAmountLine));
@@ -344,7 +422,11 @@ mod tests {
         let result = ledger.post(
             EntryKind::TopUp,
             "single-line",
-            vec![Line { account: USER_WALLET, direction: Direction::Credit, amount: money(100) }],
+            vec![Line {
+                account: USER_WALLET,
+                direction: Direction::Credit,
+                amount: money(100),
+            }],
         );
         assert_eq!(result, Err(LedgerError::TooFewLines));
     }
@@ -357,8 +439,16 @@ mod tests {
             EntryKind::GiftSpend,
             "gift-1",
             vec![
-                Line { account: AccountId(999), direction: Direction::Debit, amount: money(1) },
-                Line { account: CREATOR_REVENUE, direction: Direction::Credit, amount: money(1) },
+                Line {
+                    account: AccountId(999),
+                    direction: Direction::Debit,
+                    amount: money(1),
+                },
+                Line {
+                    account: CREATOR_REVENUE,
+                    direction: Direction::Credit,
+                    amount: money(1),
+                },
             ],
         );
         assert!(matches!(result, Err(LedgerError::InsufficientFunds { .. })));
@@ -374,17 +464,25 @@ mod tests {
     #[test]
     fn a_failed_post_does_not_consume_its_idempotency_key() {
         let mut ledger = seeded_ledger(1000);
-        assert!(ledger.post(EntryKind::GiftSpend, "gift-key", gift_lines(9999)).is_err());
+        assert!(ledger
+            .post(EntryKind::GiftSpend, "gift-key", gift_lines(9999))
+            .is_err());
         assert_eq!(ledger.find_by_idempotency_key("gift-key"), None);
-        ledger.post(EntryKind::GiftSpend, "gift-key", gift_lines(300)).expect("key is still free");
+        ledger
+            .post(EntryKind::GiftSpend, "gift-key", gift_lines(300))
+            .expect("key is still free");
         assert_eq!(ledger.find_by_idempotency_key("gift-key"), Some(EntryId(2)));
     }
 
     #[test]
     fn the_ledger_is_append_only() {
         let mut ledger = seeded_ledger(1000);
-        ledger.post(EntryKind::GiftSpend, "gift-1", gift_lines(300)).expect("gift");
-        ledger.post(EntryKind::GiftSpend, "gift-2", gift_lines(200)).expect("gift");
+        ledger
+            .post(EntryKind::GiftSpend, "gift-1", gift_lines(300))
+            .expect("gift");
+        ledger
+            .post(EntryKind::GiftSpend, "gift-2", gift_lines(200))
+            .expect("gift");
         let ids: Vec<i64> = ledger.entries().iter().map(|entry| entry.id.0).collect();
         assert_eq!(ids, vec![1, 2, 3]);
         assert_eq!(ledger.balance(USER_WALLET).to_minor(), 500);
@@ -401,13 +499,25 @@ mod tests {
                     EntryKind::TopUp,
                     &format!("topup-{round}"),
                     vec![
-                        Line { account: EXTERNAL, direction: Direction::Debit, amount: money(1000) },
-                        Line { account: USER_WALLET, direction: Direction::Credit, amount: money(1000) },
+                        Line {
+                            account: EXTERNAL,
+                            direction: Direction::Debit,
+                            amount: money(1000),
+                        },
+                        Line {
+                            account: USER_WALLET,
+                            direction: Direction::Credit,
+                            amount: money(1000),
+                        },
                     ],
                 )
                 .expect("top up");
             ledger
-                .post(EntryKind::GiftSpend, &format!("gift-{round}"), gift_lines(400))
+                .post(
+                    EntryKind::GiftSpend,
+                    &format!("gift-{round}"),
+                    gift_lines(400),
+                )
                 .expect("gift");
         }
         assert_eq!(ledger.balance(USER_WALLET).to_minor(), 50 * 600);

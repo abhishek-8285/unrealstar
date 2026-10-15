@@ -119,23 +119,25 @@ pub async fn claim_task(
 
     // Credit coins in Ledger
     let amount = Money::from_minor(reward_amount)?;
-    let mut ledger = state.ledger.write().await;
-    let _ = ledger.post(
-        EntryKind::Adjustment,
-        &format!("task_claim_{user_id}_{task_id}_{}", Uuid::new_v4()),
-        vec![
-            Line {
-                account: system_clearing_account(),
-                direction: Direction::Debit,
-                amount,
-            },
-            Line {
-                account: user_coins_account(user_id),
-                direction: Direction::Credit,
-                amount,
-            },
-        ],
-    );
+    let _ = state
+        .ledger
+        .post(
+            EntryKind::Adjustment,
+            &format!("task_claim_{user_id}_{task_id}_{}", Uuid::new_v4()),
+            vec![
+                Line {
+                    account: system_clearing_account(),
+                    direction: Direction::Debit,
+                    amount,
+                },
+                Line {
+                    account: user_coins_account(user_id),
+                    direction: Direction::Credit,
+                    amount,
+                },
+            ],
+        )
+        .await;
 
     Ok(Json(serde_json::json!({
         "success": true,

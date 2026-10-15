@@ -64,9 +64,9 @@ pub async fn send_gift(
     let recipient_diamonds_acct = user_diamonds_account(req.recipient_id);
 
     // Atomically execute double-entry transfer in Ledger
-    {
-        let mut ledger = state.ledger.write().await;
-        ledger.post(
+    state
+        .ledger
+        .post(
             EntryKind::GiftSpend,
             &req.idempotency_key,
             vec![
@@ -81,8 +81,8 @@ pub async fn send_gift(
                     amount,
                 },
             ],
-        )?;
-    }
+        )
+        .await?;
 
     // Update room statistics
     {
@@ -120,9 +120,12 @@ pub async fn send_gift(
         }
     }
 
-    let ledger = state.ledger.read().await;
-    let remaining_coins = ledger.balance(sender_coins_acct).to_minor();
-    let recipient_diamonds = ledger.balance(recipient_diamonds_acct).to_minor();
+    let remaining_coins = state.ledger.balance(sender_coins_acct).await?.to_minor();
+    let recipient_diamonds = state
+        .ledger
+        .balance(recipient_diamonds_acct)
+        .await?
+        .to_minor();
 
     Ok(Json(SendGiftResponse {
         success: true,
@@ -152,9 +155,9 @@ pub async fn drop_red_packet(
     // Escrow: debit dropper's coins into clearing. The coins sit here until
     // claimed; claims only redistribute this escrow, never mint.
     let amount = Money::from_minor(req.total_coins)?;
-    {
-        let mut ledger = state.ledger.write().await;
-        ledger.post(
+    state
+        .ledger
+        .post(
             EntryKind::GiftSpend,
             &req.idempotency_key,
             vec![
@@ -169,8 +172,8 @@ pub async fn drop_red_packet(
                     amount,
                 },
             ],
-        )?;
-    }
+        )
+        .await?;
 
     let packet_id = format!("packet_{user_id}_{}", Uuid::new_v4());
     let expires_at = Utc::now() + Duration::minutes(5);
@@ -245,7 +248,8 @@ pub async fn claim_red_packet(
 
         // Split: each claimer gets total_coins / split_count; the last
         // claimer absorbs the remainder so the full escrow is distributed.
-        let already_claimed: i64 = packet.claimants.len() as i64 * (packet.total_coins / packet.split_count as i64);
+        let already_claimed: i64 =
+            packet.claimants.len() as i64 * (packet.total_coins / packet.split_count as i64);
         let remaining_splits = packet.split_count as i64 - packet.claimants.len() as i64;
         let amount = if remaining_splits == 1 {
             packet.total_coins - already_claimed
@@ -266,9 +270,9 @@ pub async fn claim_red_packet(
     // Transfer escrowed coins: clearing → claimer. No mint — just redistribute
     // the amount the dropper already paid in.
     let amount = Money::from_minor(claimed_amount)?;
-    {
-        let mut ledger = state.ledger.write().await;
-        ledger.post(
+    state
+        .ledger
+        .post(
             EntryKind::Adjustment,
             &format!("claim_{user_id}_{packet_id}"),
             vec![
@@ -283,8 +287,8 @@ pub async fn claim_red_packet(
                     amount,
                 },
             ],
-        )?;
-    }
+        )
+        .await?;
 
     // Report remaining splits (best-effort; packet may already be removed).
     let remaining = state
@@ -313,7 +317,9 @@ pub async fn spin_turntable(
         .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
 
     if req.coins_bet <= 0 {
-        return Err(ApiError::BadRequest("Bet coins must be greater than 0".into()));
+        return Err(ApiError::BadRequest(
+            "Bet coins must be greater than 0".into(),
+        ));
     }
 
     // WheelPan Sectors (8 sectors, as decompiled from PrivateWheelView)
@@ -351,12 +357,15 @@ pub async fn spin_turntable(
 
     let bet = Money::from_minor(req.coins_bet)?;
     let reward = Money::from_minor(reward_amount)?;
-    let idem_key = req.idempotency_key.clone().unwrap_or_else(|| format!("spin_{user_id}_{}", Uuid::new_v4()));
+    let idem_key = req
+        .idempotency_key
+        .clone()
+        .unwrap_or_else(|| format!("spin_{user_id}_{}", Uuid::new_v4()));
 
     // Execute double-entry bet deduction
-    {
-        let mut ledger = state.ledger.write().await;
-        ledger.post(
+    state
+        .ledger
+        .post(
             EntryKind::GiftSpend,
             &format!("{idem_key}_bet"),
             vec![
@@ -371,11 +380,14 @@ pub async fn spin_turntable(
                     amount: bet,
                 },
             ],
-        )?;
+        )
+        .await?;
 
-        // If won, credit user from clearing account
-        if reward_amount > 0 {
-            ledger.post(
+    // If won, credit user from clearing account
+    if reward_amount > 0 {
+        state
+            .ledger
+            .post(
                 EntryKind::Adjustment,
                 &format!("{idem_key}_win"),
                 vec![
@@ -390,8 +402,8 @@ pub async fn spin_turntable(
                         amount: reward,
                     },
                 ],
-            )?;
-        }
+            )
+            .await?;
     }
 
     // Host commission (5% rake of bet awarded as diamonds)
@@ -403,23 +415,25 @@ pub async fn spin_turntable(
         if let Some(host_id) = host_id {
             let host_rake = (req.coins_bet * 5 / 100).max(1);
             if let Ok(rake_amount) = Money::from_minor(host_rake) {
-                let mut ledger = state.ledger.write().await;
-                let _ = ledger.post(
-                    EntryKind::Adjustment,
-                    &format!("{idem_key}_rake"),
-                    vec![
-                        Line {
-                            account: crate::state::system_clearing_account(),
-                            direction: Direction::Debit,
-                            amount: rake_amount,
-                        },
-                        Line {
-                            account: user_diamonds_account(host_id),
-                            direction: Direction::Credit,
-                            amount: rake_amount,
-                        },
-                    ],
-                );
+                let _ = state
+                    .ledger
+                    .post(
+                        EntryKind::Adjustment,
+                        &format!("{idem_key}_rake"),
+                        vec![
+                            Line {
+                                account: crate::state::system_clearing_account(),
+                                direction: Direction::Debit,
+                                amount: rake_amount,
+                            },
+                            Line {
+                                account: user_diamonds_account(host_id),
+                                direction: Direction::Credit,
+                                amount: rake_amount,
+                            },
+                        ],
+                    )
+                    .await;
             }
             host_rake
         } else {
@@ -432,7 +446,10 @@ pub async fn spin_turntable(
     // WebSocket Room Broadcast
     let user_nickname = {
         let users = state.users.read().await;
-        users.get(&user_id).map(|u| u.nickname.clone()).unwrap_or_else(|| format!("User_{user_id}"))
+        users
+            .get(&user_id)
+            .map(|u| u.nickname.clone())
+            .unwrap_or_else(|| format!("User_{user_id}"))
     };
 
     if req.room_id > 0 {
@@ -457,8 +474,11 @@ pub async fn spin_turntable(
         }
     }
 
-    let ledger = state.ledger.read().await;
-    let remaining_coins = ledger.balance(user_coins_account(user_id)).to_minor();
+    let remaining_coins = state
+        .ledger
+        .balance(user_coins_account(user_id))
+        .await?
+        .to_minor();
 
     Ok(Json(SpinWheelResponse {
         target_sector: target_sector as u32,
@@ -488,24 +508,28 @@ pub async fn dig_shovel(
         "bronze" => (10i64, 1u32),
         "silver" => (50i64, 5u32),
         "gold" => (200i64, 20u32),
-        _ => return Err(ApiError::BadRequest("Invalid shovel type (must be bronze, silver, gold)".into())),
+        _ => {
+            return Err(ApiError::BadRequest(
+                "Invalid shovel type (must be bronze, silver, gold)".into(),
+            ))
+        }
     };
 
     // Server-authoritative CSPRNG. EV ≈ 0.78 (~22% house edge).
     let bet = Money::from_minor(cost)?;
     let seed = u32::from_be_bytes(Uuid::new_v4().into_bytes()[..4].try_into().unwrap()) % 100;
     let (prize_name, coins_won, diamonds_won, is_jackpot) = match seed {
-        0..=59 => ("Better luck next time!", 0, 0, false),           // 60% miss
-        60..=79 => ("Gold Bean Nugget", cost, 0, false),             // 20%: 1x
+        0..=59 => ("Better luck next time!", 0, 0, false), // 60% miss
+        60..=79 => ("Gold Bean Nugget", cost, 0, false),   // 20%: 1x
         80..=91 => ("Diwali Sparkler Gem", cost * 2, cost / 10, false), // 12%: 2x
-        92..=97 => ("Royal Silver Ingot", cost * 3, cost / 5, false),   // 6%: 3x
-        _ => ("💎 Kohinoor Jackpot Chest", cost * 8, cost / 2, true),    // 2%: 8x
+        92..=97 => ("Royal Silver Ingot", cost * 3, cost / 5, false), // 6%: 3x
+        _ => ("💎 Kohinoor Jackpot Chest", cost * 8, cost / 2, true), // 2%: 8x
     };
 
     let reward = Money::from_minor(coins_won)?;
-    {
-        let mut ledger = state.ledger.write().await;
-        ledger.post(
+    state
+        .ledger
+        .post(
             EntryKind::GiftSpend,
             &format!("{}_bet", req.idempotency_key),
             vec![
@@ -520,10 +544,13 @@ pub async fn dig_shovel(
                     amount: bet,
                 },
             ],
-        )?;
+        )
+        .await?;
 
-        if coins_won > 0 {
-            ledger.post(
+    if coins_won > 0 {
+        state
+            .ledger
+            .post(
                 EntryKind::Adjustment,
                 &format!("{}_win", req.idempotency_key),
                 vec![
@@ -538,8 +565,8 @@ pub async fn dig_shovel(
                         amount: reward,
                     },
                 ],
-            )?;
-        }
+            )
+            .await?;
     }
 
     if is_jackpot && req.room_id > 0 {
@@ -547,7 +574,10 @@ pub async fn dig_shovel(
         if let Some(tx) = ws_rooms.get(&req.room_id) {
             let nickname = {
                 let users = state.users.read().await;
-                users.get(&user_id).map(|u| u.nickname.clone()).unwrap_or_else(|| format!("User_{user_id}"))
+                users
+                    .get(&user_id)
+                    .map(|u| u.nickname.clone())
+                    .unwrap_or_else(|| format!("User_{user_id}"))
             };
             let _ = tx.send(WsServerMessage::MiniGameJackpotBroadcast {
                 game_name: "Lucky Shovel".into(),
@@ -558,8 +588,11 @@ pub async fn dig_shovel(
         }
     }
 
-    let ledger = state.ledger.read().await;
-    let remaining_coins = ledger.balance(user_coins_account(user_id)).to_minor();
+    let remaining_coins = state
+        .ledger
+        .balance(user_coins_account(user_id))
+        .await?
+        .to_minor();
 
     Ok(Json(ShovelDigResponse {
         prize_name: prize_name.to_string(),
@@ -598,9 +631,9 @@ pub async fn wish_magic_lamp(
     let total_won = cost * (mult as i64);
     let reward = Money::from_minor(total_won)?;
 
-    {
-        let mut ledger = state.ledger.write().await;
-        ledger.post(
+    state
+        .ledger
+        .post(
             EntryKind::GiftSpend,
             &format!("{}_lamp_bet", req.idempotency_key),
             vec![
@@ -615,10 +648,13 @@ pub async fn wish_magic_lamp(
                     amount: bet,
                 },
             ],
-        )?;
+        )
+        .await?;
 
-        if total_won > 0 {
-            ledger.post(
+    if total_won > 0 {
+        state
+            .ledger
+            .post(
                 EntryKind::Adjustment,
                 &format!("{}_lamp_win", req.idempotency_key),
                 vec![
@@ -633,12 +669,15 @@ pub async fn wish_magic_lamp(
                         amount: reward,
                     },
                 ],
-            )?;
-        }
+            )
+            .await?;
     }
 
-    let ledger = state.ledger.read().await;
-    let remaining_coins = ledger.balance(user_coins_account(user_id)).to_minor();
+    let remaining_coins = state
+        .ledger
+        .balance(user_coins_account(user_id))
+        .await?
+        .to_minor();
 
     Ok(Json(MagicLampWishResponse {
         total_reward_coins: total_won,
@@ -702,29 +741,25 @@ pub async fn handle_functag_rpc(
             }))
         }
         // FuncTag: 50006104 -> System Notifications
-        50006104 => {
-            Ok(Json(FuncTagResponse {
-                tag_code: "SUCCESS".into(),
-                message: "Notifications loaded".into(),
-                data: Some(serde_json::json!({
-                    "total": 1,
-                    "items": [
-                        {
-                            "msgId": 1001,
-                            "title": "Welcome to CamStar",
-                            "body": "Enjoy live streaming, gifting, and lucky games!",
-                            "timestamp": Utc::now().to_rfc3339()
-                        }
-                    ]
-                })),
-            }))
-        }
-        other => {
-            Ok(Json(FuncTagResponse {
-                tag_code: "OK_GENERIC".into(),
-                message: format!("Processed FuncTag {other}"),
-                data: None,
-            }))
-        }
+        50006104 => Ok(Json(FuncTagResponse {
+            tag_code: "SUCCESS".into(),
+            message: "Notifications loaded".into(),
+            data: Some(serde_json::json!({
+                "total": 1,
+                "items": [
+                    {
+                        "msgId": 1001,
+                        "title": "Welcome to CamStar",
+                        "body": "Enjoy live streaming, gifting, and lucky games!",
+                        "timestamp": Utc::now().to_rfc3339()
+                    }
+                ]
+            })),
+        })),
+        other => Ok(Json(FuncTagResponse {
+            tag_code: "OK_GENERIC".into(),
+            message: format!("Processed FuncTag {other}"),
+            data: None,
+        })),
     }
 }

@@ -140,6 +140,8 @@ pub struct CreateRoomRequest {
     pub title: String,
     pub cover_image_url: Option<String>,
     pub category_id: String,
+    #[serde(default)]
+    pub is_private: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -667,14 +669,47 @@ pub enum WsClientMessage {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type", content = "payload")]
 pub enum WsServerMessage {
-    RoomState { viewers_count: u64, seats: Vec<SeatInfo> },
-    ChatBroadcast { user_id: u64, nickname: String, text: String },
-    SeatUpdated { slot: u8, occupant_id: u64, is_muted: bool },
-    GiftBroadcast { sender_id: u64, sender_nickname: String, gift_id: String, count: u32 },
-    WheelSpinBroadcast { user_id: u64, nickname: String, sector: u32, multiplier: u32, prize: i64 },
-    MiniGameJackpotBroadcast { game_name: String, winner_id: u64, winner_nickname: String, prize_description: String },
-    MarqueeBroadcast { message: String },
-    PkStateChanged { pk_id: String, points_a: u64, points_b: u64 },
+    RoomState {
+        viewers_count: u64,
+        seats: Vec<SeatInfo>,
+    },
+    ChatBroadcast {
+        user_id: u64,
+        nickname: String,
+        text: String,
+    },
+    SeatUpdated {
+        slot: u8,
+        occupant_id: u64,
+        is_muted: bool,
+    },
+    GiftBroadcast {
+        sender_id: u64,
+        sender_nickname: String,
+        gift_id: String,
+        count: u32,
+    },
+    WheelSpinBroadcast {
+        user_id: u64,
+        nickname: String,
+        sector: u32,
+        multiplier: u32,
+        prize: i64,
+    },
+    MiniGameJackpotBroadcast {
+        game_name: String,
+        winner_id: u64,
+        winner_nickname: String,
+        prize_description: String,
+    },
+    MarqueeBroadcast {
+        message: String,
+    },
+    PkStateChanged {
+        pk_id: String,
+        points_a: u64,
+        points_b: u64,
+    },
     Pong,
 }
 

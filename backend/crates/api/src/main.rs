@@ -1,5 +1,5 @@
-use camstar_api::{create_router, AppState};
 use camstar_api::models::MomentItem;
+use camstar_api::{create_router, AppState};
 use chrono::Utc;
 
 /// Origin the phone fetches from. Overridable so a USB/loopback setup can
@@ -11,41 +11,78 @@ use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let state = AppState::new();
+    // Ledger persistence: when DATABASE_URL is set, build AppState against
+    // a Postgres-backed ledger (migrations run inside LedgerBackend::postgres).
+    // Fall back to in-memory on any connection/migration error so a transient
+    // DB blip does not prevent the server from booting.
+    let state = if let Ok(url) = std::env::var("DATABASE_URL") {
+        match AppState::with_postgres(&url).await {
+            Ok(state) => {
+                let entries = state.ledger.entries().await;
+                println!("🗄️ Postgres ledger ready: {} entries", entries.len());
+                state
+            }
+            Err(e) => {
+                eprintln!(
+                    "⚠️ DATABASE_URL set but PostgresLedger failed: {e}; continuing in-memory"
+                );
+                AppState::new()
+            }
+        }
+    } else {
+        println!("💾 In-memory mode (set DATABASE_URL for Postgres ledger)");
+        AppState::new()
+    };
 
     // Create demo users with coins for testing
     let demo_user_id = state.create_user("+919876543210", 1000).await;
     let _ = state.create_user("+919999999999", 5000).await;
     // Also explicitly give user 1001 and host 9999 accounts in ledger and seed Room 1
     {
+        use camstar_api::state::{
+            system_clearing_account, user_coins_account, user_diamonds_account, RoomSession,
+        };
         use camstar_ledger::{AccountKind, Direction, EntryKind, Line, Money};
-        use camstar_api::state::{system_clearing_account, user_coins_account, user_diamonds_account, RoomSession};
         use camstar_roles::RoomRoster;
 
-        let mut ledger = state.ledger.write().await;
-        ledger.register_account(user_coins_account(1001), AccountKind::Owned);
-        ledger.register_account(user_diamonds_account(1001), AccountKind::Owned);
+        let _ = state
+            .ledger
+            .register_account(user_coins_account(1001), AccountKind::Owned)
+            .await;
+        let _ = state
+            .ledger
+            .register_account(user_diamonds_account(1001), AccountKind::Owned)
+            .await;
         let amount = Money::from_minor(5000).unwrap();
-        let _ = ledger.post(
-            EntryKind::TopUp,
-            "seed_1001",
-            vec![
-                Line {
-                    account: system_clearing_account(),
-                    direction: Direction::Debit,
-                    amount,
-                },
-                Line {
-                    account: user_coins_account(1001),
-                    direction: Direction::Credit,
-                    amount,
-                },
-            ],
-        );
+        let _ = state
+            .ledger
+            .post(
+                EntryKind::TopUp,
+                "seed_1001",
+                vec![
+                    Line {
+                        account: system_clearing_account(),
+                        direction: Direction::Debit,
+                        amount,
+                    },
+                    Line {
+                        account: user_coins_account(1001),
+                        direction: Direction::Credit,
+                        amount,
+                    },
+                ],
+            )
+            .await;
 
         // Host 9999
-        ledger.register_account(user_coins_account(9999), AccountKind::Owned);
-        ledger.register_account(user_diamonds_account(9999), AccountKind::Owned);
+        let _ = state
+            .ledger
+            .register_account(user_coins_account(9999), AccountKind::Owned)
+            .await;
+        let _ = state
+            .ledger
+            .register_account(user_diamonds_account(9999), AccountKind::Owned)
+            .await;
 
         // Seed a realistic set of live rooms. The Live grid is a two-column
         // card wall, so the fixtures deliberately span every tab (party,
@@ -221,7 +258,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 },
             );
         }
-    // Seed a feed of moments. Without these the Home tab renders an empty
+        // Seed a feed of moments. Without these the Home tab renders an empty
         // wall: moments were only ever created through the API, so every
         // backend restart emptied the feed. Clips are served by the local
         // media host on :8000 (adb reverse) for device testing.
@@ -233,7 +270,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             caption
                 .split_whitespace()
                 .filter_map(|w| w.strip_prefix('#'))
-                .map(|t| t.trim_matches(|c: char| !c.is_alphanumeric()).to_lowercase())
+                .map(|t| {
+                    t.trim_matches(|c: char| !c.is_alphanumeric())
+                        .to_lowercase()
+                })
                 .filter(|t| !t.is_empty())
                 .collect()
         };
@@ -367,7 +407,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         );
     }
     println!("🚀 CamStar API Server initialized.");
-    println!("👤 Seeded demo user ID: {demo_user_id} with 1,000 coins and user 1001 with 5,000 coins");
+    println!(
+        "👤 Seeded demo user ID: {demo_user_id} with 1,000 coins and user 1001 with 5,000 coins"
+    );
     println!("🎙️ Seeded {} live rooms across party/talent/pk/nearby", 12);
     println!("🎬 Seeded {} feed moments and the app user profile", 5);
 
@@ -387,8 +429,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // normalises and rejects traversal itself.
     let app = app.nest_service(
         "/assets",
-        tower_http::services::ServeDir::new(media_root)
-            .append_index_html_on_directories(false),
+        tower_http::services::ServeDir::new(media_root).append_index_html_on_directories(false),
     );
 
     axum::serve(listener, app).await?;

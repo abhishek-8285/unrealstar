@@ -125,12 +125,30 @@ mod tests {
 
     #[test]
     fn lifetime_receipt_ladders_the_tier() {
-        assert_eq!(derive_tier(StatusInputs::new(money(0), 0, money(0))), Tier::Newcomer);
-        assert_eq!(derive_tier(StatusInputs::new(money(49_999), 0, money(0))), Tier::Newcomer);
-        assert_eq!(derive_tier(StatusInputs::new(money(50_000), 0, money(0))), Tier::Established);
-        assert_eq!(derive_tier(StatusInputs::new(money(500_000), 0, money(0))), Tier::Notable);
-        assert_eq!(derive_tier(StatusInputs::new(money(5_000_000), 0, money(0))), Tier::Star);
-        assert_eq!(derive_tier(StatusInputs::new(money(50_000_000), 0, money(0))), Tier::Superstar);
+        assert_eq!(
+            derive_tier(StatusInputs::new(money(0), 0, money(0))),
+            Tier::Newcomer
+        );
+        assert_eq!(
+            derive_tier(StatusInputs::new(money(49_999), 0, money(0))),
+            Tier::Newcomer
+        );
+        assert_eq!(
+            derive_tier(StatusInputs::new(money(50_000), 0, money(0))),
+            Tier::Established
+        );
+        assert_eq!(
+            derive_tier(StatusInputs::new(money(500_000), 0, money(0))),
+            Tier::Notable
+        );
+        assert_eq!(
+            derive_tier(StatusInputs::new(money(5_000_000), 0, money(0))),
+            Tier::Star
+        );
+        assert_eq!(
+            derive_tier(StatusInputs::new(money(50_000_000), 0, money(0))),
+            Tier::Superstar
+        );
     }
 
     #[test]
@@ -162,17 +180,32 @@ mod tests {
         assert_eq!(derive_vip(base), derive_vip(streak));
     }
 
-#[test]
+    #[test]
     fn vip_ladders_with_lifetime_top_up_only() {
-        assert_eq!(derive_vip(StatusInputs::new(money(0), 0, money(49_999))), VipLevel::None);
-        assert_eq!(derive_vip(StatusInputs::new(money(0), 0, money(50_000))), VipLevel::One);
-        assert_eq!(derive_vip(StatusInputs::new(money(0), 0, money(200_000))), VipLevel::Two);
-        assert_eq!(derive_vip(StatusInputs::new(money(0), 0, money(1_000_000))), VipLevel::Three);
+        assert_eq!(
+            derive_vip(StatusInputs::new(money(0), 0, money(49_999))),
+            VipLevel::None
+        );
+        assert_eq!(
+            derive_vip(StatusInputs::new(money(0), 0, money(50_000))),
+            VipLevel::One
+        );
+        assert_eq!(
+            derive_vip(StatusInputs::new(money(0), 0, money(200_000))),
+            VipLevel::Two
+        );
+        assert_eq!(
+            derive_vip(StatusInputs::new(money(0), 0, money(1_000_000))),
+            VipLevel::Three
+        );
     }
 
     #[test]
     fn someone_who_has_never_published_is_simply_a_viewer() {
-        assert_eq!(derive_creator_status(CreatorInputs::never_published()), CreatorStatus::Viewer);
+        assert_eq!(
+            derive_creator_status(CreatorInputs::never_published()),
+            CreatorStatus::Viewer
+        );
     }
 
     #[test]
@@ -189,16 +222,34 @@ mod tests {
 
     #[test]
     fn status_needs_repeat_publishing_and_a_real_audience() {
-        assert_eq!(derive_creator_status(CreatorInputs::new(50, 100, money(1_000_000))), CreatorStatus::Streamer);
-        assert_eq!(derive_creator_status(CreatorInputs::new(9, 50_000, money(9_000_000))), CreatorStatus::Streamer);
-        assert_eq!(derive_creator_status(CreatorInputs::new(12, 600, money(100_000))), CreatorStatus::Established);
-        assert_eq!(derive_creator_status(CreatorInputs::new(200, 20_000, money(5_000_000))), CreatorStatus::Featured);
+        assert_eq!(
+            derive_creator_status(CreatorInputs::new(50, 100, money(1_000_000))),
+            CreatorStatus::Streamer
+        );
+        assert_eq!(
+            derive_creator_status(CreatorInputs::new(9, 50_000, money(9_000_000))),
+            CreatorStatus::Streamer
+        );
+        assert_eq!(
+            derive_creator_status(CreatorInputs::new(12, 600, money(100_000))),
+            CreatorStatus::Established
+        );
+        assert_eq!(
+            derive_creator_status(CreatorInputs::new(200, 20_000, money(5_000_000))),
+            CreatorStatus::Featured
+        );
     }
 
     #[test]
     fn creator_status_and_wealth_tier_are_independent_axes() {
         let generous_viewer = CreatorInputs::new(0, 0, money(50_000_000));
-        assert_eq!(derive_creator_status(generous_viewer), CreatorStatus::Viewer);
-        assert_eq!(derive_tier(StatusInputs::new(money(50_000_000), 0, money(0))), Tier::Superstar);
+        assert_eq!(
+            derive_creator_status(generous_viewer),
+            CreatorStatus::Viewer
+        );
+        assert_eq!(
+            derive_tier(StatusInputs::new(money(50_000_000), 0, money(0))),
+            Tier::Superstar
+        );
     }
 }

@@ -4,14 +4,17 @@ use std::{
 };
 use tokio::sync::{broadcast, RwLock};
 
-use camstar_ledger::{AccountId, AccountKind, Ledger, Money};
+use camstar_ledger::{
+    AccountId, AccountKind, Entry, EntryId, EntryKind, Ledger, LedgerError, Line, Money,
+};
 use camstar_roles::{Authorizer, CreatorStatus, RoomRoster, Tier, VipLevel};
 use chrono::Utc;
 use uuid::Uuid;
 
 use crate::models::{
     BeautyAssetItem, BeautyCategory, CoinPackage, DailyTaskItem, GiftItem, KycRecord,
-    MomentComment, MomentItem, PayoutRecord, PkStatusResponse, UserProfile, VipTierItem, WsServerMessage,
+    MomentComment, MomentItem, PayoutRecord, PkStatusResponse, UserProfile, VipTierItem,
+    WsServerMessage,
 };
 
 // Account IDs convention in Ledger:
@@ -28,6 +31,123 @@ pub fn user_diamonds_account(user_id: u64) -> AccountId {
 
 pub fn system_clearing_account() -> AccountId {
     AccountId(0)
+}
+
+/// Dispatches ledger operations to either the in-memory `Ledger` or the
+/// Postgres-backed store. Routes never touch the inner variants directly;
+/// they call the async methods on this enum so a `DATABASE_URL` swap at
+/// startup is invisible to every call site.
+#[derive(Clone)]
+pub enum LedgerBackend {
+    Memory(Arc<RwLock<Ledger>>),
+    Postgres(camstar_ledger::PostgresLedger),
+}
+
+impl std::fmt::Debug for LedgerBackend {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Self::Memory(_) => f.debug_tuple("Memory").finish_non_exhaustive(),
+            Self::Postgres(_) => f.debug_tuple("Postgres").finish_non_exhaustive(),
+        }
+    }
+}
+
+impl LedgerBackend {
+    /// Create an in-memory ledger with the clearing account registered.
+    pub fn memory() -> Self {
+        let mut ledger = Ledger::new();
+        // Clearing account is External so it can supply value (go negative).
+        ledger.register_account(system_clearing_account(), AccountKind::External);
+        Self::Memory(Arc::new(RwLock::new(ledger)))
+    }
+
+    /// Connect to Postgres, run migrations, and register the clearing account.
+    pub async fn postgres(database_url: &str) -> Result<Self, LedgerError> {
+        let ledger = camstar_ledger::PostgresLedger::connect_and_migrate(database_url).await?;
+        ledger
+            .register_account(system_clearing_account(), AccountKind::External)
+            .await?;
+        Ok(Self::Postgres(ledger))
+    }
+
+    /// Register an account. Idempotent on both backends.
+    pub async fn register_account(
+        &self,
+        account: AccountId,
+        kind: AccountKind,
+    ) -> Result<(), LedgerError> {
+        match self {
+            Self::Memory(l) => {
+                let mut ledger = l.write().await;
+                ledger.register_account(account, kind);
+                Ok(())
+            }
+            Self::Postgres(p) => p.register_account(account, kind).await,
+        }
+    }
+
+    /// Post a double-entry. Idempotent on both backends: a duplicate
+    /// `idempotency_key` returns the existing entry id rather than an error,
+    /// so webhook retries and client retries succeed without a second debit.
+    pub async fn post(
+        &self,
+        kind: EntryKind,
+        idempotency_key: &str,
+        lines: Vec<Line>,
+    ) -> Result<EntryId, LedgerError> {
+        match self {
+            Self::Memory(l) => {
+                let mut ledger = l.write().await;
+                ledger.post_idempotent(kind, idempotency_key, lines)
+            }
+            Self::Postgres(p) => p.post(idempotency_key, kind, &lines).await,
+        }
+    }
+
+    /// Current balance of one account.
+    pub async fn balance(&self, account: AccountId) -> Result<Money, LedgerError> {
+        match self {
+            Self::Memory(l) => {
+                let ledger = l.read().await;
+                Ok(ledger.balance(account))
+            }
+            Self::Postgres(p) => p.balance_of(account).await,
+        }
+    }
+
+    /// All entries. On Postgres a failed query yields an empty list (logged
+    /// by the postgres layer) so a transient DB blip does not 500 reads.
+    pub async fn entries(&self) -> Vec<Entry> {
+        match self {
+            Self::Memory(l) => {
+                let ledger = l.read().await;
+                ledger.entries().to_vec()
+            }
+            Self::Postgres(p) => p.entries().await.unwrap_or_default(),
+        }
+    }
+
+    /// Look up an entry by its idempotency key.
+    pub async fn find_by_idempotency_key(&self, key: &str) -> Option<EntryId> {
+        match self {
+            Self::Memory(l) => {
+                let ledger = l.read().await;
+                ledger.find_by_idempotency_key(key)
+            }
+            Self::Postgres(p) => p.find_by_idempotency_key(key).await.ok().flatten(),
+        }
+    }
+
+    /// Sum of every account balance; zero for a healthy double-entry ledger.
+    pub async fn total_of_all_accounts(&self) -> Result<Money, LedgerError> {
+        match self {
+            Self::Memory(l) => {
+                let ledger = l.read().await;
+                Ok(ledger.total_of_all_accounts())
+            }
+            Self::Postgres(p) => p.total_of_all_accounts().await,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
@@ -95,7 +215,9 @@ pub struct PendingOrder {
 /// handler requires a matching `X-Webhook-Secret` header. When unset, the
 /// webhook accepts any payload (dev convenience; production must set it).
 pub fn webhook_secret() -> Option<String> {
-    std::env::var("CAMSTAR_WEBHOOK_SECRET").ok().filter(|s| !s.is_empty())
+    std::env::var("CAMSTAR_WEBHOOK_SECRET")
+        .ok()
+        .filter(|s| !s.is_empty())
 }
 
 /// An active red-packet drop. The dropper's coins were already debited into
@@ -134,7 +256,7 @@ pub struct RoomSession {
 
 #[derive(Clone)]
 pub struct AppState {
-    pub ledger: Arc<RwLock<Ledger>>,
+    pub ledger: LedgerBackend,
     pub authorizer: Arc<RwLock<Authorizer>>,
     pub users: Arc<RwLock<HashMap<u64, UserProfile>>>,
     pub phone_to_user: Arc<RwLock<HashMap<String, u64>>>,
@@ -142,6 +264,10 @@ pub struct AppState {
     pub otp_sessions: Arc<RwLock<HashMap<String, OtpSession>>>,
     /// Coin top-up orders awaiting provider webhook confirmation.
     pub pending_orders: Arc<RwLock<HashMap<String, PendingOrder>>>,
+    /// Idempotency key -> order_id for pay-in creation retries.
+    pub order_keys: Arc<RwLock<HashMap<String, String>>>,
+    /// room_id -> banned user_ids. Banned users cannot (re)join.
+    pub room_bans: Arc<RwLock<HashMap<u64, HashSet<u64>>>>,
     /// Active red-packet drops, keyed by packet_id.
     pub red_packets: Arc<RwLock<HashMap<String, RedPacketDrop>>>,
     pub rooms: Arc<RwLock<HashMap<u64, RoomSession>>>,
@@ -160,6 +286,9 @@ pub struct AppState {
     /// comment_id -> set of user_ids who liked it.
     pub comment_likes: Arc<RwLock<HashMap<String, HashSet<u64>>>>,
     pub pks: Arc<RwLock<HashMap<String, PkStatusResponse>>>,
+    /// user_id -> FCM device tokens (cap 10). Delivery via FCM HTTP v1 lands
+    /// once a service-account key is provisioned; see routes::push.
+    pub push_tokens: Arc<RwLock<HashMap<u64, HashSet<String>>>>,
     pub ws_rooms: Arc<RwLock<HashMap<u64, broadcast::Sender<WsServerMessage>>>>,
     pub beauty_manifest: Arc<Vec<BeautyCategory>>,
     pub vip_tiers: Arc<Vec<VipTierItem>>,
@@ -173,10 +302,20 @@ impl Default for AppState {
 
 impl AppState {
     pub fn new() -> Self {
-        let mut ledger = Ledger::new();
-        // Register clearing account as External so it can supply value (go negative)
-        ledger.register_account(system_clearing_account(), AccountKind::External);
+        Self::with_ledger(LedgerBackend::memory())
+    }
 
+    /// Build AppState backed by a Postgres ledger. Called from `main` when
+    /// `DATABASE_URL` is set; migrations run inside `LedgerBackend::postgres`.
+    pub async fn with_postgres(database_url: &str) -> Result<Self, LedgerError> {
+        let ledger = LedgerBackend::postgres(database_url).await?;
+        Ok(Self::with_ledger(ledger))
+    }
+
+    /// Build AppState with a caller-selected ledger backend. All catalog
+    /// setup is shared so `DATABASE_URL` selection at startup is the only
+    /// difference between in-memory and Postgres deployments.
+    fn with_ledger(ledger: LedgerBackend) -> Self {
         let authorizer = Authorizer::new();
 
         // Standard gift catalog
@@ -284,7 +423,9 @@ impl AppState {
                     .map(|i| BeautyAssetItem {
                         id: format!("eyebrows_{i}"),
                         name: format!("Eyebrow Matte #{i}"),
-                        asset_url: format!("https://cdn.camstar.live/makeup/eyebrows/matte_{i}.png"),
+                        asset_url: format!(
+                            "https://cdn.camstar.live/makeup/eyebrows/matte_{i}.png"
+                        ),
                         default_intensity: 0.5,
                     })
                     .collect(),
@@ -295,7 +436,9 @@ impl AppState {
                     .map(|i| BeautyAssetItem {
                         id: format!("eyelashes_{i}"),
                         name: format!("Eyelash Matte #{i}"),
-                        asset_url: format!("https://cdn.camstar.live/makeup/eyelashes/matte_{i}.png"),
+                        asset_url: format!(
+                            "https://cdn.camstar.live/makeup/eyelashes/matte_{i}.png"
+                        ),
                         default_intensity: 0.7,
                     })
                     .collect(),
@@ -306,7 +449,9 @@ impl AppState {
                     .map(|i| BeautyAssetItem {
                         id: format!("eyeshadow_{i}"),
                         name: format!("Eyeshadow Matte #{i}"),
-                        asset_url: format!("https://cdn.camstar.live/makeup/eyeshadow/matte_{i}.png"),
+                        asset_url: format!(
+                            "https://cdn.camstar.live/makeup/eyeshadow/matte_{i}.png"
+                        ),
                         default_intensity: 0.55,
                     })
                     .collect(),
@@ -317,7 +462,9 @@ impl AppState {
                     .map(|i| BeautyAssetItem {
                         id: format!("lipstick_{i}"),
                         name: format!("Lipstick Matte #{i}"),
-                        asset_url: format!("https://cdn.camstar.live/makeup/lipstick/matte_{i}.png"),
+                        asset_url: format!(
+                            "https://cdn.camstar.live/makeup/lipstick/matte_{i}.png"
+                        ),
                         default_intensity: 0.8,
                     })
                     .collect(),
@@ -349,13 +496,15 @@ impl AppState {
         ];
 
         AppState {
-            ledger: Arc::new(RwLock::new(ledger)),
+            ledger,
             authorizer: Arc::new(RwLock::new(authorizer)),
             users: Arc::new(RwLock::new(HashMap::new())),
             phone_to_user: Arc::new(RwLock::new(HashMap::new())),
             tokens_to_user: Arc::new(RwLock::new(HashMap::new())),
             otp_sessions: Arc::new(RwLock::new(HashMap::new())),
             pending_orders: Arc::new(RwLock::new(HashMap::new())),
+            order_keys: Arc::new(RwLock::new(HashMap::new())),
+            room_bans: Arc::new(RwLock::new(HashMap::new())),
             red_packets: Arc::new(RwLock::new(HashMap::new())),
             rooms: Arc::new(RwLock::new(HashMap::new())),
             gifts: Arc::new(gifts),
@@ -369,6 +518,7 @@ impl AppState {
             moment_comments: Arc::new(RwLock::new(HashMap::new())),
             comment_likes: Arc::new(RwLock::new(HashMap::new())),
             pks: Arc::new(RwLock::new(HashMap::new())),
+            push_tokens: Arc::new(RwLock::new(HashMap::new())),
             ws_rooms: Arc::new(RwLock::new(HashMap::new())),
             beauty_manifest: Arc::new(beauty_manifest),
             vip_tiers: Arc::new(vip_tiers),
@@ -380,7 +530,6 @@ impl AppState {
         let mut users = self.users.write().await;
         let mut phone_map = self.phone_to_user.write().await;
         let mut tokens_map = self.tokens_to_user.write().await;
-        let mut ledger = self.ledger.write().await;
 
         // Highest existing id, not count: seeded demo users (1001, 9999)
         // must not collide with the next registered account.
@@ -388,27 +537,36 @@ impl AppState {
         let coins_acct = user_coins_account(user_id);
         let diamonds_acct = user_diamonds_account(user_id);
 
-        ledger.register_account(coins_acct, AccountKind::Owned);
-        ledger.register_account(diamonds_acct, AccountKind::Owned);
+        let _ = self
+            .ledger
+            .register_account(coins_acct, AccountKind::Owned)
+            .await;
+        let _ = self
+            .ledger
+            .register_account(diamonds_acct, AccountKind::Owned)
+            .await;
 
         if initial_coins > 0 {
             if let Ok(amount) = Money::from_minor(initial_coins) {
-                let _ = ledger.post(
-                    camstar_ledger::EntryKind::TopUp,
-                    &format!("seed_{user_id}"),
-                    vec![
-                        camstar_ledger::Line {
-                            account: system_clearing_account(),
-                            direction: camstar_ledger::Direction::Debit,
-                            amount,
-                        },
-                        camstar_ledger::Line {
-                            account: coins_acct,
-                            direction: camstar_ledger::Direction::Credit,
-                            amount,
-                        },
-                    ],
-                );
+                let _ = self
+                    .ledger
+                    .post(
+                        camstar_ledger::EntryKind::TopUp,
+                        &format!("seed_{user_id}"),
+                        vec![
+                            camstar_ledger::Line {
+                                account: system_clearing_account(),
+                                direction: camstar_ledger::Direction::Debit,
+                                amount,
+                            },
+                            camstar_ledger::Line {
+                                account: coins_acct,
+                                direction: camstar_ledger::Direction::Credit,
+                                amount,
+                            },
+                        ],
+                    )
+                    .await;
             }
         }
 
@@ -442,8 +600,7 @@ impl AppState {
                 user_id,
                 session_id: Uuid::new_v4(),
                 kind: TokenKind::Access,
-                expires_at: Utc::now()
-                    + chrono::Duration::seconds(access_token_ttl_secs() as i64),
+                expires_at: Utc::now() + chrono::Duration::seconds(access_token_ttl_secs() as i64),
             },
         );
 
@@ -460,8 +617,7 @@ impl AppState {
                 user_id,
                 session_id: Uuid::new_v4(),
                 kind: TokenKind::Access,
-                expires_at: Utc::now()
-                    + chrono::Duration::seconds(access_token_ttl_secs() as i64),
+                expires_at: Utc::now() + chrono::Duration::seconds(access_token_ttl_secs() as i64),
             },
         );
     }

@@ -100,10 +100,8 @@ impl Authorizer {
         if capability.is_sensitive() && account_type == AccountType::User && expires_at.is_none() {
             return;
         }
-        self.grants.insert(
-            (account, capability, scope),
-            Grant { expires_at },
-        );
+        self.grants
+            .insert((account, capability, scope), Grant { expires_at });
     }
 
     pub fn revoke(&mut self, account: u64, capability: Capability, scope: Scope) -> bool {
@@ -146,21 +144,42 @@ mod tests {
 
     fn authorizer_with_grant() -> (Authorizer, u64) {
         let mut auth = Authorizer::new();
-        auth.grant(7, AccountType::User, Capability::ModerateRoom, Scope::Room(ROOM), None);
+        auth.grant(
+            7,
+            AccountType::User,
+            Capability::ModerateRoom,
+            Scope::Room(ROOM),
+            None,
+        );
         (auth, 7)
     }
 
     #[test]
     fn a_granted_capability_in_scope_is_allowed() {
         let (auth, account) = authorizer_with_grant();
-        assert_eq!(auth.can(account, AccountType::User, Capability::ModerateRoom, Scope::Room(ROOM), 1000), Ok(()));
+        assert_eq!(
+            auth.can(
+                account,
+                AccountType::User,
+                Capability::ModerateRoom,
+                Scope::Room(ROOM),
+                1000
+            ),
+            Ok(())
+        );
     }
 
     #[test]
     fn a_grant_does_not_leak_into_another_room() {
         let (auth, account) = authorizer_with_grant();
         assert_eq!(
-            auth.can(account, AccountType::User, Capability::ModerateRoom, Scope::Room(999), 1000),
+            auth.can(
+                account,
+                AccountType::User,
+                Capability::ModerateRoom,
+                Scope::Room(999),
+                1000
+            ),
             Err(Denial::NoGrant)
         );
     }
@@ -168,10 +187,31 @@ mod tests {
     #[test]
     fn an_expired_grant_stops_working_at_its_expiry() {
         let mut auth = Authorizer::new();
-        auth.grant(7, AccountType::User, Capability::ModerateRoom, Scope::Room(ROOM), Some(5000));
-        assert_eq!(auth.can(7, AccountType::User, Capability::ModerateRoom, Scope::Room(ROOM), 4999), Ok(()));
+        auth.grant(
+            7,
+            AccountType::User,
+            Capability::ModerateRoom,
+            Scope::Room(ROOM),
+            Some(5000),
+        );
         assert_eq!(
-            auth.can(7, AccountType::User, Capability::ModerateRoom, Scope::Room(ROOM), 5000),
+            auth.can(
+                7,
+                AccountType::User,
+                Capability::ModerateRoom,
+                Scope::Room(ROOM),
+                4999
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            auth.can(
+                7,
+                AccountType::User,
+                Capability::ModerateRoom,
+                Scope::Room(ROOM),
+                5000
+            ),
             Err(Denial::Expired)
         );
     }
@@ -181,7 +221,13 @@ mod tests {
         let (mut auth, account) = authorizer_with_grant();
         assert!(auth.revoke(account, Capability::ModerateRoom, Scope::Room(ROOM)));
         assert_eq!(
-            auth.can(account, AccountType::User, Capability::ModerateRoom, Scope::Room(ROOM), 1000),
+            auth.can(
+                account,
+                AccountType::User,
+                Capability::ModerateRoom,
+                Scope::Room(ROOM),
+                1000
+            ),
             Err(Denial::NoGrant)
         );
     }
@@ -189,9 +235,21 @@ mod tests {
     #[test]
     fn an_ordinary_user_can_never_hold_a_payout_capability() {
         let mut auth = Authorizer::new();
-        auth.grant(7, AccountType::User, Capability::RequestPayout, Scope::Platform, None);
+        auth.grant(
+            7,
+            AccountType::User,
+            Capability::RequestPayout,
+            Scope::Platform,
+            None,
+        );
         assert_eq!(
-            auth.can(7, AccountType::User, Capability::RequestPayout, Scope::Platform, 1000),
+            auth.can(
+                7,
+                AccountType::User,
+                Capability::RequestPayout,
+                Scope::Platform,
+                1000
+            ),
             Err(Denial::WrongAccountType)
         );
     }
@@ -199,13 +257,31 @@ mod tests {
     #[test]
     fn an_agency_account_can_hold_payout_approval() {
         let mut auth = Authorizer::new();
-        auth.grant(9, AccountType::Agency, Capability::ApprovePayout, Scope::Account(7), None);
+        auth.grant(
+            9,
+            AccountType::Agency,
+            Capability::ApprovePayout,
+            Scope::Account(7),
+            None,
+        );
         assert_eq!(
-            auth.can(9, AccountType::Agency, Capability::ApprovePayout, Scope::Account(7), 1000),
+            auth.can(
+                9,
+                AccountType::Agency,
+                Capability::ApprovePayout,
+                Scope::Account(7),
+                1000
+            ),
             Ok(())
         );
         assert_eq!(
-            auth.can(9, AccountType::Agency, Capability::ApprovePayout, Scope::Account(8), 1000),
+            auth.can(
+                9,
+                AccountType::Agency,
+                Capability::ApprovePayout,
+                Scope::Account(8),
+                1000
+            ),
             Err(Denial::NoGrant)
         );
     }
@@ -213,16 +289,46 @@ mod tests {
     #[test]
     fn a_platform_scope_grant_covers_any_scope() {
         let mut auth = Authorizer::new();
-        auth.grant(3, AccountType::Official, Capability::SendGift, Scope::Platform, None);
-        assert_eq!(auth.can(3, AccountType::Official, Capability::SendGift, Scope::Room(1), 0), Ok(()));
-        assert_eq!(auth.can(3, AccountType::Official, Capability::SendGift, Scope::Room(2), 0), Ok(()));
+        auth.grant(
+            3,
+            AccountType::Official,
+            Capability::SendGift,
+            Scope::Platform,
+            None,
+        );
+        assert_eq!(
+            auth.can(
+                3,
+                AccountType::Official,
+                Capability::SendGift,
+                Scope::Room(1),
+                0
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            auth.can(
+                3,
+                AccountType::Official,
+                Capability::SendGift,
+                Scope::Room(2),
+                0
+            ),
+            Ok(())
+        );
     }
 
     #[test]
     fn the_system_account_type_is_unconditional() {
         let auth = Authorizer::new();
         assert_eq!(
-            auth.can(0, AccountType::System, Capability::ApprovePayout, Scope::Account(1234), 10_000),
+            auth.can(
+                0,
+                AccountType::System,
+                Capability::ApprovePayout,
+                Scope::Account(1234),
+                10_000
+            ),
             Ok(())
         );
     }
@@ -230,10 +336,31 @@ mod tests {
     #[test]
     fn an_expired_agency_grant_reports_expiry_not_account_type() {
         let mut auth = Authorizer::new();
-        auth.grant(9, AccountType::Agency, Capability::ApprovePayout, Scope::Account(7), Some(100));
-        assert_eq!(auth.can(9, AccountType::Agency, Capability::ApprovePayout, Scope::Account(7), 99), Ok(()));
+        auth.grant(
+            9,
+            AccountType::Agency,
+            Capability::ApprovePayout,
+            Scope::Account(7),
+            Some(100),
+        );
         assert_eq!(
-            auth.can(9, AccountType::Agency, Capability::ApprovePayout, Scope::Account(7), 101),
+            auth.can(
+                9,
+                AccountType::Agency,
+                Capability::ApprovePayout,
+                Scope::Account(7),
+                99
+            ),
+            Ok(())
+        );
+        assert_eq!(
+            auth.can(
+                9,
+                AccountType::Agency,
+                Capability::ApprovePayout,
+                Scope::Account(7),
+                101
+            ),
             Err(Denial::Expired)
         );
     }
@@ -241,9 +368,21 @@ mod tests {
     #[test]
     fn a_user_reaching_for_a_payout_capability_is_refused_before_any_grant_is_consulted() {
         let mut auth = Authorizer::new();
-        auth.grant(9, AccountType::User, Capability::RequestPayout, Scope::Platform, Some(9_999));
+        auth.grant(
+            9,
+            AccountType::User,
+            Capability::RequestPayout,
+            Scope::Platform,
+            Some(9_999),
+        );
         assert_eq!(
-            auth.can(9, AccountType::User, Capability::RequestPayout, Scope::Platform, 1_000_000),
+            auth.can(
+                9,
+                AccountType::User,
+                Capability::RequestPayout,
+                Scope::Platform,
+                1_000_000
+            ),
             Err(Denial::WrongAccountType)
         );
     }

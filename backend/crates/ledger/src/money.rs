@@ -25,12 +25,16 @@ impl Money {
     }
 
     pub fn from_minor(minor: i64) -> Result<Self, MoneyError> {
-        let decimal = Decimal::from(minor).checked_div(Decimal::from(100i64)).ok_or(MoneyError::Overflow)?;
+        let decimal = Decimal::from(minor)
+            .checked_div(Decimal::from(100i64))
+            .ok_or(MoneyError::Overflow)?;
         Ok(Money(decimal))
     }
 
     pub fn from_decimal(value: Decimal) -> Result<Self, MoneyError> {
-        let scaled = value.checked_mul(Decimal::from(100i64)).ok_or(MoneyError::Overflow)?;
+        let scaled = value
+            .checked_mul(Decimal::from(100i64))
+            .ok_or(MoneyError::Overflow)?;
         let minor = scaled.to_i64().ok_or(MoneyError::NotRepresentable)?;
         Self::from_minor(minor)
     }
@@ -142,8 +146,13 @@ mod tests {
 
     #[test]
     fn amounts_beyond_i64_minor_units_are_rejected_at_the_boundary() {
-        let too_large = Decimal::from(i64::MAX).checked_add(Decimal::from(1)).expect("representable");
-        assert_eq!(Money::from_decimal(too_large), Err(MoneyError::NotRepresentable));
+        let too_large = Decimal::from(i64::MAX)
+            .checked_add(Decimal::from(1))
+            .expect("representable");
+        assert_eq!(
+            Money::from_decimal(too_large),
+            Err(MoneyError::NotRepresentable)
+        );
     }
 
     #[test]
