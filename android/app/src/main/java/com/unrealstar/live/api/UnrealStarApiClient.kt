@@ -400,7 +400,26 @@ object UnrealStarApiClient {
         }
     }
 
+    suspend fun fetchGiftCatalog(): Result<List<com.unrealstar.live.models.GiftCatalogItem>> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/gifts/catalog")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val listType = object : com.google.gson.reflect.TypeToken<List<com.unrealstar.live.models.GiftCatalogItem>>() {}.type
+                val catalog: List<com.unrealstar.live.models.GiftCatalogItem> = gson.fromJson(response.body?.string() ?: "[]", listType) ?: emptyList()
+                Result.success(catalog)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun spinWheel(req: SpinWheelRequest): Result<SpinWheelResponse> = withContext(Dispatchers.IO) {
+
         val json = gson.toJson(req)
         val body = json.toRequestBody(JSON_MEDIA_TYPE)
         val request = Request.Builder()
@@ -613,7 +632,7 @@ object UnrealStarApiClient {
 
     suspend fun claimDailyTask(taskId: String): Result<Long> = withContext(Dispatchers.IO) {
         val request = Request.Builder()
-            .url("$BASE_URL/tasks/claim/$taskId")
+            .url("$BASE_URL/tasks/$taskId/claim")
             .header("Authorization", SessionStore.authorization())
             .post("{}".toRequestBody(JSON_MEDIA_TYPE))
             .build()

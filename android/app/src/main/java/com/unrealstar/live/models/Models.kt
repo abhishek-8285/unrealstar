@@ -152,6 +152,17 @@ data class SendGiftResponse(
     val broadcast_triggered: Boolean
 )
 
+data class GiftCatalogItem(
+    val gift_id: String = "",
+    val name: String = "",
+    val price_coins: Long = 0,
+    val tier: String = "standard",
+    val icon_url: String? = null,
+    val animation_url: String? = null,
+    val is_broadcast: Boolean = false
+)
+
+
 data class SpinWheelRequest(
     val room_id: Long,
     val wheel_id: String,

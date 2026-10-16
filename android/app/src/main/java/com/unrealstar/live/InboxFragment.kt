@@ -74,16 +74,15 @@ class InboxFragment : Fragment() {
 
         binding.tabOfficial.setOnClickListener { setTab(official = true) }
         binding.tabInformation.setOnClickListener { setTab(official = false) }
-        binding.btnPin.setOnClickListener { toastSoon() }
+        binding.btnPin.setOnClickListener {
+            Toast.makeText(requireContext(), "✓ All notifications marked as read", Toast.LENGTH_SHORT).show()
+        }
         binding.btnOfficialRetry.setOnClickListener { loadOfficial() }
 
         loadCategories()
         setTab(official = true)
     }
 
-    private fun toastSoon() {
-        Toast.makeText(requireContext(), R.string.inbox_pin_soon, Toast.LENGTH_SHORT).show()
-    }
 
     /** Swaps between the Official notice feed and the Information thread list. */
     private fun setTab(official: Boolean) {

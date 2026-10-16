@@ -534,8 +534,16 @@ class CameraLiveActivity : AppCompatActivity() {
         }
 
         binding.btnToggleGifts.setOnClickListener {
-            sendSampleGift()
+            val sheet = GiftBottomSheet(
+                roomId = if (liveRoomId > 0L) liveRoomId else 1L,
+                recipientId = 9999L
+            ) { gift, count, comboSeq, _ ->
+                addChatMessage(SessionStore.userId, "System", "🎁 Sent ${count}x ${gift.name} (Combo x$comboSeq)")
+                signalClient?.sendChat("🎁 Host sent ${count}x ${gift.name}!")
+            }
+            sheet.show(supportFragmentManager, GiftBottomSheet.TAG)
         }
+
 
         binding.btnToggleWheel.setOnClickListener {
             val dialog = LuckyWheelDialog(roomId = 1L) { remainingCoins ->

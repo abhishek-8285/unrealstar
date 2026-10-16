@@ -124,6 +124,7 @@
 
     <!-- Bottom Container: Chat messages + Input / Actions -->
     <LinearLayout
+        android:id="@+id/bottomContainer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"

@@ -20,3 +20,15 @@ fun View.applyTopSystemInset() {
         insets
     }
 }
+
+/**
+ * Adds the navigation-bar inset on bottom of a view's own padding.
+ */
+fun View.applyBottomSystemInset() {
+    val basePadding = paddingBottom
+    ViewCompat.setOnApplyWindowInsetsListener(this) { view, insets ->
+        val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
+        view.updatePadding(bottom = basePadding + bars.bottom)
+        insets
+    }
+}

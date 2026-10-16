@@ -39,6 +39,9 @@ class WatchLiveActivity : AppCompatActivity() {
         binding = ActivityWatchLiveBinding.inflate(layoutInflater)
         setContentView(binding.root)
 
+        binding.hud.applyTopSystemInset()
+        binding.bottomContainer.applyBottomSystemInset()
+
         roomId = intent.getLongExtra(EXTRA_ROOM_ID, 0)
         val hostNickname = intent.getStringExtra(EXTRA_HOST_NICKNAME)
         if (hostNickname != null) {
@@ -65,8 +68,19 @@ class WatchLiveActivity : AppCompatActivity() {
         }
 
         binding.btnToggleGifts.setOnClickListener {
-            sendSampleGift()
+            val sheet = GiftBottomSheet(
+                roomId = roomId,
+                recipientId = if (hostId > 0L) hostId else 9999L
+            ) { gift, count, comboSeq, _ ->
+                val points = gift.price_coins * count
+                addPkPoints(points)
+                showGiftBanner("✨ Combo x$comboSeq! Sent ${count}x ${gift.name} (+${points} pts)")
+                addChatMessage(SessionStore.userId, "System", "🎁 You sent ${count}x ${gift.name}!")
+                signalClient?.sendChat("🎁 Sent ${count}x ${gift.name}!")
+            }
+            sheet.show(supportFragmentManager, GiftBottomSheet.TAG)
         }
+
 
         binding.btnToggleWheel.setOnClickListener {
             val dialog = LuckyWheelDialog(roomId = roomId) { remainingCoins ->

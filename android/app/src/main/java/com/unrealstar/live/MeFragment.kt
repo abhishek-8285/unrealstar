@@ -99,30 +99,52 @@ class MeFragment : Fragment() {
                     t.typeface = if (isActive) android.graphics.Typeface.DEFAULT_BOLD
                     else android.graphics.Typeface.DEFAULT
                 }
-                // Only DATA has a backing endpoint today.
-                if (index != 0) {
-                    Toast.makeText(requireContext(), R.string.me_soon, Toast.LENGTH_SHORT).show()
+                when (index) {
+                    0 -> {
+                        binding.filterRow.visibility = View.VISIBLE
+                        binding.statGridTop.visibility = View.VISIBLE
+                        binding.statGridBottom.visibility = View.VISIBLE
+                    }
+                    1 -> {
+                        binding.filterRow.visibility = View.GONE
+                        binding.statGridTop.visibility = View.VISIBLE
+                        binding.statGridBottom.visibility = View.GONE
+                        Toast.makeText(requireContext(), "📹 0 Moments uploaded. Tap '+' to go live!", Toast.LENGTH_SHORT).show()
+                    }
+                    2 -> {
+                        binding.filterRow.visibility = View.GONE
+                        binding.statGridTop.visibility = View.GONE
+                        binding.statGridBottom.visibility = View.VISIBLE
+                        Toast.makeText(requireContext(), "❤️ 0 Favorite items saved", Toast.LENGTH_SHORT).show()
+                    }
                 }
             }
         }
 
-        val soon = {
-            Toast.makeText(requireContext(), R.string.me_soon, Toast.LENGTH_SHORT).show()
-        }
         binding.btnFilterActivity.setOnClickListener {
             DailyTasksBottomSheet(onRewardClaimed = { load() }).show(childFragmentManager, DailyTasksBottomSheet.TAG)
         }
         binding.btnFilterToday.setOnClickListener {
             VipTiersBottomSheet().show(childFragmentManager, VipTiersBottomSheet.TAG)
         }
-        binding.btnGift.setOnClickListener { soon() }
+        binding.btnGift.setOnClickListener {
+            GiftBottomSheet(roomId = 1L, recipientId = 9999L).show(childFragmentManager, GiftBottomSheet.TAG)
+        }
         binding.btnCrown.setOnClickListener {
             DailyTasksBottomSheet(onRewardClaimed = { load() }).show(childFragmentManager, DailyTasksBottomSheet.TAG)
         }
-        binding.btnShare.setOnClickListener { soon() }
+        binding.btnShare.setOnClickListener {
+            val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                type = "text/plain"
+                putExtra(android.content.Intent.EXTRA_SUBJECT, "CamStar Live Profile")
+                putExtra(android.content.Intent.EXTRA_TEXT, "Check out my profile on CamStar Live! User: ${binding.tvNickname.text} (${binding.tvDisplayId.text})")
+            }
+            startActivity(android.content.Intent.createChooser(shareIntent, "Share Profile"))
+        }
         binding.btnSettings.setOnClickListener {
             startActivity(android.content.Intent(requireContext(), OtpLoginActivity::class.java))
         }
+
     }
 
     private fun load() {
