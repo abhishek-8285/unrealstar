@@ -99,6 +99,24 @@ class HomeFragment : Fragment() {
         )
 
         adapter.onAction = { moment, action -> perform(moment, action) }
+        adapter.onOpenGift = { moment ->
+            val sheet = GiftBottomSheet(
+                roomId = 1L,
+                recipientId = moment.author_id
+            ) { gift, count, comboSeq, _ ->
+                adapter.markActed(moment.moment_id, MomentAction.GIFT)
+                Toast.makeText(requireContext(), "🎁 Sent ${count}x ${gift.name} to ${moment.author_nickname}!", Toast.LENGTH_SHORT).show()
+            }
+            sheet.show(childFragmentManager, GiftBottomSheet.TAG)
+        }
+        adapter.onOpenProfile = { moment ->
+            val dmSheet = DirectMessageBottomSheet(
+                targetUserId = moment.author_id,
+                targetNickname = moment.author_nickname,
+                targetAvatarUrl = moment.author_avatar_url
+            )
+            dmSheet.show(childFragmentManager, DirectMessageBottomSheet.TAG)
+        }
         adapter.onOpenComments = { moment ->
             CommentsBottomSheet.newInstance(moment.moment_id, moment.comment_count)
                 .show(parentFragmentManager, CommentsBottomSheet.TAG)
@@ -138,7 +156,11 @@ class HomeFragment : Fragment() {
             SearchBottomSheet().show(childFragmentManager, SearchBottomSheet.TAG)
         }
         binding.ivShield.setOnClickListener {
-            Toast.makeText(requireContext(), "🛡️ Community Safety & Content Shield Active", Toast.LENGTH_SHORT).show()
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("🛡️ Content Shield & Community Safety")
+                .setMessage("CamStar Live enforces strict real-time moderation:\n\n• Automated NSFW & Harassment Shield: ON\n• 24/7 AI-assisted stream safety checks\n• End-to-end encrypted direct messaging\n• Zero tolerance for hate speech or bullying\n\nTo report any inappropriate content, tap the share icon on the right rail and choose 'Report'.")
+                .setPositiveButton("Understood", null)
+                .show()
         }
     }
 

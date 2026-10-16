@@ -41,7 +41,13 @@ class LiveFragment : Fragment() {
         // Enter the watch screen: join + WebRTC viewer session happens there.
         WatchLiveActivity.start(requireContext(), room.room_id, room.host_nickname)
     }
-    private val bannerAdapter = BannerAdapter()
+    private val bannerAdapter = BannerAdapter { banner ->
+        if (banner.title.contains("Bonus", ignoreCase = true) || banner.title.contains("Coin", ignoreCase = true)) {
+            CoinStoreBottomSheet().show(childFragmentManager, CoinStoreBottomSheet.TAG)
+        } else {
+            Toast.makeText(requireContext(), "🎉 Joined event: ${banner.title}!", Toast.LENGTH_SHORT).show()
+        }
+    }
 
     // Holds resource ids, not resolved strings: the fragment is constructed
     // before it is attached to a context, so getString() is illegal here.
@@ -82,6 +88,10 @@ class LiveFragment : Fragment() {
         }
         binding.btnSearch.setOnClickListener {
             SearchBottomSheet().show(childFragmentManager, SearchBottomSheet.TAG)
+        }
+        binding.tvAvatarBadge.setOnClickListener {
+            val navMe = activity?.findViewById<View>(R.id.nav_me)
+            navMe?.performClick() ?: CoinStoreBottomSheet().show(childFragmentManager, CoinStoreBottomSheet.TAG)
         }
 
         // Two columns means ~4 rows of prefetch is plenty to keep the wall
@@ -313,7 +323,9 @@ private class RoomAdapter(
     }
 }
 
-private class BannerAdapter : RecyclerView.Adapter<BannerAdapter.BannerViewHolder>() {
+private class BannerAdapter(
+    private val onBannerClick: (LiveBanner) -> Unit = {}
+) : RecyclerView.Adapter<BannerAdapter.BannerViewHolder>() {
 
     private val items = mutableListOf<LiveBanner>()
 
@@ -331,7 +343,7 @@ private class BannerAdapter : RecyclerView.Adapter<BannerAdapter.BannerViewHolde
 
     override fun getItemCount() = items.size
 
-    class BannerViewHolder(private val binding: ItemLiveBannerBinding) :
+    inner class BannerViewHolder(private val binding: ItemLiveBannerBinding) :
         RecyclerView.ViewHolder(binding.root) {
         fun bind(banner: LiveBanner) {
             binding.tvBannerTitle.text = banner.title
@@ -340,6 +352,7 @@ private class BannerAdapter : RecyclerView.Adapter<BannerAdapter.BannerViewHolde
                 .load(UnrealStarApiClient.localise(banner.image_url))
                 .centerCrop()
                 .into(binding.ivBanner)
+            binding.root.setOnClickListener { onBannerClick(banner) }
         }
     }
 }

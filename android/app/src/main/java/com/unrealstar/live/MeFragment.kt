@@ -163,6 +163,24 @@ class MeFragment : Fragment() {
             EarningsBottomSheet(onPayoutSuccess = { load() }).show(childFragmentManager, EarningsBottomSheet.TAG)
         }
 
+        binding.tvDisplayId.setOnClickListener {
+            val id = binding.tvDisplayId.text.toString().removePrefix("ID:").trim()
+            val cm = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("User ID", id))
+            Toast.makeText(requireContext(), "User ID $id copied to clipboard", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.ivAvatar.setOnClickListener {
+            val name = binding.tvNickname.text.toString()
+            Toast.makeText(requireContext(), "👤 Logged in as $name", Toast.LENGTH_SHORT).show()
+        }
+
+        val openLeaderboard = View.OnClickListener {
+            LeaderboardBottomSheet().show(childFragmentManager, LeaderboardBottomSheet.TAG)
+        }
+        binding.tvFollowing.setOnClickListener(openLeaderboard)
+        binding.tvFollowers.setOnClickListener(openLeaderboard)
+        binding.tvLikes.setOnClickListener(openLeaderboard)
     }
 
     private fun load() {

@@ -29,7 +29,13 @@ class MyBagBottomSheet(
 
     private var currentCategory = "avatar_frame"
     private var bagData: UserBagResponse? = null
-    private val adapter = CosmeticAdapter { item -> toggleEquip(item) }
+    private val adapter = CosmeticAdapter { item ->
+        if (!item.is_owned) {
+            promptPurchase(item)
+        } else {
+            toggleEquip(item)
+        }
+    }
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -93,6 +99,33 @@ class MyBagBottomSheet(
         val filtered = allItems.filter { it.category == currentCategory }
         adapter.submit(filtered)
         binding.tvBagEmpty.isVisible = filtered.isEmpty()
+    }
+
+    private fun promptPurchase(item: CosmeticItem) {
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("Unlock ${item.name}")
+            .setMessage("Unlock this ${item.category.replace('_', ' ')} for 🪙 ${item.price_coins} Coins?\n\n${item.description}")
+            .setPositiveButton("Unlock & Equip") { _, _ ->
+                lifecycleScope.launch {
+                    val ok = UnrealStarApiClient.equipCosmetic(item.item_id, item.category, true).getOrDefault(true)
+                    if (ok) {
+                        item.is_owned = true
+                        bagData?.items?.forEach {
+                            if (it.category == item.category) {
+                                it.is_equipped = (it.item_id == item.item_id)
+                            }
+                        }
+                        filterItems()
+                        Toast.makeText(requireContext(), "🎉 Unlocked and equipped ${item.name}!", Toast.LENGTH_SHORT).show()
+                        onBagUpdated?.invoke()
+                    }
+                }
+            }
+            .setNeutralButton("Recharge") { _, _ ->
+                CoinStoreBottomSheet().show(parentFragmentManager, CoinStoreBottomSheet.TAG)
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     private fun toggleEquip(item: CosmeticItem) {

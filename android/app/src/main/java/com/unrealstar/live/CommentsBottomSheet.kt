@@ -11,6 +11,7 @@ import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import com.bumptech.glide.Glide
 import com.unrealstar.live.api.UnrealStarApiClient
 import com.unrealstar.live.databinding.ItemCommentBinding
 import com.unrealstar.live.databinding.SheetCommentsBinding
@@ -29,7 +30,13 @@ class CommentsBottomSheet : BottomSheetDialogFragment() {
     private val binding get() = _binding!!
     private val adapter = CommentAdapter(
         onReply = ::startReply,
-        onToggleLike = ::toggleCommentLike
+        onToggleLike = ::toggleCommentLike,
+        onOpenProfile = { comment ->
+            DirectMessageBottomSheet(
+                targetUserId = comment.author_id,
+                targetNickname = comment.author_nickname
+            ).show(parentFragmentManager, "dm_chat")
+        }
     )
 
     private val momentId: String get() = requireArguments().getString(ARG_MOMENT_ID).orEmpty()
@@ -164,7 +171,8 @@ class CommentsBottomSheet : BottomSheetDialogFragment() {
 
 private class CommentAdapter(
     private val onReply: (MomentComment) -> Unit,
-    private val onToggleLike: (MomentComment) -> Unit
+    private val onToggleLike: (MomentComment) -> Unit,
+    private val onOpenProfile: (MomentComment) -> Unit
 ) : RecyclerView.Adapter<CommentAdapter.CommentViewHolder>() {
 
     private val rows = mutableListOf<CommentRow>()
@@ -192,7 +200,7 @@ private class CommentAdapter(
         val binding = ItemCommentBinding.inflate(
             LayoutInflater.from(parent.context), parent, false
         )
-        return CommentViewHolder(binding, onReply, onToggleLike)
+        return CommentViewHolder(binding, onReply, onToggleLike, onOpenProfile)
     }
 
     override fun onBindViewHolder(holder: CommentViewHolder, position: Int) {
@@ -204,11 +212,23 @@ private class CommentAdapter(
     class CommentViewHolder(
         private val binding: ItemCommentBinding,
         private val onReply: (MomentComment) -> Unit,
-        private val onToggleLike: (MomentComment) -> Unit
+        private val onToggleLike: (MomentComment) -> Unit,
+        private val onOpenProfile: (MomentComment) -> Unit
     ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(row: CommentRow) {
             val comment = row.comment
+
+            // Load author avatar
+            Glide.with(binding.ivAvatar)
+                .load(UnrealStarApiClient.localise(comment.author_avatar_url.orEmpty()))
+                .circleCrop()
+                .placeholder(R.drawable.bg_live_avatar)
+                .error(R.drawable.bg_live_avatar)
+                .into(binding.ivAvatar)
+
+            binding.ivAvatar.setOnClickListener { onOpenProfile(comment) }
+            binding.tvAuthor.setOnClickListener { onOpenProfile(comment) }
 
             // Replies are inset rather than nested, matching a flat RecyclerView.
             val indent = if (row.isReply) 34 else 0

@@ -58,7 +58,10 @@ class GiftBottomSheet(
 
         binding.btnCloseGiftSheet.setOnClickListener { dismiss() }
         binding.btnRechargeCoins.setOnClickListener {
-            Toast.makeText(requireContext(), "Opening coin top-up store...", Toast.LENGTH_SHORT).show()
+            val store = CoinStoreBottomSheet {
+                loadCatalogAndBalance()
+            }
+            store.show(childFragmentManager, CoinStoreBottomSheet.TAG)
         }
 
         setupQuantityChips()

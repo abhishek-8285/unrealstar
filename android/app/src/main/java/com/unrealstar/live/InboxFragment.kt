@@ -54,7 +54,13 @@ class InboxFragment : Fragment() {
         )
         sheet.show(childFragmentManager, DirectMessageBottomSheet.TAG)
     }
-    private val officialAdapter = OfficialAdapter()
+    private val officialAdapter = OfficialAdapter { notice ->
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle(notice.title)
+            .setMessage("${notice.body}\n\nDate: ${notice.created_at.take(10)}")
+            .setPositiveButton("OK", null)
+            .show()
+    }
 
     private var showingOfficial = true
     private var selectedCategory: String? = null
@@ -82,6 +88,7 @@ class InboxFragment : Fragment() {
         binding.tabOfficial.setOnClickListener { setTab(official = true) }
         binding.tabInformation.setOnClickListener { setTab(official = false) }
         binding.btnPin.setOnClickListener {
+            messageAdapter.markAllRead()
             Toast.makeText(requireContext(), "✓ All notifications marked as read", Toast.LENGTH_SHORT).show()
         }
         binding.btnInboxSettings.setOnClickListener {
@@ -255,7 +262,9 @@ class InboxFragment : Fragment() {
 }
 
 /** Official notice feed. [bracketed] tokens render as highlight chips. */
-private class OfficialAdapter : RecyclerView.Adapter<OfficialAdapter.OfficialViewHolder>() {
+private class OfficialAdapter(
+    private val onNoticeClick: (OfficialNotice) -> Unit = {}
+) : RecyclerView.Adapter<OfficialAdapter.OfficialViewHolder>() {
 
     private val items = mutableListOf<OfficialNotice>()
 
@@ -274,7 +283,7 @@ private class OfficialAdapter : RecyclerView.Adapter<OfficialAdapter.OfficialVie
 
     override fun getItemCount() = items.size
 
-    class OfficialViewHolder(private val binding: ItemInboxOfficialBinding) :
+    inner class OfficialViewHolder(private val binding: ItemInboxOfficialBinding) :
         RecyclerView.ViewHolder(binding.root) {
 
         fun bind(notice: OfficialNotice) {
@@ -288,6 +297,7 @@ private class OfficialAdapter : RecyclerView.Adapter<OfficialAdapter.OfficialVie
                 Glide.with(binding.ivNoticeImage).load(image).centerCrop()
                     .into(binding.ivNoticeImage)
             }
+            binding.root.setOnClickListener { onNoticeClick(notice) }
         }
 
         private fun renderBody(body: String) {
@@ -372,6 +382,13 @@ private class MessageAdapter(
     fun submit(next: List<InboxMessage>) {
         items.clear()
         items.addAll(next)
+        notifyDataSetChanged()
+    }
+
+    fun markAllRead() {
+        for (i in items.indices) {
+            items[i] = items[i].copy(unread = false)
+        }
         notifyDataSetChanged()
     }
 

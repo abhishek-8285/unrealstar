@@ -35,6 +35,8 @@ class MomentAdapter : RecyclerView.Adapter<MomentAdapter.MomentViewHolder>() {
     var player: ExoPlayer? = null
     var onAction: ((FeedPost, MomentAction) -> Unit)? = null
     var onOpenComments: ((FeedPost) -> Unit)? = null
+    var onOpenGift: ((FeedPost) -> Unit)? = null
+    var onOpenProfile: ((FeedPost) -> Unit)? = null
     var onBannerClick: (() -> Unit)? = null
 
     /**
@@ -209,7 +211,11 @@ class MomentAdapter : RecyclerView.Adapter<MomentAdapter.MomentViewHolder>() {
             }
             binding.btnGift.setOnClickListener {
                 pop(it)
-                onAction?.invoke(moment, MomentAction.GIFT)
+                if (onOpenGift != null) {
+                    onOpenGift?.invoke(moment)
+                } else {
+                    onAction?.invoke(moment, MomentAction.GIFT)
+                }
             }
             binding.btnMute.setOnClickListener {
                 isMuted = !isMuted
@@ -224,6 +230,14 @@ class MomentAdapter : RecyclerView.Adapter<MomentAdapter.MomentViewHolder>() {
             }
             binding.ivFollowBadge.setOnClickListener(followClick)
             binding.ivCreatorAvatar.setOnClickListener(followClick)
+
+            val profileClick = View.OnClickListener {
+                onOpenProfile?.invoke(moment)
+            }
+            binding.ivAuthorAvatar.setOnClickListener(profileClick)
+            binding.tvAuthor.setOnClickListener(profileClick)
+            binding.tvSuggestedName.setOnClickListener(profileClick)
+            binding.suggestedRow.setOnClickListener(followClick)
 
 
             attachTapGestures()

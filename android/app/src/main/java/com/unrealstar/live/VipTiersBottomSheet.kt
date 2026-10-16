@@ -68,9 +68,28 @@ class VipTiersBottomSheet : BottomSheetDialogFragment() {
             holder.b.tvTierName.text = tier.name
             holder.b.tvPrivileges.text = tier.privileges.joinToString(", ")
             holder.b.tvPrice.text = "₹${tier.price_inr}"
+
+            holder.b.root.setOnClickListener {
+                upgradeVip(tier)
+            }
+            holder.b.tvPrice.setOnClickListener {
+                upgradeVip(tier)
+            }
         }
 
         override fun getItemCount() = tiers.size
+    }
+
+    private fun upgradeVip(tier: VipTierItem) {
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("👑 Upgrade to ${tier.name}")
+            .setMessage("Price: ₹${tier.price_inr}\n\nPrivileges unlocked:\n• " + tier.privileges.joinToString("\n• ") + "\n\nActivate VIP status now?")
+            .setPositiveButton("Activate (₹${tier.price_inr})") { _, _ ->
+                Toast.makeText(requireContext(), "🎉 Welcome to ${tier.name}! VIP Privileges active.", Toast.LENGTH_LONG).show()
+                dismiss()
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
     }
 
     companion object {

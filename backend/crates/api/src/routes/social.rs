@@ -487,12 +487,14 @@ pub async fn comment_moment(
         }
     }
 
+    let origin = crate::public_origin();
     let comment = MomentComment {
         comment_id: format!("comment_{}", Uuid::new_v4()),
         moment_id: moment_id.clone(),
         parent_id: req.parent_id.clone(),
         author_id: user_id,
         author_nickname: nickname,
+        author_avatar_url: Some(format!("{origin}/assets/avatars/{}.png", (user_id % 6) + 1)),
         body: body.to_string(),
         likes_count: 0,
         liked_by_me: false,

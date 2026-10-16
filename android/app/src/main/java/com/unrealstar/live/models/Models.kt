@@ -57,6 +57,7 @@ data class MomentComment(
     val parent_id: String? = null,
     val author_id: Long = 0,
     val author_nickname: String = "",
+    val author_avatar_url: String? = null,
     val body: String = "",
     val likes_count: Long = 0,
     val liked_by_me: Boolean = false,
@@ -438,7 +439,7 @@ data class CosmeticItem(
     val preview_asset: String = "",
     val description: String = "",
     var is_equipped: Boolean = false,
-    val is_owned: Boolean = false,
+    var is_owned: Boolean = false,
     val price_coins: Long = 0,
     val expires_in_days: Int? = null
 )

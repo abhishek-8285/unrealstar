@@ -31,6 +31,20 @@
             tools:ignore="HardcodedText" />
 
         <TextView
+            android:id="@+id/btnCreateClan"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_btn_primary"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="5dp"
+            android:layout_marginEnd="8dp"
+            android:text="+ Create"
+            android:textColor="@color/text_white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            tools:ignore="HardcodedText" />
+
+        <TextView
             android:id="@+id/btnClose"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

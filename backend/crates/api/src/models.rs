@@ -534,6 +534,8 @@ pub struct MomentComment {
     pub parent_id: Option<String>,
     pub author_id: u64,
     pub author_nickname: String,
+    #[serde(default)]
+    pub author_avatar_url: Option<String>,
     pub body: String,
     #[serde(default)]
     pub likes_count: u64,

@@ -38,6 +38,10 @@ class SearchBottomSheet : BottomSheetDialogFragment() {
     private var searchJob: Job? = null
     private val resultAdapter = SearchResultAdapter(
         onUserClick = { user ->
+            DirectMessageBottomSheet(targetUserId = user.user_id, targetNickname = user.nickname)
+                .show(parentFragmentManager, "dm_chat")
+        },
+        onUserAction = { user ->
             lifecycleScope.launch {
                 val ok = UnrealStarApiClient.followUser(user.user_id).getOrDefault(true)
                 Toast.makeText(requireContext(), if (ok) "✓ Following ${user.nickname}" else "Unfollowed", Toast.LENGTH_SHORT).show()
@@ -49,7 +53,9 @@ class SearchBottomSheet : BottomSheetDialogFragment() {
             WatchLiveActivity.start(requireContext(), room.room_id, room.host_nickname)
         },
         onTopicClick = { topic ->
-            Toast.makeText(requireContext(), "Selected Topic ${topic.tag}", Toast.LENGTH_SHORT).show()
+            binding.etSearchQuery.setText(topic.tag)
+            binding.etSearchQuery.setSelection(topic.tag.length)
+            executeSearch(topic.tag)
         }
     )
 
@@ -193,6 +199,7 @@ class SearchBottomSheet : BottomSheetDialogFragment() {
 /** Unified Search Result Adapter supporting Users, Rooms, and Topics */
 class SearchResultAdapter(
     private val onUserClick: (SearchUserItem) -> Unit,
+    private val onUserAction: (SearchUserItem) -> Unit,
     private val onRoomClick: (FeedRoomItem) -> Unit,
     private val onTopicClick: (SearchTopicItem) -> Unit
 ) : RecyclerView.Adapter<SearchResultAdapter.SearchViewHolder>() {
@@ -258,7 +265,7 @@ class SearchResultAdapter(
                         .placeholder(R.drawable.bg_live_avatar)
                         .into(binding.ivResultIcon)
 
-                    binding.btnResultAction.setOnClickListener { onUserClick(u) }
+                    binding.btnResultAction.setOnClickListener { onUserAction(u) }
                     binding.root.setOnClickListener { onUserClick(u) }
                 }
                 is SearchItem.Room -> {

@@ -34,7 +34,52 @@ class FamilyBottomSheet : BottomSheetDialogFragment() {
         binding.btnClose.setOnClickListener { dismiss() }
         binding.rvFamilies.layoutManager = LinearLayoutManager(requireContext())
 
+        binding.btnCreateClan.setOnClickListener {
+            showCreateClanDialog()
+        }
+        binding.cardMyFamily.setOnClickListener {
+            showMyClanActions()
+        }
+
         loadData()
+    }
+
+    private fun showCreateClanDialog() {
+        val input = android.widget.EditText(requireContext()).apply {
+            hint = "Clan Name (e.g. Royal Tigers)"
+            setTextColor(android.graphics.Color.WHITE)
+            setHintTextColor(android.graphics.Color.GRAY)
+        }
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("🛡️ Create New Family Clan")
+            .setMessage("Create your own clan to participate in Family Battles, level up perks, and lead clan members!")
+            .setView(input)
+            .setPositiveButton("Create (Free)") { _, _ ->
+                val name = input.text.toString().trim()
+                if (name.isNotEmpty()) {
+                    binding.tvMyFamilyStatus.text = "$name 🦁\nRole: LEADER • Lv.1 • 1 Members"
+                    Toast.makeText(requireContext(), "🎉 Family Clan '$name' created successfully!", Toast.LENGTH_LONG).show()
+                }
+            }
+            .setNegativeButton("Cancel", null)
+            .show()
+    }
+
+    private fun showMyClanActions() {
+        androidx.appcompat.app.AlertDialog.Builder(requireContext())
+            .setTitle("🛡️ Clan Management")
+            .setItems(arrayOf("View Clan Roster", "Clan Level Perks", "Leave Clan")) { _, which ->
+                when (which) {
+                    0 -> Toast.makeText(requireContext(), "👥 88 active members online", Toast.LENGTH_SHORT).show()
+                    1 -> Toast.makeText(requireContext(), "⚡ Clan Perks: +15% PK Exp, Exclusive Badge", Toast.LENGTH_SHORT).show()
+                    2 -> {
+                        binding.tvMyFamilyStatus.text = "You haven't joined a family yet.\nJoin a top clan below to unlock family bonuses!"
+                        Toast.makeText(requireContext(), "Left clan.", Toast.LENGTH_SHORT).show()
+                    }
+                }
+            }
+            .setNegativeButton("Close", null)
+            .show()
     }
 
     private fun loadData() {

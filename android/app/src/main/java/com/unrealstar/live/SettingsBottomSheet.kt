@@ -30,11 +30,19 @@ class SettingsBottomSheet : BottomSheetDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
 
         binding.tvSettingsUserId.text = SessionStore.userId.toString()
+        binding.tvSettingsUserId.setOnClickListener {
+            val cm = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            cm.setPrimaryClip(android.content.ClipData.newPlainText("User ID", SessionStore.userId.toString()))
+            Toast.makeText(requireContext(), "User ID ${SessionStore.userId} copied to clipboard", Toast.LENGTH_SHORT).show()
+        }
         updateCacheSize()
 
         binding.btnCloseSettings.setOnClickListener { dismiss() }
 
+        val prefs = requireContext().getSharedPreferences("camstar_settings", android.content.Context.MODE_PRIVATE)
+        binding.switchPushNotifications.isChecked = prefs.getBoolean("push_notifications", true)
         binding.switchPushNotifications.setOnCheckedChangeListener { _, isChecked ->
+            prefs.edit().putBoolean("push_notifications", isChecked).apply()
             val status = if (isChecked) "Enabled" else "Muted"
             Toast.makeText(requireContext(), "Push Notifications $status", Toast.LENGTH_SHORT).show()
         }
@@ -46,11 +54,11 @@ class SettingsBottomSheet : BottomSheetDialogFragment() {
         }
 
         binding.rowPrivacyPolicy.setOnClickListener {
-            Toast.makeText(
-                requireContext(),
-                "🛡️ CamStar & Trendo Safety: Zero harassment tolerance, end-to-end encrypted chats, 24/7 stream moderation.",
-                Toast.LENGTH_LONG
-            ).show()
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setTitle("🛡️ Privacy Policy & Safety Guidelines")
+                .setMessage("CamStar Community Standards:\n\n1. Zero Tolerance for Harassment: Bullying, hate speech, or abuse will lead to instant account termination.\n2. Stream Moderation: All public live broadcasts and moments are filtered by real-time AI safety monitors.\n3. Data Protection: Personal credentials and chats are encrypted at rest and in transit.\n4. Age Requirement: Users must be 18+ to broadcast or recharge coins.\n\nThank you for keeping CamStar safe and fun!")
+                .setPositiveButton("I Understand", null)
+                .show()
         }
 
         binding.btnLogout.setOnClickListener {

@@ -47,6 +47,10 @@ class WatchLiveActivity : AppCompatActivity() {
         if (hostNickname != null) {
             binding.tvHostName.text = hostNickname
         }
+        binding.tvHostName.setOnClickListener {
+            DirectMessageBottomSheet(targetUserId = 1001L, targetNickname = binding.tvHostName.text.toString())
+                .show(supportFragmentManager, "dm_chat")
+        }
 
         binding.btnClose.setOnClickListener { finish() }
         binding.tvStatus.text = getString(R.string.watch_connecting)

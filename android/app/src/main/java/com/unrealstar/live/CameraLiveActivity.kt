@@ -936,6 +936,66 @@ class CameraLiveActivity : AppCompatActivity() {
         binding.tvPkBadge.setOnClickListener { triggerPkMatch() }
         binding.btnPk.setOnClickListener { triggerPkMatch() }
 
+        binding.btnEnvelope.setOnClickListener {
+            DirectMessageBottomSheet(1001L, "Trendo Official")
+                .show(supportFragmentManager, "dm_chat")
+        }
+
+        binding.btnPhone.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("📞 Co-Host & Guest Connection")
+                .setMessage("Invite active viewers or friends to join multi-guest video or audio seats.")
+                .setPositiveButton("Invite Guest") { _, _ ->
+                    Toast.makeText(this, "📡 Invitation broadcasted to viewers", Toast.LENGTH_SHORT).show()
+                    addChatMessage(SessionStore.userId, "System", "📞 Co-host invitation sent to viewers")
+                }
+                .setNegativeButton("Cancel", null)
+                .show()
+        }
+
+        binding.btnMore.setOnClickListener {
+            val options = arrayOf(
+                "🔄 Flip Camera",
+                "⚙️ Stream Settings & Bitrate",
+                "🛡️ Room Moderation & Banned Words",
+                "🧧 Drop Red Packet",
+                "✨ Special Beauty Filters"
+            )
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("Broadcast Tools")
+                .setItems(options) { _, which ->
+                    when (which) {
+                        0 -> {
+                            lensFacing = if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
+                                CameraSelector.LENS_FACING_BACK
+                            } else {
+                                CameraSelector.LENS_FACING_FRONT
+                            }
+                            startCamera()
+                        }
+                        1 -> showConnectionDialog()
+                        2 -> Toast.makeText(this, "🛡️ AI Auto-Moderation Active (Safe Mode)", Toast.LENGTH_SHORT).show()
+                        3 -> {
+                            RedPacketBottomSheet(roomId = if (liveRoomId > 0) liveRoomId else 1L) {
+                                addChatMessage(SessionStore.userId, "System", "🧧 Dropped a Lucky Red Packet!")
+                            }.show(supportFragmentManager, RedPacketBottomSheet.TAG)
+                        }
+                        4 -> {
+                            binding.filterPanel.visibility = View.VISIBLE
+                        }
+                    }
+                }
+                .show()
+        }
+
+        binding.tvTopupBadge.setOnClickListener {
+            CoinStoreBottomSheet().show(supportFragmentManager, CoinStoreBottomSheet.TAG)
+        }
+
+        binding.hostChipRow.setOnClickListener {
+            Toast.makeText(this, "👤 Host: ${binding.tvHostName.text}", Toast.LENGTH_SHORT).show()
+        }
+
         binding.btnSwitchCamera.setOnClickListener {
             lensFacing = if (lensFacing == CameraSelector.LENS_FACING_FRONT) {
                 CameraSelector.LENS_FACING_BACK
