@@ -62,12 +62,7 @@ class MeFragment : Fragment() {
                         startActivity(android.content.Intent(requireContext(), CameraLiveActivity::class.java))
                     }
                     R.string.me_earnings -> {
-                        lifecycleScope.launch {
-                            val preview = UnrealStarApiClient.fetchPayoutPreview().getOrNull()
-                            val diamonds = preview?.diamonds_amount ?: 0L
-                            val netInr = preview?.net_payout_inr ?: 0L
-                            Toast.makeText(requireContext(), "💎 $diamonds Diamonds available • Approx ₹$netInr", Toast.LENGTH_LONG).show()
-                        }
+                        EarningsBottomSheet(onPayoutSuccess = { load() }).show(childFragmentManager, EarningsBottomSheet.TAG)
                     }
                     R.string.me_svip -> {
                         VipTiersBottomSheet().show(childFragmentManager, VipTiersBottomSheet.TAG)
@@ -165,12 +160,7 @@ class MeFragment : Fragment() {
             MyLevelBottomSheet().show(childFragmentManager, MyLevelBottomSheet.TAG)
         }
         binding.tvDiamonds.setOnClickListener {
-            lifecycleScope.launch {
-                val preview = UnrealStarApiClient.fetchPayoutPreview().getOrNull()
-                val diamonds = preview?.diamonds_amount ?: 0L
-                val netInr = preview?.net_payout_inr ?: 0L
-                Toast.makeText(requireContext(), "💎 $diamonds Diamonds available • Approx ₹$netInr", Toast.LENGTH_LONG).show()
-            }
+            EarningsBottomSheet(onPayoutSuccess = { load() }).show(childFragmentManager, EarningsBottomSheet.TAG)
         }
 
     }
@@ -200,6 +190,21 @@ class MeFragment : Fragment() {
             .circleCrop()
             .placeholder(R.drawable.bg_live_avatar)
             .into(binding.ivAvatar)
+
+        viewLifecycleOwner.lifecycleScope.launch {
+            val bag = UnrealStarApiClient.fetchMyBag().getOrNull()
+            val frame = bag?.equipped_frame
+            if (frame != null) {
+                binding.ivAvatarFrame.visibility = View.VISIBLE
+                when (frame) {
+                    "frame_cyber_neon" -> binding.ivAvatarFrame.setImageResource(R.drawable.bg_frame_cyber_neon)
+                    "frame_rose_blossom" -> binding.ivAvatarFrame.setImageResource(R.drawable.bg_frame_rose_blossom)
+                    else -> binding.ivAvatarFrame.setImageResource(R.drawable.bg_frame_golden_aura)
+                }
+            } else {
+                binding.ivAvatarFrame.visibility = View.GONE
+            }
+        }
 
         bindStats(me)
     }

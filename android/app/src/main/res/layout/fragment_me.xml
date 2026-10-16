@@ -91,14 +91,30 @@
             </LinearLayout>
 
             <!-- Avatar overlaps the header edge, as in the reference. -->
-            <ImageView
-                android:id="@+id/ivAvatar"
-                android:layout_width="88dp"
-                android:layout_height="88dp"
+            <FrameLayout
+                android:layout_width="100dp"
+                android:layout_height="100dp"
                 android:layout_gravity="center_horizontal|top"
-                android:layout_marginTop="40dp"
-                android:contentDescription="@string/me_avatar"
-                android:scaleType="centerCrop" />
+                android:layout_marginTop="34dp">
+
+                <ImageView
+                    android:id="@+id/ivAvatar"
+                    android:layout_width="88dp"
+                    android:layout_height="88dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="@string/me_avatar"
+                    android:scaleType="centerCrop" />
+
+                <ImageView
+                    android:id="@+id/ivAvatarFrame"
+                    android:layout_width="100dp"
+                    android:layout_height="100dp"
+                    android:layout_gravity="center"
+                    android:contentDescription="Equipped Frame"
+                    android:visibility="gone"
+                    tools:src="@drawable/bg_frame_golden_aura"
+                    tools:visibility="visible" />
+            </FrameLayout>
 
             <TextView
                 android:id="@+id/tvNickname"

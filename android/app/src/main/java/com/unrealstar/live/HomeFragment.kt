@@ -103,6 +103,9 @@ class HomeFragment : Fragment() {
             CommentsBottomSheet.newInstance(moment.moment_id, moment.comment_count)
                 .show(parentFragmentManager, CommentsBottomSheet.TAG)
         }
+        adapter.onBannerClick = {
+            CoinStoreBottomSheet().show(childFragmentManager, CoinStoreBottomSheet.TAG)
+        }
 
         parentFragmentManager.setFragmentResultListener(
             CommentsBottomSheet.RESULT_COMMENTED, viewLifecycleOwner

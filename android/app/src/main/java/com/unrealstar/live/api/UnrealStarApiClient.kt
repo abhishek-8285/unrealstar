@@ -997,6 +997,106 @@ object UnrealStarApiClient {
             Result.failure(e)
         }
     }
+
+    /** POST /api/v1/payouts/request (Trendo Creator Cashout) */
+    suspend fun requestPayout(diamondsAmount: Long, idempotencyKey: String = java.util.UUID.randomUUID().toString()): Result<com.unrealstar.live.models.PayoutRecord> = withContext(Dispatchers.IO) {
+        val json = JSONObject().apply {
+            put("diamonds_amount", diamondsAmount)
+            put("idempotency_key", idempotencyKey)
+        }
+        val request = Request.Builder()
+            .url("$BASE_URL/payouts/request")
+            .header("Authorization", SessionStore.authorization())
+            .post(json.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}: ${response.body?.string()}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.PayoutRecord::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** GET /api/v1/payouts/history */
+    suspend fun fetchPayoutHistory(): Result<List<com.unrealstar.live.models.PayoutRecord>> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/payouts/history")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val type = object : TypeToken<List<com.unrealstar.live.models.PayoutRecord>>() {}.type
+                Result.success(gson.fromJson(response.body?.string() ?: "[]", type))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** GET /api/v1/payments/packages (Trendo Coin Packages) */
+    suspend fun fetchCoinPackages(): Result<List<com.unrealstar.live.models.CoinPackage>> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/payments/packages")
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val type = object : TypeToken<List<com.unrealstar.live.models.CoinPackage>>() {}.type
+                Result.success(gson.fromJson(response.body?.string() ?: "[]", type))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** POST /api/v1/payments/orders/create */
+    suspend fun createWalletOrder(packageId: String, provider: String = "test-provider"): Result<com.unrealstar.live.models.CreateOrderResponse> = withContext(Dispatchers.IO) {
+        val json = JSONObject().apply {
+            put("package_id", packageId)
+            put("provider", provider)
+            put("idempotency_key", java.util.UUID.randomUUID().toString())
+        }
+        val request = Request.Builder()
+            .url("$BASE_URL/payments/orders/create")
+            .header("Authorization", SessionStore.authorization())
+            .post(json.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}: ${response.body?.string()}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.CreateOrderResponse::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** POST /api/v1/payments/webhook/{provider} (Simulate instant top-up) */
+    suspend fun simulatePaymentSuccess(orderId: String, provider: String = "test-provider"): Result<Boolean> = withContext(Dispatchers.IO) {
+        val json = JSONObject().apply {
+            put("order_id", orderId)
+            put("status", "success")
+        }
+        val request = Request.Builder()
+            .url("$BASE_URL/payments/webhook/$provider")
+            .post(json.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}: ${response.body?.string()}"))
+                Result.success(true)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
 

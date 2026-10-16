@@ -35,6 +35,7 @@ class MomentAdapter : RecyclerView.Adapter<MomentAdapter.MomentViewHolder>() {
     var player: ExoPlayer? = null
     var onAction: ((FeedPost, MomentAction) -> Unit)? = null
     var onOpenComments: ((FeedPost) -> Unit)? = null
+    var onBannerClick: (() -> Unit)? = null
 
     /**
      * Distance from the top of the feed to the bottom of the fixed header.
@@ -177,6 +178,9 @@ class MomentAdapter : RecyclerView.Adapter<MomentAdapter.MomentViewHolder>() {
                 binding.tvBannerText.text = promo
             }
 
+            binding.tvBannerText.setOnClickListener { onBannerClick?.invoke() }
+            binding.tvPaidBadge.setOnClickListener { onBannerClick?.invoke() }
+            binding.tvBannerPill.setOnClickListener { onBannerClick?.invoke() }
             binding.ivBannerClose.setOnClickListener { binding.banner.visibility = View.GONE }
 
             val ctx = binding.root.context

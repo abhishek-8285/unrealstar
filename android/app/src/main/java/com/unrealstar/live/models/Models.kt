@@ -486,5 +486,30 @@ data class UserBadgesResponse(
     val badges: List<BadgeItem> = emptyList()
 )
 
+data class PayoutRecord(
+    val payout_id: String = "",
+    val user_id: Long = 0,
+    val diamonds: Long = 0,
+    val gross_inr: Long = 0,
+    val net_inr: Long = 0,
+    val status: String = "processing",
+    val created_at: String? = null
+)
+
+data class CoinPackage(
+    val package_id: String = "",
+    val coins: Long = 0,
+    val bonus_coins: Long = 0,
+    val price_inr: Int = 0
+)
+
+data class CreateOrderResponse(
+    val order_id: String = "",
+    val payment_url: String = "",
+    val upi_intent_uri: String = "",
+    val amount_inr: Int = 0,
+    val coins_pending: Long = 0
+)
+
 
 

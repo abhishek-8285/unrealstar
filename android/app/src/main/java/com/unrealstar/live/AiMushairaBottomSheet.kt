@@ -24,6 +24,7 @@ class AiMushairaBottomSheet(
 
     private var selectedCategory = "Love poem"
     private var selectedLang = "English"
+    private var tts: android.speech.tts.TextToSpeech? = null
 
     private val poemBank = mapOf(
         "Love poem" to listOf(
@@ -64,9 +65,18 @@ class AiMushairaBottomSheet(
             dismiss()
         }
 
+        try {
+            tts = android.speech.tts.TextToSpeech(requireContext().applicationContext) { status ->
+                if (status == android.speech.tts.TextToSpeech.SUCCESS) {
+                    tts?.language = java.util.Locale("hi", "IN")
+                }
+            }
+        } catch (_: Exception) {}
+
         setupLanguageSelector()
         setupCategories()
         setupGenerator()
+        setupQuickActions()
         setupPublishAction()
     }
 
@@ -165,8 +175,49 @@ class AiMushairaBottomSheet(
         }
     }
 
+    private fun setupQuickActions() {
+        binding.btnListenPoem.setOnClickListener {
+            val verse = binding.tvGeneratedVerse.text.toString().trim()
+            if (verse.isNotEmpty()) {
+                val locale = when (selectedLang) {
+                    "Hindi" -> java.util.Locale("hi", "IN")
+                    "Urdu" -> java.util.Locale("ur", "PK")
+                    else -> java.util.Locale.US
+                }
+                tts?.language = locale
+                tts?.speak(verse, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "mushaira_recite")
+                Toast.makeText(requireContext(), "🔊 Reciting verse...", Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        binding.btnCopyPoem.setOnClickListener {
+            val verse = binding.tvGeneratedVerse.text.toString().trim()
+            val tag = binding.tvPoemTag.text.toString().trim()
+            val clip = "$verse\n\n$tag via CamStar Live"
+            val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
+            clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Mushaira Shayari", clip))
+            Toast.makeText(requireContext(), "📋 Copied verse to clipboard!", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.btnSharePoem.setOnClickListener {
+            val verse = binding.tvGeneratedVerse.text.toString().trim()
+            val tag = binding.tvPoemTag.text.toString().trim()
+            val sendIntent = android.content.Intent().apply {
+                action = android.content.Intent.ACTION_SEND
+                putExtra(android.content.Intent.EXTRA_TEXT, "✨ $tag\n\n$verse\n\n— Generated with CamStar AI Mushaira")
+                type = "text/plain"
+            }
+            startActivity(android.content.Intent.createChooser(sendIntent, "Share Mushaira Verse"))
+        }
+    }
+
     override fun onDestroyView() {
         super.onDestroyView()
+        try {
+            tts?.stop()
+            tts?.shutdown()
+        } catch (_: Exception) {}
+        tts = null
         _binding = null
     }
 
