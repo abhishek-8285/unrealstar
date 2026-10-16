@@ -992,6 +992,29 @@ class CameraLiveActivity : AppCompatActivity() {
             CoinStoreBottomSheet().show(supportFragmentManager, CoinStoreBottomSheet.TAG)
         }
 
+        binding.tvSpeedChip.setOnClickListener {
+            showConnectionDialog()
+        }
+
+        binding.tvViewersBadge.setOnClickListener {
+            Toast.makeText(this, "👥 Live Audience: ${binding.tvViewersBadge.text}", Toast.LENGTH_SHORT).show()
+        }
+
+        binding.hourStarRow.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle("⭐ Hourly Star Challenge")
+                .setMessage("Collect gifts to level up your star rating! Current progress: Lv. 0/5 Star. Top broadcasters receive trending badge & bonus diamonds.")
+                .setPositiveButton("Got It", null)
+                .show()
+        }
+
+        binding.ivHourStarGift.setOnClickListener {
+            GiftBottomSheet(
+                roomId = if (liveRoomId > 0) liveRoomId else 1L,
+                recipientId = 9999L
+            ).show(supportFragmentManager, GiftBottomSheet.TAG)
+        }
+
         binding.hostChipRow.setOnClickListener {
             Toast.makeText(this, "👤 Host: ${binding.tvHostName.text}", Toast.LENGTH_SHORT).show()
         }

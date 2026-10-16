@@ -81,6 +81,14 @@ class LeaderboardBottomSheet : BottomSheetDialogFragment() {
                 .placeholder(R.drawable.bg_live_avatar)
                 .circleCrop()
                 .into(holder.b.ivAvatar)
+
+            holder.b.root.setOnClickListener {
+                DirectMessageBottomSheet(
+                    targetUserId = item.user_id,
+                    targetNickname = item.nickname,
+                    targetAvatarUrl = item.avatar_url
+                ).show(parentFragmentManager, "dm_chat")
+            }
         }
 
         override fun getItemCount() = items.size

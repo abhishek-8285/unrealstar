@@ -53,6 +53,9 @@ class WatchLiveActivity : AppCompatActivity() {
         }
 
         binding.btnClose.setOnClickListener { finish() }
+        binding.tvViewers.setOnClickListener {
+            Toast.makeText(this, "👥 Viewers currently watching: ${binding.tvViewers.text}", Toast.LENGTH_SHORT).show()
+        }
         binding.tvStatus.text = getString(R.string.watch_connecting)
         binding.tvViewers.text = getString(R.string.watch_connecting)
 

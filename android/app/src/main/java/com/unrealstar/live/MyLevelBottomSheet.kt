@@ -160,6 +160,11 @@ class PrivilegeAdapter : RecyclerView.Adapter<PrivilegeAdapter.PrivilegeViewHold
                 binding.tvPrivilegeStatus.text = "Locked"
                 binding.tvPrivilegeStatus.setTextColor(ContextCompat.getColor(binding.root.context, R.color.text_muted))
             }
+
+            binding.root.setOnClickListener {
+                val status = if (item.is_unlocked) "Unlocked privilege" else "Requires Level ${item.level} to unlock"
+                Toast.makeText(binding.root.context, "👑 ${item.title}: $status", Toast.LENGTH_SHORT).show()
+            }
         }
     }
 }

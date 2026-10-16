@@ -116,6 +116,17 @@ class DailyTasksBottomSheet(
                     holder.b.btnClaim.setOnClickListener(null)
                 }
             }
+
+            holder.b.root.setOnClickListener {
+                if (task.is_claimed) {
+                    Toast.makeText(requireContext(), "✓ Task already completed & claimed", Toast.LENGTH_SHORT).show()
+                } else if (task.progress >= task.target) {
+                    val p = holder.bindingAdapterPosition
+                    if (p != RecyclerView.NO_POSITION) claimTask(taskList[p], p)
+                } else {
+                    Toast.makeText(requireContext(), "🎯 ${task.title}: (${task.progress}/${task.target}) - Keep exploring to complete!", Toast.LENGTH_SHORT).show()
+                }
+            }
         }
 
         override fun getItemCount() = taskList.size
