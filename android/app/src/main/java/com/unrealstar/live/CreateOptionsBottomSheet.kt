@@ -10,7 +10,9 @@ import com.unrealstar.live.databinding.SheetCreateOptionsBinding
 class CreateOptionsBottomSheet(
     private val onPostSelected: () -> Unit,
     private val onShortsSelected: () -> Unit,
-    private val onLiveSelected: () -> Unit
+    private val onLiveSelected: () -> Unit,
+    private val onPoemSelected: (() -> Unit)? = null,
+    private val onAlbumSelected: (() -> Unit)? = null
 ) : BottomSheetDialogFragment() {
 
     private var _binding: SheetCreateOptionsBinding? = null
@@ -45,6 +47,16 @@ class CreateOptionsBottomSheet(
         binding.cardOptionLive.setOnClickListener {
             dismiss()
             onLiveSelected()
+        }
+
+        binding.cardOptionPoem.setOnClickListener {
+            dismiss()
+            onPoemSelected?.invoke()
+        }
+
+        binding.cardOptionAlbum.setOnClickListener {
+            dismiss()
+            onAlbumSelected?.invoke()
         }
     }
 

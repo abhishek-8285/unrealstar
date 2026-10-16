@@ -29,7 +29,7 @@ class MainActivity : AppCompatActivity() {
 
         applyWindowInsets()
 
-        // The "+" opens the creation chooser (Post Moment, Short Video, Live Video)
+        // The "+" opens the creation chooser (Post Moment, Short Video, Live Video, AI Mushaira, Album)
         binding.btnCreate.setOnClickListener {
             val sheet = CreateOptionsBottomSheet(
                 onPostSelected = {
@@ -49,6 +49,21 @@ class MainActivity : AppCompatActivity() {
                         putExtra(CameraLiveActivity.EXTRA_MODE, CameraLiveActivity.MODE_LIVE)
                     }
                     startActivity(intent)
+                },
+                onPoemSelected = {
+                    val poemSheet = AiMushairaBottomSheet {
+                        show(HomeFragment())
+                    }
+                    poemSheet.show(supportFragmentManager, AiMushairaBottomSheet.TAG)
+                },
+                onAlbumSelected = {
+                    val postSheet = CreatePostBottomSheet(
+                        initialCaption = "Memories from today's session 📸✨ #Trending #Party",
+                        initialCover = "https://images.unsplash.com/photo-1598387993441-a364f854c3e1?w=600"
+                    ) {
+                        show(HomeFragment())
+                    }
+                    postSheet.show(supportFragmentManager, CreatePostBottomSheet.TAG)
                 }
             )
             sheet.show(supportFragmentManager, CreateOptionsBottomSheet.TAG)

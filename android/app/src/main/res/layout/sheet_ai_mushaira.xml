@@ -1,0 +1,283 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#151224"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <!-- Drag Handle -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="16dp"
+        android:background="#3D3766" />
+
+    <!-- Top Bar -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="14dp">
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:orientation="vertical">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="📜 AI Mushaira"
+                android:textColor="@color/text_white"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="2dp"
+                android:text="Generate stylized poetic verses for your moments"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/btnCloseMushaira"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:gravity="center"
+            android:text="✕"
+            android:textColor="@color/text_muted"
+            android:textSize="18sp" />
+    </RelativeLayout>
+
+    <!-- Language Selector Pill -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="Language of poem:"
+            android:textColor="@color/text_muted"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/tvPoemLanguage"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:background="@drawable/bg_chip_translucent"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="4dp"
+            android:text="English ▾"
+            android:textColor="@color/text_white"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+
+    <!-- Poetry Styles (Horizontal Scroll) -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/layoutPoemStyles"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/chipLovePoem"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_chip_active"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="6dp"
+                android:text="❤️ Love poem"
+                android:textColor="@color/text_white"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/chipGhazal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_chip_translucent"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="6dp"
+                android:text="🌙 Ghazal"
+                android:textColor="@color/text_white"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/chipFunnyPoem"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_chip_translucent"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="6dp"
+                android:text="😂 Funny poem"
+                android:textColor="@color/text_white"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/chipOde"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_chip_translucent"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="6dp"
+                android:text="✨ Ode"
+                android:textColor="@color/text_white"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/chipShayari"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_chip_translucent"
+                android:paddingHorizontal="14dp"
+                android:paddingVertical="6dp"
+                android:text="💫 Shayari"
+                android:textColor="@color/text_white"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- Prompt Input Card -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        app:cardBackgroundColor="#1E1A33"
+        app:cardCornerRadius="14dp"
+        app:cardElevation="0dp"
+        app:strokeColor="#252A40"
+        app:strokeWidth="1dp">
+
+        <EditText
+            android:id="@+id/etPoemPrompt"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@null"
+            android:gravity="top|start"
+            android:hint="Enter prompt or topic (e.g. Stars falling over the sea at midnight...)"
+            android:inputType="textMultiLine|textCapSentences"
+            android:minLines="2"
+            android:maxLines="4"
+            android:padding="12dp"
+            android:textColor="@color/text_white"
+            android:textColorHint="@color/text_muted"
+            android:textSize="13sp" />
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Generate Verse Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnGenerateVerse"
+        android:layout_width="match_parent"
+        android:layout_height="46dp"
+        android:layout_marginBottom="14dp"
+        android:background="@drawable/bg_chip_active"
+        android:text="✨ Generate AI Verse"
+        android:textAllCaps="false"
+        android:textColor="@color/text_white"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        app:backgroundTint="@null" />
+
+    <!-- Verse Preview Card -->
+    <com.google.android.material.card.MaterialCardView
+        android:id="@+id/cardVersePreview"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        app:cardBackgroundColor="#2A1B4E"
+        app:cardCornerRadius="16dp"
+        app:cardElevation="0dp"
+        app:strokeColor="#6C5CE7"
+        app:strokeWidth="1dp">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:padding="16dp">
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="❝"
+                android:textColor="#A29BFE"
+                android:textSize="24sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/tvGeneratedVerse"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginVertical="6dp"
+                android:lineSpacingExtra="4dp"
+                android:text="In shadows deep where whispered dreams ignite,\nThe silver moon commands the quiet night.\nEach heartbeat echoes through the silent skies,\nUnveiling wonder in your shining eyes."
+                android:textColor="@color/text_white"
+                android:textSize="14sp"
+                android:fontFamily="serif" />
+
+            <RelativeLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="8dp">
+
+                <TextView
+                    android:id="@+id/tvPoemAuthor"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentStart="true"
+                    android:text="— AI Mushaira feat. You"
+                    android:textColor="#A29BFE"
+                    android:textSize="11sp" />
+
+                <TextView
+                    android:id="@+id/tvPoemTag"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_alignParentEnd="true"
+                    android:text="#LovePoem #Mushaira"
+                    android:textColor="#FDCB6E"
+                    android:textSize="11sp"
+                    android:textStyle="bold" />
+            </RelativeLayout>
+        </LinearLayout>
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Post to Feed Button -->
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/btnPostPoemToFeed"
+        android:layout_width="match_parent"
+        android:layout_height="52dp"
+        android:background="@drawable/bg_btn_gradient_orange"
+        android:text="🚀 Post Verse to Moments"
+        android:textAllCaps="false"
+        android:textColor="@color/text_white"
+        android:textSize="15sp"
+        android:textStyle="bold"
+        app:backgroundTint="@null" />
+</LinearLayout>

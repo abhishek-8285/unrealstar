@@ -4,9 +4,7 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.TextView
 import android.widget.Toast
-import androidx.core.content.ContextCompat
 import androidx.lifecycle.lifecycleScope
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.unrealstar.live.api.UnrealStarApiClient
@@ -16,6 +14,8 @@ import com.unrealstar.live.models.FeedPost
 import kotlinx.coroutines.launch
 
 class CreatePostBottomSheet(
+    private val initialCaption: String? = null,
+    private val initialCover: String? = null,
     private val onPostCreated: ((FeedPost) -> Unit)? = null
 ) : BottomSheetDialogFragment() {
 
@@ -24,6 +24,7 @@ class CreatePostBottomSheet(
 
     private var selectedDuration = 15
     private val selectedTags = mutableSetOf<String>()
+    private var selectedCoverUrl = initialCover ?: "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600"
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -41,6 +42,11 @@ class CreatePostBottomSheet(
             dismiss()
         }
 
+        if (!initialCaption.isNullOrEmpty()) {
+            binding.etCaption.setText(initialCaption)
+        }
+
+        setupCovers()
         setupTags()
         setupDurationSelector()
 
@@ -52,6 +58,32 @@ class CreatePostBottomSheet(
             }
 
             publishMoment(caption)
+        }
+    }
+
+    private fun setupCovers() {
+        val coverMap = listOf(
+            binding.coverParty to "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600",
+            binding.coverStudio to "https://images.unsplash.com/photo-1598387993441-a364f854c3e1?w=600",
+            binding.coverConcert to "https://images.unsplash.com/photo-1470225620780-dba8ba36b745?w=600",
+            binding.coverBollywood to "https://images.unsplash.com/photo-1518495973542-4542c06a5843?w=600"
+        )
+
+        fun updateCovers(activeUrl: String) {
+            selectedCoverUrl = activeUrl
+            coverMap.forEach { (view, url) ->
+                if (url == activeUrl) {
+                    view.setBackgroundResource(R.drawable.bg_chip_active)
+                } else {
+                    view.setBackgroundResource(R.drawable.bg_chip_translucent)
+                }
+            }
+        }
+
+        coverMap.forEach { (view, url) ->
+            view.setOnClickListener {
+                updateCovers(url)
+            }
         }
     }
 
@@ -114,7 +146,7 @@ class CreatePostBottomSheet(
                 media_url = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
                 caption = caption,
                 duration_secs = selectedDuration,
-                cover_url = "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600",
+                cover_url = selectedCoverUrl,
                 tags = selectedTags.toList()
             )
 
