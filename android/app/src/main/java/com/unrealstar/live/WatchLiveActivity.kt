@@ -75,6 +75,21 @@ class WatchLiveActivity : AppCompatActivity() {
             dialog.show(supportFragmentManager, LuckyWheelDialog.TAG)
         }
 
+        binding.btnFollowHost.setOnClickListener {
+            if (hostId <= 0L) return@setOnClickListener
+            lifecycleScope.launch {
+                val res = UnrealStarApiClient.followUser(hostId)
+                res.onSuccess {
+                    binding.btnFollowHost.text = "✓ Following"
+                    binding.btnFollowHost.alpha = 0.7f
+                    Toast.makeText(this@WatchLiveActivity, "Followed ${binding.tvHostName.text}!", Toast.LENGTH_SHORT).show()
+                }.onFailure {
+                    Toast.makeText(this@WatchLiveActivity, "Follow note: ${it.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+
+
         lifecycleScope.launch {
             if (!SessionStore.isSignedIn) {
                 Toast.makeText(this@WatchLiveActivity, R.string.watch_sign_in_required, Toast.LENGTH_SHORT).show()

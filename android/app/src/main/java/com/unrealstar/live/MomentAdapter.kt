@@ -21,7 +21,7 @@ import com.unrealstar.live.models.FeedPost
 import com.unrealstar.live.models.MomentEngagement
 import java.util.Locale
 
-enum class MomentAction { LIKE, UNLIKE, COMMENT, SHARE, GIFT }
+enum class MomentAction { LIKE, UNLIKE, COMMENT, SHARE, GIFT, FOLLOW }
 
 /**
  * One moment per screen. The ExoPlayer instance is owned by HomeFragment and
@@ -212,7 +212,18 @@ class MomentAdapter : RecyclerView.Adapter<MomentAdapter.MomentViewHolder>() {
                 syncMuteIcon()
             }
 
+            val followed = acted.contains("${moment.moment_id}:FOLLOW")
+            binding.ivFollowBadge.visibility = if (followed) View.GONE else View.VISIBLE
+            val followClick = View.OnClickListener {
+                pop(binding.ivFollowBadge)
+                onAction?.invoke(moment, MomentAction.FOLLOW)
+            }
+            binding.ivFollowBadge.setOnClickListener(followClick)
+            binding.ivCreatorAvatar.setOnClickListener(followClick)
+
+
             attachTapGestures()
+
 
             if (isActive && moment.media_url.isNotBlank()) {
                 attachPlayer(moment.media_url)

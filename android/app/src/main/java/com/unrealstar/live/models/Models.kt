@@ -369,3 +369,8 @@ data class PkStatusResponse(
     val status: String = "matching"
 )
 
+data class SocialFollowResponse(
+    val is_following: Boolean = false
+)
+
+

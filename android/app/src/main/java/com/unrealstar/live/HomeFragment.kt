@@ -240,14 +240,30 @@ class HomeFragment : Fragment() {
         // the thread, so COMMENT never needs a request of its own.
         if (action == MomentAction.COMMENT) return
 
+        if (action == MomentAction.FOLLOW) {
+            viewLifecycleOwner.lifecycleScope.launch {
+                val res = UnrealStarApiClient.followUser(moment.author_id)
+                res.onSuccess {
+                    adapter.markActed(moment.moment_id, MomentAction.FOLLOW)
+                    Toast.makeText(requireContext(), "Followed ${moment.author_nickname}!", Toast.LENGTH_SHORT).show()
+                }.onFailure {
+                    Toast.makeText(requireContext(), "Follow note: ${it.message}", Toast.LENGTH_SHORT).show()
+                }
+            }
+            return
+        }
+
         viewLifecycleOwner.lifecycleScope.launch {
+
             val result = when (action) {
                 MomentAction.LIKE -> UnrealStarApiClient.likeMoment(moment.moment_id)
                 MomentAction.UNLIKE -> UnrealStarApiClient.unlikeMoment(moment.moment_id)
                 MomentAction.SHARE -> UnrealStarApiClient.shareMoment(moment.moment_id)
                 MomentAction.GIFT -> UnrealStarApiClient.giftMoment(moment.moment_id)
-                MomentAction.COMMENT -> return@launch
+                MomentAction.COMMENT, MomentAction.FOLLOW -> return@launch
             }
+
+
             result
                 .onSuccess { engagement ->
                     when (action) {

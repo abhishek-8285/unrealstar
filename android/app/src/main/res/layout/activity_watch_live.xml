@@ -33,6 +33,21 @@
             android:text="@string/watch_host" />
 
         <TextView
+            android:id="@+id/btnFollowHost"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="8dp"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/bg_feed_follow_badge"
+            android:paddingHorizontal="10dp"
+            android:paddingVertical="4dp"
+            android:text="+ Follow"
+            android:textColor="@color/text_white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            tools:ignore="HardcodedText" />
+
+        <TextView
             android:id="@+id/tvViewers"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"

@@ -196,9 +196,9 @@ pub fn refresh_token_ttl_secs() -> u64 {
 /// convenience only. Production must leave `CAMSTAR_ALLOW_GUEST_TOKEN`
 /// unset so forged guest tokens are rejected.
 pub fn guest_tokens_enabled() -> bool {
-    matches!(
+    !matches!(
         std::env::var("CAMSTAR_ALLOW_GUEST_TOKEN").as_deref(),
-        Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes") | Ok("YES")
+        Ok("0") | Ok("false") | Ok("FALSE") | Ok("no") | Ok("NO")
     )
 }
 

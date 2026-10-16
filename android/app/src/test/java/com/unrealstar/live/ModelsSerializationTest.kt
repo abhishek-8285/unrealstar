@@ -254,4 +254,17 @@ class ModelsSerializationTest {
         assertEquals("🦁 LION", deserialized.familyBadge)
         assertEquals(3, deserialized.vipLevel)
     }
+
+    @Test
+    fun testSocialFollowResponseDeserialization() {
+        val json = """
+            {
+                "is_following": true
+            }
+        """.trimIndent()
+
+        val resp = gson.fromJson(json, com.unrealstar.live.models.SocialFollowResponse::class.java)
+        assertTrue(resp.is_following)
+    }
 }
+

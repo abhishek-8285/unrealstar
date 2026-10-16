@@ -360,10 +360,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
         let mut moments = state.moments.write().await;
         for (index, seed) in seed_moments.iter().enumerate() {
+            let author_id = seed
+                .author
+                .strip_prefix("Host_")
+                .and_then(|s| s.parse::<u64>().ok())
+                .unwrap_or(2000 + (index as u64) + 1);
             moments.push(MomentItem {
                 moment_id: seed.id.to_string(),
-                author_id: 1001,
+                author_id,
                 author_nickname: seed.author.to_string(),
+
                 media_url: seed.media.clone(),
                 caption: seed.caption.to_string(),
                 duration_secs: 12,

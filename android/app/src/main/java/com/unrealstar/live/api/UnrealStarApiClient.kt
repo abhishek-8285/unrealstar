@@ -788,5 +788,40 @@ object UnrealStarApiClient {
             Result.failure(e)
         }
     }
+
+    suspend fun followUser(userId: Long): Result<Boolean> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/social/follow/$userId")
+            .header("Authorization", SessionStore.authorization())
+            .post("{}".toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = JSONObject(response.body?.string() ?: "{}")
+                Result.success(res.optBoolean("is_following", true))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    suspend fun unfollowUser(userId: Long): Result<Boolean> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/social/unfollow/$userId")
+            .header("Authorization", SessionStore.authorization())
+            .post("{}".toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = JSONObject(response.body?.string() ?: "{}")
+                Result.success(res.optBoolean("is_following", false))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
+
 

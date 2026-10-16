@@ -119,7 +119,11 @@ class LuckyWheelDialog(
 
                     binding.tvWheelCoinsBalance.text = "🪙 %,d Coins".format(spinRes.remaining_coins)
                     onBalanceUpdated(spinRes.remaining_coins)
+                    try {
+                        binding.root.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                    } catch (_: Exception) {}
                 }
+
             }.onFailure { err ->
                 isSpinning = false
                 binding.btnSpinWheelAction.isEnabled = true
