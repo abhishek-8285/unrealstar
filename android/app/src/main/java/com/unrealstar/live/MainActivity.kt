@@ -29,11 +29,29 @@ class MainActivity : AppCompatActivity() {
 
         applyWindowInsets()
 
-        // The "+" opens the existing camera screen. CameraLiveActivity is a
-        // separate Activity on purpose, so its CameraX lifecycle code is
-        // untouched and the bar is naturally hidden while broadcasting.
+        // The "+" opens the creation chooser (Post Moment, Short Video, Live Video)
         binding.btnCreate.setOnClickListener {
-            startActivity(Intent(this, CameraLiveActivity::class.java))
+            val sheet = CreateOptionsBottomSheet(
+                onPostSelected = {
+                    val postSheet = CreatePostBottomSheet {
+                        show(HomeFragment())
+                    }
+                    postSheet.show(supportFragmentManager, CreatePostBottomSheet.TAG)
+                },
+                onShortsSelected = {
+                    val intent = Intent(this, CameraLiveActivity::class.java).apply {
+                        putExtra(CameraLiveActivity.EXTRA_MODE, CameraLiveActivity.MODE_SHORTS)
+                    }
+                    startActivity(intent)
+                },
+                onLiveSelected = {
+                    val intent = Intent(this, CameraLiveActivity::class.java).apply {
+                        putExtra(CameraLiveActivity.EXTRA_MODE, CameraLiveActivity.MODE_LIVE)
+                    }
+                    startActivity(intent)
+                }
+            )
+            sheet.show(supportFragmentManager, CreateOptionsBottomSheet.TAG)
         }
 
         binding.bottomNav.setOnItemSelectedListener { item ->

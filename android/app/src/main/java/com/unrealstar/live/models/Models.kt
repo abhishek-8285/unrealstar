@@ -41,6 +41,15 @@ data class FeedPage(
     val next_cursor: String? = null
 )
 
+data class CreateMomentRequest(
+    val media_url: String,
+    val caption: String,
+    val duration_secs: Int = 15,
+    val promo_text: String? = null,
+    val cover_url: String? = null,
+    val tags: List<String> = emptyList()
+)
+
 data class MomentComment(
     val comment_id: String,
     val moment_id: String = "",

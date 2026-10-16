@@ -266,5 +266,27 @@ class ModelsSerializationTest {
         val resp = gson.fromJson(json, com.unrealstar.live.models.SocialFollowResponse::class.java)
         assertTrue(resp.is_following)
     }
+
+    @Test
+    fun testCreateMomentRequestSerialization() {
+        val req = com.unrealstar.live.models.CreateMomentRequest(
+            media_url = "https://example.com/video.mp4",
+            caption = "Night party in Mumbai! #Party #Music",
+            duration_secs = 30,
+            cover_url = "https://example.com/cover.jpg",
+            tags = listOf("#Party", "#Music")
+        )
+
+        val json = gson.toJson(req)
+        val deserialized = gson.fromJson(json, com.unrealstar.live.models.CreateMomentRequest::class.java)
+
+        assertEquals("https://example.com/video.mp4", deserialized.media_url)
+        assertEquals("Night party in Mumbai! #Party #Music", deserialized.caption)
+        assertEquals(30, deserialized.duration_secs)
+        assertEquals("https://example.com/cover.jpg", deserialized.cover_url)
+        assertEquals(2, deserialized.tags?.size)
+        assertEquals("#Party", deserialized.tags?.get(0))
+        assertEquals("#Music", deserialized.tags?.get(1))
+    }
 }
 

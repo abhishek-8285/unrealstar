@@ -1,0 +1,235 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#151224"
+    android:orientation="vertical"
+    android:padding="20dp">
+
+    <!-- Handle -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="16dp"
+        android:background="#3D3766" />
+
+    <!-- Header Row -->
+    <RelativeLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp">
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_alignParentStart="true"
+            android:layout_centerVertical="true"
+            android:text="📝 Create Moment"
+            android:textColor="@color/text_white"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/btnClosePost"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_alignParentEnd="true"
+            android:layout_centerVertical="true"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:gravity="center"
+            android:text="✕"
+            android:textColor="@color/text_muted"
+            android:textSize="18sp" />
+    </RelativeLayout>
+
+    <!-- Caption Input Card -->
+    <com.google.android.material.card.MaterialCardView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="12dp"
+        app:cardBackgroundColor="#1E1A33"
+        app:cardCornerRadius="14dp"
+        app:cardElevation="0dp"
+        app:strokeColor="#252A40"
+        app:strokeWidth="1dp">
+
+        <EditText
+            android:id="@+id/etCaption"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:background="@null"
+            android:gravity="top|start"
+            android:hint="What's happening? Share with your fans..."
+            android:inputType="textMultiLine|textCapSentences"
+            android:minLines="3"
+            android:maxLines="6"
+            android:padding="14dp"
+            android:textColor="@color/text_white"
+            android:textColorHint="@color/text_muted"
+            android:textSize="14sp" />
+    </com.google.android.material.card.MaterialCardView>
+
+    <!-- Preset Hashtags Label -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="6dp"
+        android:text="Popular Hashtags"
+        android:textColor="@color/text_muted"
+        android:textSize="12sp"
+        android:textStyle="bold" />
+
+    <!-- Hashtag Chips -->
+    <HorizontalScrollView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="16dp"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/layoutTags"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:orientation="horizontal">
+
+            <TextView
+                android:id="@+id/tagParty"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_chip_translucent"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
+                android:text="#Party"
+                android:textColor="@color/text_white"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tagTrending"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_chip_translucent"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
+                android:text="#Trending"
+                android:textColor="@color/text_white"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tagDance"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_chip_translucent"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
+                android:text="#Dance"
+                android:textColor="@color/text_white"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tagMusic"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_chip_translucent"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
+                android:text="#Music"
+                android:textColor="@color/text_white"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tagLive"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="8dp"
+                android:background="@drawable/bg_chip_translucent"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
+                android:text="#Live"
+                android:textColor="@color/text_white"
+                android:textSize="12sp" />
+
+            <TextView
+                android:id="@+id/tagBollywood"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_chip_translucent"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="6dp"
+                android:text="#Bollywood"
+                android:textColor="@color/text_white"
+                android:textSize="12sp" />
+        </LinearLayout>
+    </HorizontalScrollView>
+
+    <!-- Duration / Format Selector -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="20dp"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Moment Duration"
+            android:textColor="@color/text_muted"
+            android:textSize="12sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/chipDur15"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_chip_active"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp"
+            android:text="15s"
+            android:textColor="@color/text_white"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/chipDur30"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="6dp"
+            android:background="@drawable/bg_chip_translucent"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp"
+            android:text="30s"
+            android:textColor="@color/text_white"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/chipDur60"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_chip_translucent"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="4dp"
+            android:text="60s"
+            android:textColor="@color/text_white"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- Publish Button -->
+    <TextView
+        android:id="@+id/btnPublishPost"
+        android:layout_width="match_parent"
+        android:layout_height="48dp"
+        android:background="@drawable/bg_btn_gradient_orange"
+        android:gravity="center"
+        android:text="🚀 Publish Moment"
+        android:textColor="@color/text_white"
+        android:textSize="15sp"
+        android:textStyle="bold" />
+</LinearLayout>

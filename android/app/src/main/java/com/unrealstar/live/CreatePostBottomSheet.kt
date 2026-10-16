@@ -1,0 +1,143 @@
+package com.unrealstar.live
+
+import android.os.Bundle
+import android.view.LayoutInflater
+import android.view.View
+import android.view.ViewGroup
+import android.widget.TextView
+import android.widget.Toast
+import androidx.core.content.ContextCompat
+import androidx.lifecycle.lifecycleScope
+import com.google.android.material.bottomsheet.BottomSheetDialogFragment
+import com.unrealstar.live.api.UnrealStarApiClient
+import com.unrealstar.live.databinding.SheetCreatePostBinding
+import com.unrealstar.live.models.CreateMomentRequest
+import com.unrealstar.live.models.FeedPost
+import kotlinx.coroutines.launch
+
+class CreatePostBottomSheet(
+    private val onPostCreated: ((FeedPost) -> Unit)? = null
+) : BottomSheetDialogFragment() {
+
+    private var _binding: SheetCreatePostBinding? = null
+    private val binding get() = _binding!!
+
+    private var selectedDuration = 15
+    private val selectedTags = mutableSetOf<String>()
+
+    override fun onCreateView(
+        inflater: LayoutInflater,
+        container: ViewGroup?,
+        savedInstanceState: Bundle?
+    ): View {
+        _binding = SheetCreatePostBinding.inflate(inflater, container, false)
+        return binding.root
+    }
+
+    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+        super.onViewCreated(view, savedInstanceState)
+
+        binding.btnClosePost.setOnClickListener {
+            dismiss()
+        }
+
+        setupTags()
+        setupDurationSelector()
+
+        binding.btnPublishPost.setOnClickListener {
+            val caption = binding.etCaption.text.toString().trim()
+            if (caption.isEmpty()) {
+                Toast.makeText(requireContext(), "Please enter a caption or message", Toast.LENGTH_SHORT).show()
+                return@setOnClickListener
+            }
+
+            publishMoment(caption)
+        }
+    }
+
+    private fun setupTags() {
+        val tagViews = listOf(
+            binding.tagParty to "#Party",
+            binding.tagTrending to "#Trending",
+            binding.tagDance to "#Dance",
+            binding.tagMusic to "#Music",
+            binding.tagLive to "#Live",
+            binding.tagBollywood to "#Bollywood"
+        )
+
+        tagViews.forEach { (view, tag) ->
+            view.setOnClickListener {
+                val currentText = binding.etCaption.text.toString()
+                if (!currentText.contains(tag)) {
+                    val newText = if (currentText.isEmpty()) tag else "$currentText $tag"
+                    binding.etCaption.setText(newText)
+                    binding.etCaption.setSelection(newText.length)
+                    selectedTags.add(tag)
+                    view.setBackgroundResource(R.drawable.bg_chip_active)
+                }
+            }
+        }
+    }
+
+    private fun setupDurationSelector() {
+        val durationChips = listOf(
+            binding.chipDur15 to 15,
+            binding.chipDur30 to 30,
+            binding.chipDur60 to 60
+        )
+
+        fun updateChips(activeDuration: Int) {
+            selectedDuration = activeDuration
+            durationChips.forEach { (chip, duration) ->
+                if (duration == activeDuration) {
+                    chip.setBackgroundResource(R.drawable.bg_chip_active)
+                } else {
+                    chip.setBackgroundResource(R.drawable.bg_chip_translucent)
+                }
+            }
+        }
+
+        durationChips.forEach { (chip, duration) ->
+            chip.setOnClickListener {
+                updateChips(duration)
+            }
+        }
+    }
+
+    private fun publishMoment(caption: String) {
+        binding.btnPublishPost.isEnabled = false
+        binding.btnPublishPost.text = "Publishing..."
+        binding.btnPublishPost.alpha = 0.7f
+
+        lifecycleScope.launch {
+            val req = CreateMomentRequest(
+                media_url = "https://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4",
+                caption = caption,
+                duration_secs = selectedDuration,
+                cover_url = "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600",
+                tags = selectedTags.toList()
+            )
+
+            val res = UnrealStarApiClient.createMoment(req)
+            res.onSuccess { post ->
+                Toast.makeText(requireContext(), "🎉 Moment published to feed!", Toast.LENGTH_SHORT).show()
+                onPostCreated?.invoke(post)
+                dismiss()
+            }.onFailure { err ->
+                binding.btnPublishPost.isEnabled = true
+                binding.btnPublishPost.text = "🚀 Publish Moment"
+                binding.btnPublishPost.alpha = 1.0f
+                Toast.makeText(requireContext(), "Publish error: ${err.message}", Toast.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    override fun onDestroyView() {
+        super.onDestroyView()
+        _binding = null
+    }
+
+    companion object {
+        const val TAG = "CreatePostBottomSheet"
+    }
+}

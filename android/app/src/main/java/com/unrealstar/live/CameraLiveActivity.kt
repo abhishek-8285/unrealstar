@@ -52,6 +52,7 @@ class CameraLiveActivity : AppCompatActivity() {
     private lateinit var matteAdapter: MatteItemAdapter
 
     private var screenState: LiveScreenState = LiveScreenState.SETUP
+    private var isShortsMode = false
     private var countdownTimer: CountDownTimer? = null
     private var liveDurationJob: kotlinx.coroutines.Job? = null
     private var liveDurationSeconds = 0
@@ -88,6 +89,11 @@ class CameraLiveActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityCameraLiveBinding.inflate(layoutInflater)
         setContentView(binding.root)
+
+        isShortsMode = intent.getStringExtra(EXTRA_MODE) == MODE_SHORTS
+        if (isShortsMode) {
+            binding.btnGoLive.text = "⚡ Record Short (15s)"
+        }
 
         setupChatList()
         setupFilterPanel()
@@ -704,5 +710,11 @@ class CameraLiveActivity : AppCompatActivity() {
         }
 
         override fun getItemCount() = labels.size
+    }
+
+    companion object {
+        const val EXTRA_MODE = "extra_mode"
+        const val MODE_LIVE = "mode_live"
+        const val MODE_SHORTS = "mode_shorts"
     }
 }

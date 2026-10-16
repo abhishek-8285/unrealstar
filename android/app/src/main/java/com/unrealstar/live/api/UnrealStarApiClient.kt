@@ -123,6 +123,48 @@ object UnrealStarApiClient {
             }
         }
 
+    suspend fun createMoment(req: CreateMomentRequest): Result<FeedPost> = withContext(Dispatchers.IO) {
+        val json = JSONObject().apply {
+            put("media_url", req.media_url)
+            put("caption", req.caption)
+            put("duration_secs", req.duration_secs)
+            if (req.promo_text != null) put("promo_text", req.promo_text)
+            if (req.cover_url != null) put("cover_url", req.cover_url)
+            val tagsArr = org.json.JSONArray()
+            req.tags.forEach { tagsArr.put(it) }
+            put("tags", tagsArr)
+        }
+        val request = Request.Builder()
+            .url("$BASE_URL/feed/moments/create")
+            .header("Authorization", SessionStore.authorization())
+            .post(json.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val body = response.body?.string() ?: "{}"
+                val obj = JSONObject(body)
+                val post = FeedPost(
+                    moment_id = obj.optString("moment_id"),
+                    author_id = obj.optLong("author_id"),
+                    author_nickname = obj.optString("author_nickname"),
+                    author_avatar_url = obj.optString("avatar_url"),
+                    media_url = obj.optString("media_url"),
+                    cover_url = obj.optString("cover_url"),
+                    caption = obj.optString("caption"),
+                    duration_secs = obj.optInt("duration_secs", 15),
+                    likes_count = obj.optLong("likes_count", 0L),
+                    comment_count = obj.optLong("comment_count", 0L),
+                    share_count = obj.optLong("share_count", 0L),
+                    gift_count = obj.optLong("gift_count", 0L)
+                )
+                Result.success(post)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun fetchRooms(tab: String, page: Int): RoomPage = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url("$BASE_URL/feed/rooms?tab=$tab&page=$page")
