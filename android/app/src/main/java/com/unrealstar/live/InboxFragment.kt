@@ -77,6 +77,9 @@ class InboxFragment : Fragment() {
         binding.btnPin.setOnClickListener {
             Toast.makeText(requireContext(), "✓ All notifications marked as read", Toast.LENGTH_SHORT).show()
         }
+        binding.btnInboxSettings.setOnClickListener {
+            SettingsBottomSheet().show(childFragmentManager, SettingsBottomSheet.TAG)
+        }
         binding.btnOfficialRetry.setOnClickListener { loadOfficial() }
 
         loadCategories()
@@ -385,6 +388,14 @@ private class MessageAdapter : RecyclerView.Adapter<MessageAdapter.MessageViewHo
                 .circleCrop()
                 .placeholder(R.drawable.bg_live_avatar)
                 .into(binding.ivAvatar)
+
+            binding.root.setOnClickListener {
+                Toast.makeText(
+                    binding.root.context,
+                    "💬 ${message.sender_nickname}: ${message.preview}",
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
         }
 
         private fun stamp(raw: String): String = try {

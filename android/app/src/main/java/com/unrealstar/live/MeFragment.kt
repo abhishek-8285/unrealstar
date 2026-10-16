@@ -61,11 +61,28 @@ class MeFragment : Fragment() {
                     R.string.me_live_action -> {
                         startActivity(android.content.Intent(requireContext(), CameraLiveActivity::class.java))
                     }
+                    R.string.me_earnings -> {
+                        lifecycleScope.launch {
+                            val preview = UnrealStarApiClient.fetchPayoutPreview().getOrNull()
+                            val diamonds = preview?.diamonds_amount ?: 0L
+                            val netInr = preview?.net_payout_inr ?: 0L
+                            Toast.makeText(requireContext(), "💎 $diamonds Diamonds available • Approx ₹$netInr", Toast.LENGTH_LONG).show()
+                        }
+                    }
                     R.string.me_svip -> {
                         VipTiersBottomSheet().show(childFragmentManager, VipTiersBottomSheet.TAG)
                     }
-                    R.string.me_store -> {
+                    R.string.me_tasks, R.string.me_store -> {
                         DailyTasksBottomSheet(onRewardClaimed = { load() }).show(childFragmentManager, DailyTasksBottomSheet.TAG)
+                    }
+                    R.string.me_badge -> {
+                        MyLevelBottomSheet(initialTab = "badges").show(childFragmentManager, MyLevelBottomSheet.TAG)
+                    }
+                    R.string.me_bag -> {
+                        MyBagBottomSheet(onBagUpdated = { load() }).show(childFragmentManager, MyBagBottomSheet.TAG)
+                    }
+                    R.string.me_mylevel -> {
+                        MyLevelBottomSheet(initialTab = "privileges").show(childFragmentManager, MyLevelBottomSheet.TAG)
                     }
                     R.string.me_family -> {
                         FamilyBottomSheet().show(childFragmentManager, FamilyBottomSheet.TAG)
@@ -128,10 +145,10 @@ class MeFragment : Fragment() {
             VipTiersBottomSheet().show(childFragmentManager, VipTiersBottomSheet.TAG)
         }
         binding.btnGift.setOnClickListener {
-            GiftBottomSheet(roomId = 1L, recipientId = 9999L).show(childFragmentManager, GiftBottomSheet.TAG)
+            MyBagBottomSheet(onBagUpdated = { load() }).show(childFragmentManager, MyBagBottomSheet.TAG)
         }
         binding.btnCrown.setOnClickListener {
-            DailyTasksBottomSheet(onRewardClaimed = { load() }).show(childFragmentManager, DailyTasksBottomSheet.TAG)
+            MyLevelBottomSheet().show(childFragmentManager, MyLevelBottomSheet.TAG)
         }
         binding.btnShare.setOnClickListener {
             val shareIntent = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
@@ -142,7 +159,18 @@ class MeFragment : Fragment() {
             startActivity(android.content.Intent.createChooser(shareIntent, "Share Profile"))
         }
         binding.btnSettings.setOnClickListener {
-            startActivity(android.content.Intent(requireContext(), OtpLoginActivity::class.java))
+            SettingsBottomSheet().show(childFragmentManager, SettingsBottomSheet.TAG)
+        }
+        binding.tvLevel.setOnClickListener {
+            MyLevelBottomSheet().show(childFragmentManager, MyLevelBottomSheet.TAG)
+        }
+        binding.tvDiamonds.setOnClickListener {
+            lifecycleScope.launch {
+                val preview = UnrealStarApiClient.fetchPayoutPreview().getOrNull()
+                val diamonds = preview?.diamonds_amount ?: 0L
+                val netInr = preview?.net_payout_inr ?: 0L
+                Toast.makeText(requireContext(), "💎 $diamonds Diamonds available • Approx ₹$netInr", Toast.LENGTH_LONG).show()
+            }
         }
 
     }
@@ -239,11 +267,13 @@ class MeFragment : Fragment() {
 
     private fun actions() = listOf(
         MeAction(R.string.me_live_action, R.drawable.ic_me_live, R.drawable.bg_me_live),
-        MeAction(R.string.me_creator, R.drawable.ic_me_creator, R.drawable.bg_me_creator),
-        MeAction(R.string.me_family, R.drawable.ic_me_family, R.drawable.bg_me_family),
-        MeAction(R.string.me_store, R.drawable.ic_me_store, R.drawable.bg_me_store),
+        MeAction(R.string.me_earnings, R.drawable.ic_me_creator, R.drawable.bg_me_creator),
         MeAction(R.string.me_svip, R.drawable.ic_me_svip, R.drawable.bg_me_svip),
-        MeAction(R.string.me_wifi, R.drawable.ic_me_wifi, R.drawable.bg_me_wifi),
+        MeAction(R.string.me_tasks, R.drawable.ic_me_store, R.drawable.bg_me_store),
+        MeAction(R.string.me_badge, R.drawable.ic_live_trophy, R.drawable.bg_me_family),
+        MeAction(R.string.me_bag, R.drawable.ic_me_gift, R.drawable.bg_me_store),
+        MeAction(R.string.me_mylevel, R.drawable.ic_me_diamond, R.drawable.bg_me_svip),
+        MeAction(R.string.me_family, R.drawable.ic_me_family, R.drawable.bg_me_family),
     )
 }
 

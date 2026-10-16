@@ -117,6 +117,17 @@
     <string name="me_store">Store</string>
     <string name="me_svip">SVIP</string>
     <string name="me_wifi">Wifi</string>
+    <string name="me_earnings">Earnings</string>
+    <string name="me_tasks">My Tasks</string>
+    <string name="me_badge">My Badge</string>
+    <string name="me_bag">My Bag</string>
+    <string name="me_mylevel">My Level</string>
+    <string name="me_market">My Market</string>
+    <string name="me_invites">My Invites</string>
+    <string name="me_room_mgmt">Room Mgmt</string>
+    <string name="me_help">Help &amp; Support</string>
+    <string name="me_top_up">Top up</string>
+    <string name="me_balance">Balance</string>
 
     <!-- Go Live: pre-broadcast setup -->
     <string name="live_go_live">Go Live</string>

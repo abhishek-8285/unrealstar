@@ -883,6 +883,121 @@ object UnrealStarApiClient {
             Result.failure(e)
         }
     }
+
+    /** GET /api/v1/payouts/preview (Trendo Earnings) */
+    suspend fun fetchPayoutPreview(): Result<com.unrealstar.live.models.PayoutPreviewResponse> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/payouts/preview")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.PayoutPreviewResponse::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** GET /api/v1/search (Trendo SearchActivity) */
+    suspend fun search(query: String, filter: String = "all"): Result<com.unrealstar.live.models.SearchResponse> = withContext(Dispatchers.IO) {
+        val encodedQ = java.net.URLEncoder.encode(query, "UTF-8")
+        val request = Request.Builder()
+            .url("$BASE_URL/search?q=$encodedQ&filter=$filter")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.SearchResponse::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** GET /api/v1/users/me/bag (Trendo MyBagActivity & StoreBagActivity) */
+    suspend fun fetchMyBag(): Result<com.unrealstar.live.models.UserBagResponse> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/users/me/bag")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.UserBagResponse::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** POST /api/v1/users/me/bag/equip */
+    suspend fun equipCosmetic(itemId: String, category: String, equip: Boolean): Result<Boolean> = withContext(Dispatchers.IO) {
+        val json = JSONObject().apply {
+            put("item_id", itemId)
+            put("category", category)
+            put("equip", equip)
+        }
+        val request = Request.Builder()
+            .url("$BASE_URL/users/me/bag/equip")
+            .header("Authorization", SessionStore.authorization())
+            .post(json.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = JSONObject(response.body?.string() ?: "{}")
+                Result.success(res.optBoolean("success", true))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** GET /api/v1/users/me/level (Trendo MyLevelActivity) */
+    suspend fun fetchUserLevel(): Result<com.unrealstar.live.models.UserLevelResponse> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/users/me/level")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.UserLevelResponse::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** GET /api/v1/users/me/badges (Trendo BadgeWallActivity) */
+    suspend fun fetchUserBadges(): Result<com.unrealstar.live.models.UserBadgesResponse> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/users/me/badges")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.UserBadgesResponse::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
+
 
 

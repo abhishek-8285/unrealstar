@@ -280,3 +280,69 @@ async fn test_trendo_family_lifecycle() {
     assert_eq!(body["family"]["family_id"], target_family_id);
 }
 
+#[tokio::test]
+async fn test_search_backpack_and_levels() {
+    let state = AppState::new();
+    let app = create_router(state.clone());
+
+    let (user_token, _user_id) = common::login_user(&app, "+919876543209").await;
+
+    // 1. Search API
+    let req = Request::get("/api/v1/search?q=Party")
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = common::json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["query"], "Party");
+    assert!(body["trending_tags"].as_array().unwrap().len() >= 5);
+    assert!(!body["topics"].as_array().unwrap().is_empty());
+
+    // 2. Backpack / My Bag
+    let req = Request::get("/api/v1/users/me/bag")
+        .header("Authorization", format!("Bearer {user_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = common::json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["items"].as_array().unwrap().len() >= 5);
+    assert_eq!(body["equipped_frame"], "frame_golden_aura");
+
+    // Equip cosmetic
+    let req = Request::post("/api/v1/users/me/bag/equip")
+        .header("Authorization", format!("Bearer {user_token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            json!({
+                "item_id": "frame_cyber_neon",
+                "category": "avatar_frame",
+                "equip": true
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let (status, body) = common::json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["success"].as_bool().unwrap());
+
+    // 3. Level & Privileges
+    let req = Request::get("/api/v1/users/me/level")
+        .header("Authorization", format!("Bearer {user_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = common::json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["current_level"], 48);
+    assert_eq!(body["wealth_title"], "Diamond Lord");
+    assert!(!body["privileges"].as_array().unwrap().is_empty());
+
+    // 4. Badges Wall
+    let req = Request::get("/api/v1/users/me/badges")
+        .header("Authorization", format!("Bearer {user_token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, body) = common::json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert!(body["total_badges"].as_u64().unwrap() >= 4);
+    assert!(body["unlocked_count"].as_u64().unwrap() >= 1);
+}
+

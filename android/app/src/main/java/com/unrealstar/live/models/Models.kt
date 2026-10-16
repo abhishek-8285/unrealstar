@@ -359,6 +359,15 @@ data class KycStatus(
     val rejection_reason: String? = null
 )
 
+/** GET /payouts/preview (Trendo Earnings / Cashout) */
+data class PayoutPreviewResponse(
+    val diamonds_amount: Long = 0,
+    val gross_inr: Long = 0,
+    val tds_194q_inr: Long = 0,
+    val net_payout_inr: Long = 0,
+    val exchange_rate_diamonds_per_inr: Int = 100
+)
+
 /** GET /family/leaderboard */
 data class FamilyItem(
     val family_id: String = "",
@@ -392,5 +401,90 @@ data class PkStatusResponse(
 data class SocialFollowResponse(
     val is_following: Boolean = false
 )
+
+/** GET /api/v1/search (Trendo SearchActivity) */
+data class SearchUserItem(
+    val user_id: Long = 0,
+    val nickname: String = "",
+    val avatar_url: String = "",
+    val bio: String = "",
+    val level: Int = 1,
+    val followers_count: Long = 0,
+    val is_following: Boolean = false,
+    val is_live: Boolean = false,
+    val room_id: Long? = null
+)
+
+data class SearchTopicItem(
+    val tag: String = "",
+    val posts_count: Long = 0
+)
+
+data class SearchResponse(
+    val query: String = "",
+    val users: List<SearchUserItem> = emptyList(),
+    val rooms: List<FeedRoomItem> = emptyList(),
+    val topics: List<SearchTopicItem> = emptyList(),
+    val trending_tags: List<String> = emptyList()
+)
+
+/** GET /api/v1/users/me/bag (Trendo MyBagActivity & StoreBagActivity) */
+data class CosmeticItem(
+    val item_id: String = "",
+    val name: String = "",
+    val category: String = "avatar_frame",
+    val icon_url: String = "",
+    val preview_asset: String = "",
+    val description: String = "",
+    var is_equipped: Boolean = false,
+    val is_owned: Boolean = false,
+    val price_coins: Long = 0,
+    val expires_in_days: Int? = null
+)
+
+data class UserBagResponse(
+    val user_id: Long = 0,
+    val equipped_frame: String? = null,
+    val equipped_ride: String? = null,
+    val equipped_bubble: String? = null,
+    val items: List<CosmeticItem> = emptyList()
+)
+
+/** GET /api/v1/users/me/level & /badges (Trendo MyLevelActivity & BadgeWallActivity) */
+data class LevelPrivilegeItem(
+    val level: Int = 1,
+    val title: String = "",
+    val icon: String = "",
+    val description: String = "",
+    val is_unlocked: Boolean = false
+)
+
+data class BadgeItem(
+    val badge_id: String = "",
+    val name: String = "",
+    val icon: String = "",
+    val description: String = "",
+    val is_unlocked: Boolean = false,
+    val unlocked_at: String? = null
+)
+
+data class UserLevelResponse(
+    val user_id: Long = 0,
+    val current_level: Int = 1,
+    val current_exp: Long = 0,
+    val next_level_exp: Long = 1000,
+    val progress_pct: Int = 0,
+    val wealth_title: String = "Bronze Citizen",
+    val privileges: List<LevelPrivilegeItem> = emptyList(),
+    val badges: List<BadgeItem> = emptyList()
+)
+
+data class UserBadgesResponse(
+    val user_id: Long = 0,
+    val total_badges: Int = 0,
+    val unlocked_count: Int = 0,
+    val badges: List<BadgeItem> = emptyList()
+)
+
 
 

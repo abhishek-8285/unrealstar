@@ -1,0 +1,146 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/surface_dark"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingTop="12dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="24dp">
+
+    <!-- Drag Handle -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="12dp"
+        android:background="#44FFFFFF" />
+
+    <!-- Header Title -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <TextView
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="🎒 My Bag &amp; Cosmetics"
+            android:textColor="@color/text_white"
+            android:textSize="18sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:id="@+id/btnCloseBag"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="Close"
+            android:padding="4dp"
+            android:src="@android:drawable/ic_menu_close_clear_cancel"
+            app:tint="@color/text_muted" />
+    </LinearLayout>
+
+    <!-- Subtitle Tip -->
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="2dp"
+        android:text="Equip luxury frames, entry effects &amp; medals to stand out in live streams"
+        android:textColor="@color/text_muted"
+        android:textSize="12sp" />
+
+    <!-- Category Tabs -->
+    <LinearLayout
+        android:id="@+id/bagTabs"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal"
+        android:weightSum="4">
+
+        <TextView
+            android:id="@+id/tabFrames"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="Frames"
+            android:textColor="@color/text_white"
+            android:textSize="13sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:id="@+id/tabRides"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="Rides"
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tabBubbles"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="Bubbles"
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/tabMedals"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:padding="8dp"
+            android:text="Medals"
+            android:textColor="@color/text_muted"
+            android:textSize="13sp" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#22FFFFFF" />
+
+    <!-- Cosmetics Grid -->
+    <FrameLayout
+        android:layout_width="match_parent"
+        android:layout_height="380dp"
+        android:layout_marginTop="10dp">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvBagItems"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <ProgressBar
+            android:id="@+id/bagProgress"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:visibility="gone" />
+
+        <TextView
+            android:id="@+id/tvBagEmpty"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="center"
+            android:text="No items found in this category"
+            android:textColor="@color/text_muted"
+            android:textSize="13sp"
+            android:visibility="gone" />
+    </FrameLayout>
+
+</LinearLayout>

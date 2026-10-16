@@ -245,6 +245,23 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/vip/tiers",
             get(routes::gamification::get_vip_tiers),
         )
+        // Search (Trendo SearchActivity)
+        .route("/api/v1/search", get(routes::social::search))
+        // Backpack & Cosmetics (Trendo MyBagActivity & StoreBagActivity)
+        .route("/api/v1/users/me/bag", get(routes::gamification::get_my_bag))
+        .route(
+            "/api/v1/users/me/bag/equip",
+            post(routes::gamification::equip_cosmetic),
+        )
+        // Level & Honor Wall (Trendo MyLevelActivity & BadgeWallActivity)
+        .route(
+            "/api/v1/users/me/level",
+            get(routes::gamification::get_user_level),
+        )
+        .route(
+            "/api/v1/users/me/badges",
+            get(routes::gamification::get_user_badges),
+        )
         // Family Guilds (Trendo)
         .route("/api/v1/family/my", get(routes::family::get_my_family))
         .route(

@@ -80,6 +80,9 @@ class LiveFragment : Fragment() {
         binding.btnRank.setOnClickListener {
             LeaderboardBottomSheet().show(childFragmentManager, LeaderboardBottomSheet.TAG)
         }
+        binding.btnSearch.setOnClickListener {
+            SearchBottomSheet().show(childFragmentManager, SearchBottomSheet.TAG)
+        }
 
         // Two columns means ~4 rows of prefetch is plenty to keep the wall
         // filled while the next page loads.

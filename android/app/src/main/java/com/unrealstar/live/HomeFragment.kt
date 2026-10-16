@@ -131,6 +131,12 @@ class HomeFragment : Fragment() {
     private fun wireHeader() {
         binding.tvForYou.setOnClickListener { selectTab(followed = false) }
         binding.tvFollowed.setOnClickListener { selectTab(followed = true) }
+        binding.ivSearch.setOnClickListener {
+            SearchBottomSheet().show(childFragmentManager, SearchBottomSheet.TAG)
+        }
+        binding.ivShield.setOnClickListener {
+            Toast.makeText(requireContext(), "🛡️ Community Safety & Content Shield Active", Toast.LENGTH_SHORT).show()
+        }
     }
 
     private fun selectTab(followed: Boolean) {

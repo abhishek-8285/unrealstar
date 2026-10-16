@@ -858,3 +858,119 @@ pub struct OfficialNoticePage {
     pub sections: Vec<OfficialSection>,
     pub notices: Vec<OfficialNotice>,
 }
+
+// ---------------------------------------------------------------------------
+// Search
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Deserialize)]
+pub struct SearchQuery {
+    pub q: String,
+    pub filter: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SearchUserItem {
+    pub user_id: u64,
+    pub nickname: String,
+    pub avatar_url: String,
+    pub bio: String,
+    pub level: u32,
+    pub followers_count: u64,
+    pub is_following: bool,
+    pub is_live: bool,
+    pub room_id: Option<u64>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SearchTopicItem {
+    pub tag: String,
+    pub posts_count: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SearchResponse {
+    pub query: String,
+    pub users: Vec<SearchUserItem>,
+    pub rooms: Vec<FeedRoomItem>,
+    pub topics: Vec<SearchTopicItem>,
+    pub trending_tags: Vec<String>,
+}
+
+// ---------------------------------------------------------------------------
+// Backpack & Cosmetics (Trendo MyBagActivity)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct CosmeticItem {
+    pub item_id: String,
+    pub name: String,
+    /// avatar_frame | entry_ride | chat_bubble | medal
+    pub category: String,
+    pub icon_url: String,
+    pub preview_asset: String,
+    pub description: String,
+    pub is_equipped: bool,
+    pub is_owned: bool,
+    pub price_coins: u64,
+    pub expires_in_days: Option<u32>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UserBagResponse {
+    pub user_id: u64,
+    pub equipped_frame: Option<String>,
+    pub equipped_ride: Option<String>,
+    pub equipped_bubble: Option<String>,
+    pub items: Vec<CosmeticItem>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct EquipCosmeticRequest {
+    pub item_id: String,
+    pub category: String,
+    pub equip: bool,
+}
+
+// ---------------------------------------------------------------------------
+// Level & Honor Wall (Trendo MyLevelActivity & BadgeWallActivity)
+// ---------------------------------------------------------------------------
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LevelPrivilegeItem {
+    pub level: u32,
+    pub title: String,
+    pub icon: String,
+    pub description: String,
+    pub is_unlocked: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct BadgeItem {
+    pub badge_id: String,
+    pub name: String,
+    pub icon: String,
+    pub description: String,
+    pub is_unlocked: bool,
+    pub unlocked_at: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UserLevelResponse {
+    pub user_id: u64,
+    pub current_level: u32,
+    pub current_exp: u64,
+    pub next_level_exp: u64,
+    pub progress_pct: u32,
+    pub wealth_title: String,
+    pub privileges: Vec<LevelPrivilegeItem>,
+    pub badges: Vec<BadgeItem>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct UserBadgesResponse {
+    pub user_id: u64,
+    pub total_badges: usize,
+    pub unlocked_count: usize,
+    pub badges: Vec<BadgeItem>,
+}

@@ -691,3 +691,150 @@ pub async fn gift_moment(
     let snapshot = bump_moment(&state, &moment_id, Engagement::Gift).await?;
     Ok(Json(snapshot))
 }
+
+// ---------------------------------------------------------------------------
+// Search (Trendo SearchActivity & SearchByUserActivity)
+// ---------------------------------------------------------------------------
+
+pub async fn search(
+    headers: HeaderMap,
+    Query(params): Query<crate::models::SearchQuery>,
+    State(state): State<AppState>,
+) -> Result<Json<crate::models::SearchResponse>, ApiError> {
+    let auth_header = headers.get("Authorization").and_then(|h| h.to_str().ok());
+    let current_user_id = state.authenticate_header(auth_header).await;
+
+    let q = params.q.trim().to_lowercase();
+    let filter = params.filter.as_deref().unwrap_or("all");
+
+    let mut users_result = Vec::new();
+    let mut rooms_result = Vec::new();
+    let mut topics_result = Vec::new();
+
+    let trending_tags = vec![
+        "#Party".to_string(),
+        "#Trending".to_string(),
+        "#Dance".to_string(),
+        "#Music".to_string(),
+        "#Live".to_string(),
+        "#Bollywood".to_string(),
+        "#RisingStar".to_string(),
+        "#Mushaira".to_string(),
+    ];
+
+    // Search Users
+    if filter == "all" || filter == "users" {
+        let users = state.users.read().await;
+        let follows = state.follows.read().await;
+        let my_follows = current_user_id
+            .and_then(|uid| follows.get(&uid))
+            .cloned()
+            .unwrap_or_default();
+
+        for user in users.values() {
+            let matches = q.is_empty()
+                || user.nickname.to_lowercase().contains(&q)
+                || user.bio.to_lowercase().contains(&q)
+                || user.user_id.to_string().contains(&q);
+
+            if matches {
+                users_result.push(crate::models::SearchUserItem {
+                    user_id: user.user_id,
+                    nickname: user.nickname.clone(),
+                    avatar_url: user.avatar_url.clone(),
+                    bio: user.bio.clone(),
+                    level: 1,
+                    followers_count: user.followers_count,
+                    is_following: my_follows.contains(&user.user_id),
+                    is_live: user.is_live,
+                    room_id: user.live_room_id,
+                });
+            }
+            if users_result.len() >= 20 {
+                break;
+            }
+        }
+    }
+
+    // Search Rooms
+    if filter == "all" || filter == "rooms" {
+        let rooms = state.rooms.read().await;
+        let users = state.users.read().await;
+
+        for room in rooms.values() {
+            if !room.is_active {
+                continue;
+            }
+            let host_nick = users
+                .get(&room.host_id)
+                .map(|u| u.nickname.clone())
+                .unwrap_or_else(|| format!("Host_{}", room.host_id));
+
+            let matches = q.is_empty()
+                || room.title.to_lowercase().contains(&q)
+                || host_nick.to_lowercase().contains(&q)
+                || room.category.to_lowercase().contains(&q)
+                || room.room_id.to_string().contains(&q);
+
+            if matches {
+                rooms_result.push(crate::models::FeedRoomItem {
+                    room_id: room.room_id,
+                    title: room.title.clone(),
+                    category: room.category.clone(),
+                    cover_image_url: room.cover_image_url.clone(),
+                    host_id: room.host_id,
+                    host_nickname: host_nick,
+                    viewers_count: room.viewers_count(),
+                    is_pk: room.is_pk,
+                    pk_opponent: room.pk_opponent.clone(),
+                    rank_tag: room.rank_tag.clone(),
+                    host_badge: room.host_badge.clone(),
+                });
+            }
+            if rooms_result.len() >= 20 {
+                break;
+            }
+        }
+    }
+
+    // Search Topics
+    if filter == "all" || filter == "topics" {
+        let moments = state.moments.read().await;
+        let mut topic_counts: std::collections::HashMap<String, u64> =
+            std::collections::HashMap::new();
+
+        for tag in &trending_tags {
+            topic_counts.insert(tag.clone(), 12);
+        }
+
+        for moment in moments.iter() {
+            for tag in &moment.tags {
+                let formatted = if tag.starts_with('#') {
+                    tag.clone()
+                } else {
+                    format!("#{tag}")
+                };
+                *topic_counts.entry(formatted).or_insert(0) += 1;
+            }
+        }
+
+        for (tag, count) in topic_counts {
+            if q.is_empty() || tag.to_lowercase().contains(&q) {
+                topics_result.push(crate::models::SearchTopicItem {
+                    tag,
+                    posts_count: count,
+                });
+            }
+        }
+        topics_result.sort_by(|a, b| b.posts_count.cmp(&a.posts_count));
+        topics_result.truncate(15);
+    }
+
+    Ok(Json(crate::models::SearchResponse {
+        query: params.q,
+        users: users_result,
+        rooms: rooms_result,
+        topics: topics_result,
+        trending_tags,
+    }))
+}

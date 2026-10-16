@@ -58,6 +58,15 @@
             android:contentDescription="@string/inbox_pin"
             android:padding="7dp"
             android:src="@drawable/ic_inbox_pin" />
+
+        <ImageView
+            android:id="@+id/btnInboxSettings"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="4dp"
+            android:contentDescription="@string/me_settings"
+            android:padding="7dp"
+            android:src="@drawable/ic_me_gear" />
     </LinearLayout>
 
 
