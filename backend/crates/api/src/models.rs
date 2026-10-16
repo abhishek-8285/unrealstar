@@ -253,6 +253,42 @@ pub struct RedPacketClaimResponse {
     pub remaining_splits: u32,
 }
 
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ActiveRedPacketItem {
+    pub packet_id: String,
+    pub room_id: u64,
+    pub dropper_user_id: u64,
+    pub dropper_nickname: String,
+    pub total_coins: i64,
+    pub split_count: u32,
+    pub remaining_splits: u32,
+    pub expires_at: DateTime<Utc>,
+    pub already_claimed: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DirectMessage {
+    pub message_id: String,
+    pub sender_id: u64,
+    pub recipient_id: u64,
+    pub text: String,
+    pub created_at: DateTime<Utc>,
+    pub is_self: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct SendDirectMessageRequest {
+    pub text: String,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct DirectMessageThread {
+    pub recipient_id: u64,
+    pub recipient_nickname: String,
+    pub recipient_avatar_url: String,
+    pub messages: Vec<DirectMessage>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SpinWheelRequest {
     pub room_id: u64,

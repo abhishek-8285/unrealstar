@@ -154,6 +154,10 @@ pub fn create_router(state: AppState) -> Router {
             post(routes::gifts::claim_red_packet),
         )
         .route(
+            "/api/v1/gifts/red-packet/room/{room_id}/active",
+            get(routes::gifts::list_active_red_packets),
+        )
+        .route(
             "/api/v1/games/turntable/spin",
             post(routes::gifts::spin_turntable),
         )
@@ -188,13 +192,21 @@ pub fn create_router(state: AppState) -> Router {
             "/api/v1/feed/live/banners",
             get(routes::social::feed_live_banners),
         )
-        // Inbox
+        // Inbox & Direct Messages
         .route(
             "/api/v1/inbox/categories",
             get(routes::inbox::inbox_categories),
         )
         .route("/api/v1/inbox", get(routes::inbox::inbox_messages))
         .route("/api/v1/inbox/official", get(routes::inbox::inbox_official))
+        .route(
+            "/api/v1/conversations/{user_id}",
+            get(routes::inbox::get_conversation),
+        )
+        .route(
+            "/api/v1/conversations/{user_id}/send",
+            post(routes::inbox::send_direct_message),
+        )
         .route("/api/v1/feed/moments", get(routes::social::feed_moments))
         .route(
             "/api/v1/feed/moments/create",

@@ -46,7 +46,14 @@ class InboxFragment : Fragment() {
     private val binding get() = _binding!!
 
     private val categoryBinder = CategoryAdapter { selectCategory(it) }
-    private val messageAdapter = MessageAdapter()
+    private val messageAdapter = MessageAdapter { msg ->
+        val sheet = DirectMessageBottomSheet(
+            targetUserId = if (msg.sender_id > 0) msg.sender_id else 1002,
+            targetNickname = msg.sender_nickname,
+            targetAvatarUrl = msg.sender_avatar_url
+        )
+        sheet.show(childFragmentManager, DirectMessageBottomSheet.TAG)
+    }
     private val officialAdapter = OfficialAdapter()
 
     private var showingOfficial = true
@@ -356,7 +363,9 @@ private class CategoryAdapter(
 }
 
 /** Message rows on the Information tab. */
-private class MessageAdapter : RecyclerView.Adapter<MessageAdapter.MessageViewHolder>() {
+private class MessageAdapter(
+    private val onMessageClick: (InboxMessage) -> Unit
+) : RecyclerView.Adapter<MessageAdapter.MessageViewHolder>() {
 
     private val items = mutableListOf<InboxMessage>()
 
@@ -367,7 +376,8 @@ private class MessageAdapter : RecyclerView.Adapter<MessageAdapter.MessageViewHo
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = MessageViewHolder(
-        ItemInboxMessageBinding.inflate(LayoutInflater.from(parent.context), parent, false)
+        ItemInboxMessageBinding.inflate(LayoutInflater.from(parent.context), parent, false),
+        onMessageClick
     )
 
     override fun onBindViewHolder(holder: MessageViewHolder, position: Int) =
@@ -375,8 +385,10 @@ private class MessageAdapter : RecyclerView.Adapter<MessageAdapter.MessageViewHo
 
     override fun getItemCount() = items.size
 
-    class MessageViewHolder(private val binding: ItemInboxMessageBinding) :
-        RecyclerView.ViewHolder(binding.root) {
+    class MessageViewHolder(
+        private val binding: ItemInboxMessageBinding,
+        private val onMessageClick: (InboxMessage) -> Unit
+    ) : RecyclerView.ViewHolder(binding.root) {
 
         fun bind(message: InboxMessage) {
             binding.tvSender.text = message.sender_nickname
@@ -390,11 +402,7 @@ private class MessageAdapter : RecyclerView.Adapter<MessageAdapter.MessageViewHo
                 .into(binding.ivAvatar)
 
             binding.root.setOnClickListener {
-                Toast.makeText(
-                    binding.root.context,
-                    "💬 ${message.sender_nickname}: ${message.preview}",
-                    Toast.LENGTH_SHORT
-                ).show()
+                onMessageClick(message)
             }
         }
 

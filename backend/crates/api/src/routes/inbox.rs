@@ -1,14 +1,16 @@
 use axum::{
-    extract::{Query, State},
+    extract::{Path, Query, State},
     http::HeaderMap,
     Json,
 };
 use chrono::{Duration, Utc};
+use uuid::Uuid;
 
 use crate::{
     models::{
-        InboxCategory, InboxCategoryPage, InboxMessage, InboxMessagePage, OfficialNotice,
-        OfficialNoticePage, OfficialSection,
+        DirectMessage, DirectMessageThread, InboxCategory, InboxCategoryPage, InboxMessage,
+        InboxMessagePage, OfficialNotice, OfficialNoticePage, OfficialSection,
+        SendDirectMessageRequest,
     },
     state::AppState,
 };
@@ -239,4 +241,123 @@ pub async fn inbox_official(
 #[derive(Debug, serde::Deserialize)]
 pub struct OfficialQuery {
     pub section: Option<String>,
+}
+
+fn conversation_key(u1: u64, u2: u64) -> (u64, u64) {
+    if u1 < u2 {
+        (u1, u2)
+    } else {
+        (u2, u1)
+    }
+}
+
+pub async fn get_conversation(
+    Path(target_user_id): Path<u64>,
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> Result<Json<DirectMessageThread>, crate::error::ApiError> {
+    let auth_header = headers.get("Authorization").and_then(|h| h.to_str().ok());
+    let current_user_id = state.authenticate_header(auth_header).await.unwrap_or(1001);
+
+    let origin = crate::public_origin();
+    let users = state.users.read().await;
+    let (target_nickname, target_avatar) = if let Some(u) = users.get(&target_user_id) {
+        (u.nickname.clone(), u.avatar_url.clone())
+    } else {
+        let name = match target_user_id {
+            1002 => "Satya Rajput",
+            1003 => "Anjali Verma",
+            1004 => "Desi Jatt",
+            _ => "Friend",
+        };
+        (name.to_string(), format!("{origin}/assets/avatars/a2.jpg"))
+    };
+
+    let key = conversation_key(current_user_id, target_user_id);
+    let dm_map = state.direct_messages.read().await;
+
+    let mut messages: Vec<DirectMessage> = if let Some(stored) = dm_map.get(&key) {
+        stored
+            .iter()
+            .map(|m| DirectMessage {
+                message_id: m.message_id.clone(),
+                sender_id: m.sender_id,
+                recipient_id: m.recipient_id,
+                text: m.text.clone(),
+                created_at: m.created_at,
+                is_self: m.sender_id == current_user_id,
+            })
+            .collect()
+    } else {
+        let now = Utc::now();
+        vec![
+            DirectMessage {
+                message_id: format!("init_1_{target_user_id}"),
+                sender_id: target_user_id,
+                recipient_id: current_user_id,
+                text: "Hey there! Glad we connected on CamStar ✨".to_string(),
+                created_at: now - Duration::minutes(15),
+                is_self: false,
+            },
+            DirectMessage {
+                message_id: format!("init_2_{target_user_id}"),
+                sender_id: target_user_id,
+                recipient_id: current_user_id,
+                text: "Will you be joining the live stream party tonight? 🎤".to_string(),
+                created_at: now - Duration::minutes(12),
+                is_self: false,
+            },
+        ]
+    };
+
+    messages.sort_by_key(|m| m.created_at);
+
+    Ok(Json(DirectMessageThread {
+        recipient_id: target_user_id,
+        recipient_nickname: target_nickname,
+        recipient_avatar_url: target_avatar,
+        messages,
+    }))
+}
+
+pub async fn send_direct_message(
+    Path(target_user_id): Path<u64>,
+    headers: HeaderMap,
+    State(state): State<AppState>,
+    Json(req): Json<SendDirectMessageRequest>,
+) -> Result<Json<DirectMessage>, crate::error::ApiError> {
+    let auth_header = headers.get("Authorization").and_then(|h| h.to_str().ok());
+    let current_user_id = state.authenticate_header(auth_header).await.unwrap_or(1001);
+
+    let text = req.text.trim();
+    if text.is_empty() {
+        return Err(crate::error::ApiError::BadRequest(
+            "Message text cannot be empty".into(),
+        ));
+    }
+
+    let key = conversation_key(current_user_id, target_user_id);
+    let now = Utc::now();
+    let msg_id = format!("dm_{}_{}", current_user_id, Uuid::new_v4());
+
+    let record = crate::state::DirectMessageRecord {
+        message_id: msg_id.clone(),
+        sender_id: current_user_id,
+        recipient_id: target_user_id,
+        text: text.to_string(),
+        created_at: now,
+    };
+
+    let mut dm_map = state.direct_messages.write().await;
+    let list = dm_map.entry(key).or_insert_with(Vec::new);
+    list.push(record.clone());
+
+    Ok(Json(DirectMessage {
+        message_id: record.message_id,
+        sender_id: record.sender_id,
+        recipient_id: record.recipient_id,
+        text: record.text,
+        created_at: record.created_at,
+        is_self: true,
+    }))
 }

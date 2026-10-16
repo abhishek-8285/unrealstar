@@ -10,10 +10,10 @@ use uuid::Uuid;
 use crate::{
     error::ApiError,
     models::{
-        FuncTagRequest, FuncTagResponse, GiftItem, MagicLampWishRequest, MagicLampWishResponse,
-        RedPacketClaimResponse, RedPacketDropRequest, RedPacketDropResponse, SendGiftRequest,
-        SendGiftResponse, ShovelDigRequest, ShovelDigResponse, SpinWheelRequest, SpinWheelResponse,
-        WsServerMessage,
+        ActiveRedPacketItem, FuncTagRequest, FuncTagResponse, GiftItem, MagicLampWishRequest,
+        MagicLampWishResponse, RedPacketClaimResponse, RedPacketDropRequest, RedPacketDropResponse,
+        SendGiftRequest, SendGiftResponse, ShovelDigRequest, ShovelDigResponse, SpinWheelRequest,
+        SpinWheelResponse, WsServerMessage,
     },
     state::{user_coins_account, user_diamonds_account, AppState},
 };
@@ -191,6 +191,8 @@ pub async fn drop_red_packet(
     state.red_packets.write().await.insert(
         packet_id.clone(),
         crate::state::RedPacketDrop {
+            packet_id: packet_id.clone(),
+            room_id: req.room_id,
             dropper_user_id: user_id,
             total_coins: req.total_coins,
             split_count: req.split_count,
@@ -222,6 +224,44 @@ pub async fn drop_red_packet(
         packet_id,
         expires_at,
     }))
+}
+
+pub async fn list_active_red_packets(
+    Path(room_id): Path<u64>,
+    headers: HeaderMap,
+    State(state): State<AppState>,
+) -> Result<Json<Vec<ActiveRedPacketItem>>, ApiError> {
+    let auth_header = headers.get("Authorization").and_then(|h| h.to_str().ok());
+    let current_user_id = state.authenticate_header(auth_header).await.unwrap_or(0);
+
+    let packets = state.red_packets.read().await;
+    let users = state.users.read().await;
+    let now = Utc::now();
+
+    let active: Vec<ActiveRedPacketItem> = packets
+        .values()
+        .filter(|p| (p.room_id == room_id || p.room_id == 0) && p.expires_at > now && (p.claimants.len() as u32) < p.split_count)
+        .map(|p| {
+            let dropper_nickname = users
+                .get(&p.dropper_user_id)
+                .map(|u| u.nickname.clone())
+                .unwrap_or_else(|| format!("User_{}", p.dropper_user_id));
+            let remaining_splits = p.split_count - p.claimants.len() as u32;
+            ActiveRedPacketItem {
+                packet_id: p.packet_id.clone(),
+                room_id: p.room_id,
+                dropper_user_id: p.dropper_user_id,
+                dropper_nickname,
+                total_coins: p.total_coins,
+                split_count: p.split_count,
+                remaining_splits,
+                expires_at: p.expires_at,
+                already_claimed: p.claimants.contains(&current_user_id),
+            }
+        })
+        .collect();
+
+    Ok(Json(active))
 }
 
 pub async fn claim_red_packet(

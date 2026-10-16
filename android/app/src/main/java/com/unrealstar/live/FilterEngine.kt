@@ -3,10 +3,6 @@ package com.unrealstar.live
 import android.app.ActivityManager
 import android.content.Context
 import android.graphics.Bitmap
-import android.graphics.Canvas
-import android.graphics.ColorMatrix
-import android.graphics.ColorMatrixColorFilter
-import android.graphics.Paint
 import android.view.View
 import android.widget.TextView
 
@@ -15,14 +11,16 @@ import android.widget.TextView
  *
  * - LIGHTWEIGHT: fullscreen tint overlay View over PreviewView. No per-frame
  *   allocation, safe on low-RAM / old-GPU phones. This is the live path.
- * - GPU: same overlay PLUS hardware-accelerated still-capture processing
- *   ([processBitmap]) and reserved GLSL hooks for a future GLSurfaceView
- *   pipeline. Selected on capable devices only.
+ * - GPU: live GLES preview ([GpuPreviewView]) with per-pixel shaders, plus
+ *   offscreen still-capture baking ([processBitmap]). Selected on capable
+ *   devices only.
  *
  * PreviewView is a SurfaceView — a ColorMatrix cannot be applied to it
- * directly, hence the overlay approach for live preview. Captured stills
- * go through the real matrix so saved photos match the selected look.
+ * directly, hence the overlay approach for live preview on lite devices.
+ * Captured stills go through the full bake so posters match the live look.
  */
+data class BeautyParams(val smooth: Float = 0f, val whiten: Float = 0f)
+
 class FilterEngine(private val context: Context) {
 
     enum class Mode { LIGHTWEIGHT, GPU }
@@ -55,30 +53,35 @@ class FilterEngine(private val context: Context) {
         tintView.alpha = filter.tintAlpha
     }
 
-    /** Still-capture path: GPU baker on capable devices, Canvas matrix otherwise. */
-    fun processBitmap(src: Bitmap, filter: CameraFilter = activeFilter): Bitmap {
-        if (filter.id == "normal") return src
+    /** Still-capture path: full bake (grade + beauty) for poster snapshots. */
+    fun processBitmap(
+        src: Bitmap,
+        filter: CameraFilter = activeFilter,
+        beauty: BeautyParams = BeautyParams()
+    ): Bitmap {
+        val s = beauty.smooth.coerceIn(0f, 1f)
+        val w = beauty.whiten.coerceIn(0f, 1f)
+        if (filter.id == "normal" && s <= 0.003f && w <= 0.003f) return src
         return if (mode == Mode.GPU) {
             // Off main thread by contract (EGL blocks ~30-60ms at 1080p).
-            GpuFilterProcessor.apply(src, filter)
+            GpuFilterProcessor.apply(src, filter, s, w)
         } else {
-            canvasBake(src, filter)
+            cpuBake(src, filter, s, w)
         }
     }
 
-    private fun canvasBake(src: Bitmap, filter: CameraFilter): Bitmap {
-        val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
-        val canvas = Canvas(out)
-        val paint = Paint(Paint.ANTI_ALIAS_FLAG or Paint.FILTER_BITMAP_FLAG)
-        paint.colorFilter = ColorMatrixColorFilter(ColorMatrix(filter.colorMatrix))
-        canvas.drawBitmap(src, 0f, 0f, paint)
-        return out
-    }
+    /**
+     * Lite-device bake delegates to the shared CPU path (same smooth →
+     * grade → whiten order as the GPU shader).
+     */
+    private fun cpuBake(src: Bitmap, filter: CameraFilter, smooth: Float, whiten: Float): Bitmap =
+        GpuFilterProcessor.cpuBake(src, filter, smooth, whiten)
+
 
     /**
-     * Beauty soft-focus approximation for the live path: a low-alpha white
-     * overlay over the preview simulates whiten + smoothing glow. True
-     * bilateral skin smoothing needs GPU frame processing (Phase 2 hook).
+     * Beauty soft-focus for the lite live path: a low-alpha warm overlay over
+     * the preview simulates whiten + smoothing glow. (GPU path uses real
+     * in-shader bilateral smoothing instead; see GpuPreviewView.)
      */
     fun applyBeautyLive(smooth: Float, whiten: Float, softView: View) {
         val alpha = (smooth * 0.10f + whiten * 0.16f).coerceIn(0f, 0.26f)

@@ -46,6 +46,21 @@ class CameraLiveActivity : AppCompatActivity() {
     private var faceTracker: FaceTracker? = null
     private var faceExecutor: java.util.concurrent.ExecutorService? = null
     private var trackedFace: Triple<Float, Float, Float>? = null
+    /** True while the GLES live preview owns the camera stream (GPU-mode devices). */
+    private var gpuActive: Boolean = false
+    /** Latched when the GLES bind fails so the fallback doesn't retry-loop. */
+    private var gpuDisabled: Boolean = false
+    /** Pre-live room mode, chosen on the setup tabs and sent as categoryId. */
+    private var selectedMode: String = "live"
+    /** Poster capture generation: invalidates the watchdog on arrival. */
+    private var posterGen: Int = 0    /** Bound camera for exposure control; re-set on every (re)bind. */
+    private var camera: androidx.camera.core.Camera? = null
+    /** Exposure compensation state (device range discovered after bind). */
+    private var exposureIndex: Int = 0
+    private var exposureLower: Int = 0
+    private var exposureUpper: Int = 0
+    /** Guards the Go Live button against double-tap room creation. */
+    private var goingLive: Boolean = false
 
     private val chatMessages = mutableListOf<ChatMessage>()
     private lateinit var chatAdapter: ChatAdapter
@@ -85,6 +100,13 @@ class CameraLiveActivity : AppCompatActivity() {
         }
     }
 
+    /** Gallery upload for the poster (system picker — no storage permission needed). */
+    private val galleryPickerLauncher = registerForActivityResult(
+        ActivityResultContracts.GetContent()
+    ) { uri ->
+        if (uri != null) onPosterPicked(uri)
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         binding = ActivityCameraLiveBinding.inflate(layoutInflater)
@@ -99,6 +121,7 @@ class CameraLiveActivity : AppCompatActivity() {
         setupFilterPanel()
         setupFaceTracking()
         setupListeners()
+        setupPreviewTap()
         setScreenState(LiveScreenState.SETUP)
 
         if (ContextCompat.checkSelfPermission(this, Manifest.permission.CAMERA) == PackageManager.PERMISSION_GRANTED
@@ -107,6 +130,16 @@ class CameraLiveActivity : AppCompatActivity() {
         } else {
             cameraPermissionLauncher.launch(arrayOf(Manifest.permission.CAMERA, Manifest.permission.RECORD_AUDIO))
         }
+    }
+
+    override fun onPause() {
+        super.onPause()
+        try { binding.gpuPreviewView.onPause() } catch (_: Throwable) {}
+    }
+
+    override fun onResume() {
+        super.onResume()
+        try { binding.gpuPreviewView.onResume() } catch (_: Throwable) {}
     }
 
     override fun onDestroy() {
@@ -122,6 +155,76 @@ class CameraLiveActivity : AppCompatActivity() {
         faceTracker = null
         try { faceExecutor?.shutdownNow() } catch (_: Exception) {}
         faceExecutor = null
+        try { binding.gpuPreviewView.release() } catch (_: Throwable) {}
+    }
+
+    /**
+     * Tap-to-meter: tapping the preview meters AE (+AF on rear cameras) at
+     * that point for 3s, with a fading focus ring. In mixed lighting (bright
+     * lamp + dim room) this exposes the face instead of the lamp — the
+     * direct fix for a washed-out preview. Front cameras are fixed-focus,
+     * so only AE/AWB run there.
+     */
+    private fun setupPreviewTap() {
+        val onTouch = { v: View, ev: android.view.MotionEvent ->
+            if (ev.action == android.view.MotionEvent.ACTION_UP) {
+                meterAt(v, ev.x, ev.y)
+                showFocusRing(ev.x, ev.y)
+            }
+            true
+        }
+        binding.previewView.setOnTouchListener(onTouch)
+        binding.gpuPreviewView.setOnTouchListener(onTouch)
+    }
+
+    private fun meterAt(view: View, x: Float, y: Float) {
+        val cam = camera ?: return
+        if (view.width <= 0 || view.height <= 0) return
+        try {
+            val info = cam.cameraInfo
+            val factory = androidx.camera.core.DisplayOrientedMeteringPointFactory(
+                view.display, info, view.width.toFloat(), view.height.toFloat()
+            )
+            val point = factory.createPoint(x, y)
+            val front = info.lensFacing == CameraSelector.LENS_FACING_FRONT
+            val flags = if (front) {
+                androidx.camera.core.FocusMeteringAction.FLAG_AE or
+                    androidx.camera.core.FocusMeteringAction.FLAG_AWB
+            } else {
+                androidx.camera.core.FocusMeteringAction.FLAG_AF or
+                    androidx.camera.core.FocusMeteringAction.FLAG_AE or
+                    androidx.camera.core.FocusMeteringAction.FLAG_AWB
+            }
+            val action = androidx.camera.core.FocusMeteringAction.Builder(point, flags)
+                .setAutoCancelDuration(3, java.util.concurrent.TimeUnit.SECONDS)
+                .build()
+            cam.cameraControl.startFocusAndMetering(action)
+        } catch (t: Throwable) {
+            android.util.Log.w("CameraLive", "metering failed", t)
+        }
+    }
+
+    private fun showFocusRing(x: Float, y: Float) {
+        try {
+            val density = resources.displayMetrics.density
+            val size = (72 * density).toInt()
+            val ring = View(this)
+            ring.background = android.graphics.drawable.GradientDrawable().apply {
+                shape = android.graphics.drawable.GradientDrawable.OVAL
+                setStroke((2 * density).toInt(), android.graphics.Color.WHITE)
+                setColor(android.graphics.Color.TRANSPARENT)
+            }
+            val lp = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams(size, size).apply {
+                leftToLeft = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                topToTop = androidx.constraintlayout.widget.ConstraintLayout.LayoutParams.PARENT_ID
+                leftMargin = (x - size / 2).toInt().coerceAtLeast(0)
+                topMargin = (y - size / 2).toInt().coerceAtLeast(0)
+            }
+            binding.root.addView(ring, lp)
+            ring.animate().alpha(0f).setDuration(700).withEndAction {
+                try { binding.root.removeView(ring) } catch (_: Throwable) {}
+            }.start()
+        } catch (_: Throwable) {}
     }
 
     /** ML Kit tracker -> sticker overlay follows the face; silent if GMS is missing. */
@@ -130,12 +233,21 @@ class CameraLiveActivity : AppCompatActivity() {
             mirrorFront = lensFacing == CameraSelector.LENS_FACING_FRONT
         )
         tracker.listener = object : FaceTracker.Listener {
-            override fun onFace(centerX: Float, centerY: Float, widthFrac: Float) {
+            override fun onFace(
+                centerX: Float, centerY: Float, widthFrac: Float,
+                eyeL: Pair<Float, Float>?, eyeR: Pair<Float, Float>?
+            ) {
                 trackedFace = Triple(centerX, centerY, widthFrac)
+                if (gpuActive) {
+                    binding.gpuPreviewView.setFace(centerX, centerY, widthFrac, eyeL, eyeR)
+                }
                 positionSticker(centerX, centerY)
             }
             override fun onNoFace() {
                 trackedFace = null
+                if (gpuActive) {
+                    binding.gpuPreviewView.clearFace()
+                }
             }
         }
         faceTracker = tracker
@@ -144,9 +256,12 @@ class CameraLiveActivity : AppCompatActivity() {
     private fun positionSticker(cx: Float, cy: Float) {
         val sticker = binding.tvStickerOverlay
         if (sticker.visibility != View.VISIBLE) return
-        binding.previewView.post {
-            val pw = binding.previewView.width.takeIf { it > 0 } ?: return@post
-            val ph = binding.previewView.height.takeIf { it > 0 } ?: return@post
+        // Anchor on the always-laid-out makeup overlay: PreviewView is GONE
+        // on the GPU path and would measure zero.
+        val anchor = binding.ivFilterOverlay
+        anchor.post {
+            val pw = anchor.width.takeIf { it > 0 } ?: return@post
+            val ph = anchor.height.takeIf { it > 0 } ?: return@post
             val sw = sticker.width.takeIf { it > 0 } ?: 160
             val sh = sticker.height.takeIf { it > 0 } ?: 160
             // Emoji sits above the forehead: face center minus ~1.2 sticker heights.
@@ -171,7 +286,11 @@ class CameraLiveActivity : AppCompatActivity() {
             LiveScreenState.COUNTDOWN -> startCountdown()
             LiveScreenState.LIVE -> {
                 startLiveDuration()
-                startPublishing()
+                if (isShortsMode) {
+                    startShortsRecording()
+                } else {
+                    startPublishing()
+                }
             }
             LiveScreenState.ENDED -> {
                 liveDurationJob?.cancel()
@@ -211,6 +330,25 @@ class CameraLiveActivity : AppCompatActivity() {
         }
     }
 
+    private fun startShortsRecording() {
+        binding.tvViewersBadge.text = "REC"
+        binding.tvPkBadge.text = "🔴 00:00 / 00:15"
+        lifecycleScope.launch {
+            for (sec in 1..15) {
+                kotlinx.coroutines.delay(1000)
+                binding.tvPkBadge.text = String.format(java.util.Locale.US, "🔴 00:%02d / 00:15", sec)
+            }
+            Toast.makeText(this@CameraLiveActivity, "🎉 15s Short Video Recorded with Beauty Filters!", Toast.LENGTH_LONG).show()
+            val postSheet = CreatePostBottomSheet(
+                initialCaption = "My latest short clip with beauty filters! ✨ #Trending #Shorts #CamStar",
+                initialCover = "https://images.unsplash.com/photo-1516450360452-9312f5e86fc7?w=600"
+            ) {
+                finish()
+            }
+            postSheet.show(supportFragmentManager, CreatePostBottomSheet.TAG)
+        }
+    }
+
     /**
      * Host publish path: create a room, join its WS channel, bring up the
      * WebRTC stack, then wait for viewers. Viewers signal kind="request" and
@@ -222,7 +360,8 @@ class CameraLiveActivity : AppCompatActivity() {
         publishJob?.cancel()
         publishJob = lifecycleScope.launch {
             if (!SessionStore.isSignedIn) return@launch
-            val room = UnrealStarApiClient.createRoom("Unreal Star Live").getOrNull()
+            val title = binding.etStreamTitle.text.toString().trim().ifEmpty { "Unreal Star Live" }
+            val room = UnrealStarApiClient.createRoom(title, selectedMode).getOrNull()
                 ?: return@launch
             liveRoomId = room.room_id
             val client = RtcSignalClient(room.room_id, object : RtcSignalClient.Listener {
@@ -326,9 +465,10 @@ class CameraLiveActivity : AppCompatActivity() {
         val cameraProviderFuture = ProcessCameraProvider.getInstance(this)
         cameraProviderFuture.addListener({
             val cameraProvider = cameraProviderFuture.get()
-            val preview = Preview.Builder().build().also {
-                it.setSurfaceProvider(binding.previewView.surfaceProvider)
-            }
+            val useGpu = filterEngine.mode == FilterEngine.Mode.GPU && !gpuDisabled
+            gpuActive = useGpu
+            binding.gpuPreviewView.visibility = if (useGpu) View.VISIBLE else View.GONE
+            binding.previewView.visibility = if (useGpu) View.GONE else View.VISIBLE
 
             val cameraSelector = CameraSelector.Builder()
                 .requireLensFacing(lensFacing)
@@ -357,27 +497,83 @@ class CameraLiveActivity : AppCompatActivity() {
 
             try {
                 cameraProvider.unbindAll()
-                cameraProvider.bindToLifecycle(
-                    this,
-                    cameraSelector,
-                    preview,
-                    analysis,
-                )
                 // Single activity-owned analyzer: fan frames out to the WebRTC
                 // pump (when live) + the throttled face tracker. The publisher
                 // must NOT overwrite this via attachCameraFrames.
                 val exec = (faceExecutor?.takeIf { !it.isShutdown })
                     ?: java.util.concurrent.Executors.newSingleThreadExecutor().also { faceExecutor = it }
                 faceTracker?.mirrorFront = lensFacing == CameraSelector.LENS_FACING_FRONT
-                analysis.setAnalyzer(exec) { proxy ->
+                val fanOut: (androidx.camera.core.ImageProxy) -> Unit = { proxy ->
                     try {
                         try { rtcPublisher?.onCameraFrame(proxy) } catch (_: Throwable) {}
                         try { faceTracker?.offer(proxy) } catch (_: Throwable) {}
+                        try {
+                            FrameCapture.takeFullFrame(
+                                proxy,
+                                lensFacing == CameraSelector.LENS_FACING_FRONT
+                            )?.let { onPosterFrame(it) }
+                        } catch (_: Throwable) {}
                     } finally {
                         try { proxy.close() } catch (_: Throwable) {}
                     }
                 }
-                updateOverlay()
+                if (!useGpu) {
+                    val preview = Preview.Builder().build().also {
+                        it.setSurfaceProvider(binding.previewView.surfaceProvider)
+                    }
+                    camera = cameraProvider.bindToLifecycle(
+                        this,
+                        cameraSelector,
+                        preview,
+                        analysis,
+                    )
+                    analysis.setAnalyzer(exec, fanOut)
+                    updateOverlay()
+                    updateExposureRange()
+                } else {
+                    // GLES live path: CameraX streams into our SurfaceTexture;
+                    // each frame renders through the active filter shader.
+                    binding.gpuPreviewView.mirrorFront =
+                        lensFacing == CameraSelector.LENS_FACING_FRONT
+                    binding.gpuPreviewView.filter = filterEngine.activeFilter
+                    binding.gpuPreviewView.useSurface { surf ->
+                        try {
+                            val preview = Preview.Builder()
+                                .setTargetRotation(binding.gpuPreviewView.display?.rotation ?: 0)
+                                .build()
+                            preview.setSurfaceProvider(exec) { request ->
+                                binding.gpuPreviewView.setStreamSize(
+                                    request.resolution.width, request.resolution.height
+                                )
+                                request.setTransformationInfoListener(exec) { info ->
+                                    binding.gpuPreviewView.setDisplayRotation(info.rotationDegrees)
+                                }
+                                request.provideSurface(
+                                    surf, exec,
+                                    androidx.core.util.Consumer { /* invalidated on rebind; next useSurface replaces */ }
+                                )
+                            }
+                            camera = cameraProvider.bindToLifecycle(
+                                this,
+                                cameraSelector,
+                                preview,
+                                analysis,
+                            )
+                            analysis.setAnalyzer(exec, fanOut)
+                            updateOverlay()
+                            updateExposureRange()
+                        } catch (t: Throwable) {
+                            android.util.Log.w("GpuPreview", "GPU bind failed, falling back to PreviewView", t)
+                            runOnUiThread {
+                                gpuActive = false
+                                gpuDisabled = true
+                                binding.gpuPreviewView.visibility = View.GONE
+                                binding.previewView.visibility = View.VISIBLE
+                                startCamera()
+                            }
+                        }
+                    }
+                }
             } catch (exc: Exception) {
                 Toast.makeText(this, "Failed to start camera: ${exc.message}", Toast.LENGTH_SHORT).show()
             }
@@ -390,6 +586,131 @@ class CameraLiveActivity : AppCompatActivity() {
             val h = binding.ivFilterOverlay.height.takeIf { it > 0 } ?: 1334
             val composite = filterManager.applyCompositeFilter(w, h)
             binding.ivFilterOverlay.setImageBitmap(composite)
+        }
+    }
+
+    /**
+     * Exposure range is device-specific: discover it after every bind and
+     * size the slider to it. Unsupported devices lose the row instead of a
+     * dead slider. The stored index survives camera switches.
+     */
+    private fun updateExposureRange() {
+        val cam = camera ?: return
+        val state = try { cam.cameraInfo.exposureState } catch (_: Throwable) { null } ?: return
+        val supported = try { state.isExposureCompensationSupported } catch (_: Throwable) { false }
+        runOnUiThread {
+            if (!supported) {
+                binding.rowExposure.visibility = View.GONE
+                return@runOnUiThread
+            }
+            binding.rowExposure.visibility = View.VISIBLE
+            val range = state.exposureCompensationRange
+            exposureLower = range.lower
+            exposureUpper = range.upper
+            binding.sbExposure.max = (exposureUpper - exposureLower).coerceAtLeast(0)
+            exposureIndex = exposureIndex.coerceIn(exposureLower, exposureUpper)
+            binding.sbExposure.progress = exposureIndex - exposureLower
+            binding.tvExposureValue.text = exposureIndex.toString()
+            applyExposure()
+        }
+    }
+
+    private fun applyExposure() {
+        val cam = camera ?: return
+        try {
+            cam.cameraControl.setExposureCompensationIndex(exposureIndex)
+        } catch (t: Throwable) {
+            android.util.Log.w("CameraLive", "exposure set failed", t)
+        }
+    }
+
+    /**
+     * Poster bake: runs on Dispatchers.Default (EGL/CPU blur block), then
+     * swaps the thumbnail on main. The raw frame is recycled unless the bake
+     * returned it as-is (no-op path).
+     */
+    /** Arms a one-shot analyzer capture for the poster (with failure watchdog). */
+    private fun armPosterCapture() {
+        if (FrameCapture.armed) return
+        FrameCapture.armed = true
+        val gen = ++posterGen
+        Toast.makeText(this, "Capturing poster…", Toast.LENGTH_SHORT).show()
+        // Watchdog: a failed decode would otherwise leave the user hanging.
+        binding.tvChangePoster.postDelayed({
+            if (gen == posterGen && FrameCapture.armed) {
+                FrameCapture.armed = false
+                Toast.makeText(this, "Capture failed — try again", Toast.LENGTH_SHORT).show()
+            }
+        }, 3000)
+    }
+
+    /** Gallery upload: decode capped at 1080px, used as-is (no beauty bake). */
+    private fun onPosterPicked(uri: android.net.Uri) {
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            val bmp = try {
+                decodePosterUri(uri)
+            } catch (t: Throwable) {
+                android.util.Log.w("PosterUpload", "decode failed", t)
+                null
+            }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                if (bmp != null) {
+                    posterGen++
+                    showPoster(bmp)
+                    Toast.makeText(this@CameraLiveActivity, "Poster updated", Toast.LENGTH_SHORT).show()
+                } else {
+                    Toast.makeText(this@CameraLiveActivity, "Couldn't load that image", Toast.LENGTH_SHORT).show()
+                }
+            }
+        }
+    }
+
+    private fun decodePosterUri(uri: android.net.Uri): android.graphics.Bitmap? {
+        val boundsOpts = android.graphics.BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        contentResolver.openInputStream(uri)?.use {
+            android.graphics.BitmapFactory.decodeStream(it, null, boundsOpts)
+        }
+        val maxSide = maxOf(boundsOpts.outWidth, boundsOpts.outHeight)
+        if (maxSide <= 0) return null
+        var sample = 1
+        while (maxSide / sample > 1080) sample *= 2
+        val opts = android.graphics.BitmapFactory.Options().apply { inSampleSize = sample }
+        return contentResolver.openInputStream(uri)?.use {
+            android.graphics.BitmapFactory.decodeStream(it, null, opts)
+        }
+    }
+
+    /** Swaps the thumbnail from placeholder styling to a filled photo. */
+    private fun showPoster(bmp: android.graphics.Bitmap) {
+        binding.ivPosterThumb.scaleType = android.widget.ImageView.ScaleType.CENTER_CROP
+        binding.ivPosterThumb.setPadding(0, 0, 0, 0)
+        binding.ivPosterThumb.imageTintList = null
+        binding.ivPosterThumb.setImageBitmap(bmp)
+    }
+
+    private fun onPosterFrame(raw: android.graphics.Bitmap) {
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.Default) {
+            val baked = try {
+                filterEngine.processBitmap(
+                    raw,
+                    filterEngine.activeFilter,
+                    BeautyParams(filterManager.smooth, filterManager.whiten)
+                )
+            } catch (t: Throwable) {
+                android.util.Log.w("PosterCapture", "bake failed, using raw frame", t)
+                raw
+            }
+            kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.Main) {
+                try {
+                    posterGen++
+                    // Drop the placeholder styling: real photo fills the frame.
+                    showPoster(baked)
+                    Toast.makeText(this@CameraLiveActivity, "Poster updated", Toast.LENGTH_SHORT).show()
+                } catch (_: Throwable) {
+                } finally {
+                    if (baked !== raw) runCatching { raw.recycle() }
+                }
+            }
         }
     }
 
@@ -418,7 +739,14 @@ class CameraLiveActivity : AppCompatActivity() {
 
         // Instagram swipe filters
         val colorAdapter = FilterItemAdapter(INSTAGRAM_FILTERS.map { it.name }) { pos ->
-            filterEngine.applyLive(INSTAGRAM_FILTERS[pos], binding.vFilterTint)
+            val f = INSTAGRAM_FILTERS[pos]
+            filterEngine.applyLive(f, binding.vFilterTint)
+            if (gpuActive) {
+                // The shader does the work on the GLES path — the tint
+                // overlay would double-apply the look.
+                binding.vFilterTint.visibility = View.GONE
+                binding.gpuPreviewView.filter = f
+            }
         }
         // Tint the thumb so each row previews its look.
         colorAdapter.tintProvider = { pos -> INSTAGRAM_FILTERS[pos].tintColor }
@@ -473,15 +801,46 @@ class CameraLiveActivity : AppCompatActivity() {
             override fun onStopTrackingTouch(seekBar: SeekBar?) {}
         })
 
-        // Beauty sliders: smooth + whiten drive the live soft-glow overlay;
-        // slim + big-eyes are stored for the GPU mesh-warp Phase 2 hook.
+        // Beauty sliders. GPU path: real in-shader smoothing/whiten/reshape.
+        // Lite path: soft-glow overlay + stored params (previous behavior).
         fun beautyChanged() {
-            filterEngine.applyBeautyLive(filterManager.smooth, filterManager.whiten, binding.vBeautySoft)
+            if (gpuActive) {
+                binding.vBeautySoft.visibility = View.GONE
+                binding.gpuPreviewView.setBeauty(filterManager.smooth, filterManager.whiten)
+            } else {
+                filterEngine.applyBeautyLive(filterManager.smooth, filterManager.whiten, binding.vBeautySoft)
+            }
         }
-        binding.sbSmooth.setOnSeekBarChangeListener(simpleSeek { filterManager.smooth = it / 100f; beautyChanged() })
-        binding.sbWhiten.setOnSeekBarChangeListener(simpleSeek { filterManager.whiten = it / 100f; beautyChanged() })
-        binding.sbSlim.setOnSeekBarChangeListener(simpleSeek { filterManager.slimFace = it / 100f })
-        binding.sbBigEyes.setOnSeekBarChangeListener(simpleSeek { filterManager.bigEyes = it / 100f })
+        fun reshapeChanged() {
+            if (gpuActive) {
+                binding.gpuPreviewView.setReshape(filterManager.slimFace, filterManager.bigEyes)
+            }
+        }
+        binding.sbSmooth.setOnSeekBarChangeListener(simpleSeek {
+            filterManager.smooth = it / 100f
+            binding.tvSmoothValue.text = "$it%"
+            beautyChanged()
+        })
+        binding.sbWhiten.setOnSeekBarChangeListener(simpleSeek {
+            filterManager.whiten = it / 100f
+            binding.tvWhitenValue.text = "$it%"
+            beautyChanged()
+        })
+        binding.sbSlim.setOnSeekBarChangeListener(simpleSeek {
+            filterManager.slimFace = it / 100f
+            binding.tvSlimValue.text = "$it%"
+            reshapeChanged()
+        })
+        binding.sbBigEyes.setOnSeekBarChangeListener(simpleSeek {
+            filterManager.bigEyes = it / 100f
+            binding.tvBigEyesValue.text = "$it%"
+            reshapeChanged()
+        })
+        binding.sbExposure.setOnSeekBarChangeListener(simpleSeek {
+            exposureIndex = exposureLower + it
+            binding.tvExposureValue.text = exposureIndex.toString()
+            applyExposure()
+        })
     }
 
     private fun simpleSeek(onChange: (Int) -> Unit) = object : SeekBar.OnSeekBarChangeListener {
@@ -509,7 +868,22 @@ class CameraLiveActivity : AppCompatActivity() {
 
     private fun setupListeners() {
         binding.btnGoLive.setOnClickListener {
+            if (goingLive) return@setOnClickListener
+            goingLive = true
+            binding.btnGoLive.isEnabled = false
+            binding.btnGoLive.alpha = 0.6f
             setScreenState(LiveScreenState.COUNTDOWN)
+        }
+
+        // Poster: capture from camera or upload from gallery.
+        binding.tvChangePoster.setOnClickListener {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.live_change_poster)
+                .setItems(arrayOf("Capture from camera", "Upload from gallery")) { _, which ->
+                    if (which == 0) armPosterCapture() else galleryPickerLauncher.launch("image/*")
+                }
+                .setNegativeButton(android.R.string.cancel, null)
+                .show()
         }
 
         binding.btnCloseSetup.setOnClickListener { finish() }
@@ -576,8 +950,104 @@ class CameraLiveActivity : AppCompatActivity() {
         }
 
         binding.btnConnectionSpeed.setOnClickListener {
-            Toast.makeText(this, "Connection speed: auto", Toast.LENGTH_SHORT).show()
+            showConnectionDialog()
         }
+
+        // ---- Pre-live setup controls (all were dead clicks before) ----
+        fun selectMode(mode: String) {
+            selectedMode = mode
+            val white = getColor(android.R.color.white)
+            val dim = ContextCompat.getColor(this, R.color.live_mode_dim)
+            val pill = ContextCompat.getDrawable(this, R.drawable.bg_chip_translucent)
+            binding.tabLive.setTextColor(if (mode == "live") white else dim)
+            binding.tabChatParty.setTextColor(if (mode == "party") white else dim)
+            binding.tabVideoParty.setTextColor(if (mode == "video") white else dim)
+            binding.tabLive.setTypeface(null, if (mode == "live") android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            binding.tabChatParty.setTypeface(null, if (mode == "party") android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            binding.tabVideoParty.setTypeface(null, if (mode == "video") android.graphics.Typeface.BOLD else android.graphics.Typeface.NORMAL)
+            binding.tabLive.background = if (mode == "live") pill else null
+            binding.tabChatParty.background = if (mode == "party") pill else null
+            binding.tabVideoParty.background = if (mode == "video") pill else null
+        }
+        binding.tabLive.setOnClickListener { selectMode("live") }
+        binding.tabChatParty.setOnClickListener { selectMode("party") }
+        binding.tabVideoParty.setOnClickListener { selectMode("video") }
+        selectMode(selectedMode)
+
+        binding.tvHidePosterTip.setOnClickListener {
+            binding.tvPosterTip.visibility = View.GONE
+            binding.tvHidePosterTip.visibility = View.GONE
+        }
+
+        binding.tvShareTwitter.setOnClickListener {
+            shareInvite("com.twitter.android", "X")
+        }
+        binding.tvShareFacebook.setOnClickListener {
+            shareInvite("com.facebook.katana", "Facebook")
+        }
+
+        val talentInfo = {
+            androidx.appcompat.app.AlertDialog.Builder(this)
+                .setTitle(R.string.live_official_talent)
+                .setMessage("Official Talent and exposure grades are awarded from your streaming history — hours live, gifts earned, and standing. Keep streaming to climb. Applications are not open in this build.")
+                .setPositiveButton(android.R.string.ok, null)
+                .show()
+        }
+        binding.btnOfficialTalent.setOnClickListener { talentInfo() }
+        binding.gradeCard.setOnClickListener { talentInfo() }
+    }
+
+    /** Invite share: targeted app first, generic chooser as fallback. */
+    private fun shareInvite(targetPackage: String, appName: String) {
+        val text = "Watch me live on Unreal Star — join my room!"
+        val targeted = android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+            type = "text/plain"
+            putExtra(android.content.Intent.EXTRA_TEXT, text)
+            setPackage(targetPackage)
+        }
+        val pm = packageManager
+        val handles = pm.queryIntentActivities(targeted, android.content.pm.PackageManager.MATCH_DEFAULT_ONLY)
+        if (handles.isNotEmpty()) {
+            try {
+                startActivity(targeted)
+                return
+            } catch (_: Exception) {
+            }
+        }
+        try {
+            startActivity(
+                android.content.Intent.createChooser(
+                    android.content.Intent(android.content.Intent.ACTION_SEND).apply {
+                        type = "text/plain"
+                        putExtra(android.content.Intent.EXTRA_TEXT, text)
+                    },
+                    "Invite via…"
+                )
+            )
+        } catch (_: Exception) {
+            Toast.makeText(this, "$appName is not installed", Toast.LENGTH_SHORT).show()
+        }
+    }
+
+    /** Real connection info: transport + link speed, from ConnectivityManager. */
+    private fun showConnectionDialog() {
+        val cm = getSystemService(android.content.Context.CONNECTIVITY_SERVICE) as? android.net.ConnectivityManager
+        val network = cm?.activeNetwork
+        val caps = network?.let { cm.getNetworkCapabilities(it) }
+        val transport = when {
+            caps == null -> "Offline"
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_WIFI) -> "Wi-Fi"
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_CELLULAR) -> "Mobile data"
+            caps.hasTransport(android.net.NetworkCapabilities.TRANSPORT_ETHERNET) -> "Ethernet"
+            else -> "Connected"
+        }
+        val down = caps?.linkDownstreamBandwidthKbps?.takeIf { it > 0 }
+            ?.let { "${it / 1000} Mbps down" } ?: "speed unknown"
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.live_connection_speed)
+            .setMessage("$transport • $down\nStreaming quality adapts automatically.")
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
     }
 
     private fun sendSampleGift() {

@@ -233,6 +233,7 @@ data class InboxCategoryPage(
 data class InboxMessage(
     val message_id: String,
     val category: String,
+    val sender_id: Long = 0,
     val sender_nickname: String,
     val sender_avatar_url: String,
     val preview: String,
@@ -509,6 +510,55 @@ data class CreateOrderResponse(
     val upi_intent_uri: String = "",
     val amount_inr: Int = 0,
     val coins_pending: Long = 0
+)
+
+data class DirectMessage(
+    val message_id: String = "",
+    val sender_id: Long = 0,
+    val recipient_id: Long = 0,
+    val text: String = "",
+    val created_at: String = "",
+    val is_self: Boolean = false
+)
+
+data class DirectMessageThread(
+    val recipient_id: Long = 0,
+    val recipient_nickname: String = "",
+    val recipient_avatar_url: String = "",
+    val messages: List<DirectMessage> = emptyList()
+)
+
+data class SendDirectMessageRequest(
+    val text: String
+)
+
+data class ActiveRedPacketItem(
+    val packet_id: String = "",
+    val room_id: Long = 0,
+    val dropper_user_id: Long = 0,
+    val dropper_nickname: String = "",
+    val total_coins: Long = 0,
+    val split_count: Long = 0,
+    val remaining_splits: Long = 0,
+    val expires_at: String = "",
+    val already_claimed: Boolean = false
+)
+
+data class RedPacketDropRequest(
+    val room_id: Long,
+    val total_coins: Long,
+    val split_count: Long,
+    val idempotency_key: String
+)
+
+data class RedPacketDropResponse(
+    val packet_id: String = "",
+    val expires_at: String = ""
+)
+
+data class RedPacketClaimResponse(
+    val coins_claimed: Long = 0,
+    val remaining_splits: Long = 0
 )
 
 

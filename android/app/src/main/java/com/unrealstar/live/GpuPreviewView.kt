@@ -40,11 +40,64 @@ class GpuPreviewView @JvmOverloads constructor(
     @Volatile var filter: CameraFilter = INSTAGRAM_FILTERS[0]
     @Volatile var mirrorFront: Boolean = true
 
+    // ---- Live beauty (driven by the Beauty sliders on the GPU path) ----
+    @Volatile var smooth: Float = 0f
+    @Volatile var whiten: Float = 0f
+    @Volatile var slim: Float = 0f
+    @Volatile var bigEyes: Float = 0f
+    // Face geometry in view fractions (from FaceTracker); valid flags gate warp.
+    @Volatile var faceOn: Boolean = false
+    @Volatile var faceCx: Float = 0.5f
+    @Volatile var faceCy: Float = 0.5f
+    @Volatile var faceW: Float = 0.3f
+    @Volatile var eyesOn: Boolean = false
+    @Volatile var eyeLx: Float = 0.4f
+    @Volatile var eyeLy: Float = 0.4f
+    @Volatile var eyeRx: Float = 0.6f
+    @Volatile var eyeRy: Float = 0.4f
+
+    fun setBeauty(s: Float, w: Float) {
+        smooth = s.coerceIn(0f, 1f)
+        whiten = w.coerceIn(0f, 1f)
+    }
+
+    fun setReshape(slimFace: Float, eyes: Float) {
+        slim = slimFace.coerceIn(0f, 1f)
+        bigEyes = eyes.coerceIn(0f, 1f)
+    }
+
+    fun setFace(
+        cx: Float, cy: Float, w: Float,
+        eyeL: Pair<Float, Float>?, eyeR: Pair<Float, Float>?
+    ) {
+        faceOn = true
+        faceCx = cx
+        faceCy = cy
+        faceW = w
+        if (eyeL != null && eyeR != null) {
+            eyesOn = true
+            eyeLx = eyeL.first
+            eyeLy = eyeL.second
+            eyeRx = eyeR.first
+            eyeRy = eyeR.second
+        } else {
+            eyesOn = false
+        }
+    }
+
+    fun clearFace() {
+        faceOn = false
+        eyesOn = false
+    }
+
     private val renderer = FilterRenderer()
     private val mainHandler = Handler(Looper.getMainLooper())
 
     init {
         setEGLContextClientVersion(2)
+        // 32-bit color: the GLSurfaceView default is RGB_565, which banding
+        // turns smooth gradients (walls, skin, sky) hazy. Must precede setRenderer.
+        setEGLConfigChooser(8, 8, 8, 8, 16, 0)
         setRenderer(renderer)
         renderMode = RENDERMODE_WHEN_DIRTY
     }
@@ -136,6 +189,40 @@ class GpuPreviewView @JvmOverloads constructor(
 
         override fun onSurfaceCreated(gl: GL10?, config: EGLConfig?) {
             program = linkProgram(VERT, FRAG)
+            cacheLocations()
+        }
+
+        // Cached uniform locations (program links once per GL init).
+        private var lTex = -1
+        private var lR = -1
+        private var lG = -1
+        private var lB = -1
+        private var lA = -1
+        private var lBias = -1
+        private var lTexMat = -1
+        private var lTexel = -1
+        private var lSmooth = -1
+        private var lWhiten = -1
+        private var lFace = -1
+        private var lEyeL = -1
+        private var lEyeR = -1
+        private var lReshape = -1
+
+        private fun cacheLocations() {
+            lTex = GLES20.glGetUniformLocation(program, "uTex")
+            lR = GLES20.glGetUniformLocation(program, "uR")
+            lG = GLES20.glGetUniformLocation(program, "uG")
+            lB = GLES20.glGetUniformLocation(program, "uB")
+            lA = GLES20.glGetUniformLocation(program, "uA")
+            lBias = GLES20.glGetUniformLocation(program, "uBias")
+            lTexMat = GLES20.glGetUniformLocation(program, "uTexMat")
+            lTexel = GLES20.glGetUniformLocation(program, "uTexel")
+            lSmooth = GLES20.glGetUniformLocation(program, "uSmooth")
+            lWhiten = GLES20.glGetUniformLocation(program, "uWhiten")
+            lFace = GLES20.glGetUniformLocation(program, "uFace")
+            lEyeL = GLES20.glGetUniformLocation(program, "uEyeL")
+            lEyeR = GLES20.glGetUniformLocation(program, "uEyeR")
+            lReshape = GLES20.glGetUniformLocation(program, "uReshape")
         }
 
         override fun onSurfaceChanged(gl: GL10?, width: Int, height: Int) {
@@ -167,22 +254,36 @@ class GpuPreviewView @JvmOverloads constructor(
 
             GLES20.glActiveTexture(GLES20.GL_TEXTURE0)
             GLES20.glBindTexture(GLES11Ext.GL_TEXTURE_EXTERNAL_OES, oesTexId)
-            GLES20.glUniform1i(GLES20.glGetUniformLocation(program, "uTex"), 0)
+            GLES20.glUniform1i(lTex, 0)
 
             val f = filter
             val m = f.colorMatrix
-            GLES20.glUniform4f(GLES20.glGetUniformLocation(program, "uR"), m[0], m[1], m[2], m[3])
-            GLES20.glUniform4f(GLES20.glGetUniformLocation(program, "uG"), m[5], m[6], m[7], m[8])
-            GLES20.glUniform4f(GLES20.glGetUniformLocation(program, "uB"), m[10], m[11], m[12], m[13])
-            GLES20.glUniform4f(GLES20.glGetUniformLocation(program, "uA"), m[15], m[16], m[17], m[18])
+            GLES20.glUniform4f(lR, m[0], m[1], m[2], m[3])
+            GLES20.glUniform4f(lG, m[5], m[6], m[7], m[8])
+            GLES20.glUniform4f(lB, m[10], m[11], m[12], m[13])
+            GLES20.glUniform4f(lA, m[15], m[16], m[17], m[18])
             GLES20.glUniform4f(
-                GLES20.glGetUniformLocation(program, "uBias"),
+                lBias,
                 m[4] / 255f, m[9] / 255f, m[14] / 255f, m[19]
             )
 
-            GLES20.glUniformMatrix4fv(
-                GLES20.glGetUniformLocation(program, "uTexMat"), 1, false, computeTexMat(), 0
+            GLES20.glUniformMatrix4fv(lTexMat, 1, false, computeTexMat(), 0)
+            GLES20.glUniform2f(
+                lTexel,
+                1f / streamW.coerceAtLeast(1), 1f / streamH.coerceAtLeast(1)
             )
+            GLES20.glUniform1f(lSmooth, smooth)
+            GLES20.glUniform1f(lWhiten, whiten)
+            GLES20.glUniform4f(
+                lFace, faceCx, faceCy, faceW, if (faceOn) 1f else 0f
+            )
+            GLES20.glUniform4f(
+                lEyeL, eyeLx, eyeLy, if (eyesOn) 1f else 0f, 0f
+            )
+            GLES20.glUniform4f(
+                lEyeR, eyeRx, eyeRy, if (eyesOn) 1f else 0f, 0f
+            )
+            GLES20.glUniform2f(lReshape, slim, bigEyes)
 
             GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)
             GLES20.glDisableVertexAttribArray(aPos)
@@ -286,27 +387,84 @@ class GpuPreviewView @JvmOverloads constructor(
         private const val VERT = """
                 attribute vec4 aPos;
                 attribute vec2 aUV;
-                uniform mat4 uTexMat;
-                varying vec2 vUV;
-                void main() { gl_Position = aPos; vUV = (uTexMat * vec4(aUV, 0.0, 1.0)).xy; }
+                varying vec2 vView;
+                void main() { gl_Position = aPos; vView = aUV; }
             """
         private const val FRAG = """
                 #extension GL_OES_EGL_image_external : require
                 precision mediump float;
-                varying vec2 vUV;
+                varying vec2 vView;
                 uniform samplerExternalOES uTex;
+                uniform mat4 uTexMat;
                 uniform vec4 uR;
                 uniform vec4 uG;
                 uniform vec4 uB;
                 uniform vec4 uA;
                 uniform vec4 uBias;
+                uniform vec2 uTexel;
+                uniform float uSmooth;
+                uniform float uWhiten;
+                uniform vec4 uFace;
+                uniform vec4 uEyeL;
+                uniform vec4 uEyeR;
+                uniform vec2 uReshape;
+
+                vec2 warpView(vec2 v) {
+                    vec2 w = v;
+                    if (uFace.w > 0.5 && (uReshape.x > 0.003 || uReshape.y > 0.003)) {
+                        float fw = max(uFace.z, 0.05);
+                        float dx = w.x - uFace.x;
+                        float dy = (w.y - uFace.y) / 1.4;
+                        float m = exp(-(dx * dx + dy * dy) / (fw * fw * 0.35)) * uReshape.x;
+                        w.x = mix(w.x, uFace.x, clamp(m * 0.35, 0.0, 0.5));
+                        float er = fw * 0.18;
+                        if (uEyeL.z > 0.5) {
+                            float kl = 1.0 - smoothstep(0.0, er, distance(w, uEyeL.xy));
+                            w = mix(w, uEyeL.xy + (w - uEyeL.xy) * 0.80, kl * uReshape.y);
+                        }
+                        if (uEyeR.z > 0.5) {
+                            float kr = 1.0 - smoothstep(0.0, er, distance(w, uEyeR.xy));
+                            w = mix(w, uEyeR.xy + (w - uEyeR.xy) * 0.80, kr * uReshape.y);
+                        }
+                    }
+                    return w;
+                }
+
+                vec3 tapW(vec3 acc, float wsum, vec3 c0, vec2 tuv, vec2 off, float sigma, inout float ws) {
+                    vec3 n = texture2D(uTex, tuv + off).rgb;
+                    vec3 d = n - c0;
+                    float w = exp(-dot(d, d) / (sigma * sigma));
+                    ws = wsum + w;
+                    return acc + n * w;
+                }
+
                 void main() {
-                    vec4 c = texture2D(uTex, vUV);
-                    gl_FragColor = vec4(
-                        dot(c, uR) + uBias.x,
-                        dot(c, uG) + uBias.y,
-                        dot(c, uB) + uBias.z,
+                    vec2 wuv = warpView(vView);
+                    vec2 tuv = (uTexMat * vec4(wuv, 0.0, 1.0)).xy;
+                    vec4 c = texture2D(uTex, tuv);
+                    vec3 rgb = c.rgb;
+                    if (uSmooth > 0.003) {
+                        float sigma = mix(0.02, 0.22, uSmooth);
+                        vec3 acc = c.rgb;
+                        float ws = 1.0;
+                        vec2 px = uTexel;
+                        acc = tapW(acc, ws, c.rgb, tuv, vec2(px.x, 0.0), sigma, ws);
+                        acc = tapW(acc, ws, c.rgb, tuv, vec2(-px.x, 0.0), sigma, ws);
+                        acc = tapW(acc, ws, c.rgb, tuv, vec2(0.0, px.y), sigma, ws);
+                        acc = tapW(acc, ws, c.rgb, tuv, vec2(0.0, -px.y), sigma, ws);
+                        acc = tapW(acc, ws, c.rgb, tuv, vec2(px.x, px.y), sigma, ws);
+                        acc = tapW(acc, ws, c.rgb, tuv, vec2(-px.x, px.y), sigma, ws);
+                        acc = tapW(acc, ws, c.rgb, tuv, vec2(px.x, -px.y), sigma, ws);
+                        acc = tapW(acc, ws, c.rgb, tuv, vec2(-px.x, -px.y), sigma, ws);
+                        rgb = mix(c.rgb, acc / ws, uSmooth);
+                    }
+                    vec4 g = vec4(
+                        dot(vec4(rgb, c.a), uR) + uBias.x,
+                        dot(vec4(rgb, c.a), uG) + uBias.y,
+                        dot(vec4(rgb, c.a), uB) + uBias.z,
                         dot(c, uA) + uBias.w);
+                    g.rgb += uWhiten * vec3(0.07, 0.06, 0.05);
+                    gl_FragColor = g;
                 }
             """
 

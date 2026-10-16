@@ -30,8 +30,11 @@ class FaceTracker(
     var mirrorFront: Boolean = true
 ) {
     interface Listener {
-        /** Fractions 0..1 in screen space + face width fraction. */
-        fun onFace(centerX: Float, centerY: Float, widthFrac: Float)
+        /** Fractions 0..1 in screen space + face width fraction. Eyes null when untracked. */
+        fun onFace(
+            centerX: Float, centerY: Float, widthFrac: Float,
+            eyeL: Pair<Float, Float>?, eyeR: Pair<Float, Float>?
+        )
         fun onNoFace()
     }
 
@@ -47,7 +50,9 @@ class FaceTracker(
         try {
             val opts = FaceDetectorOptions.Builder()
                 .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-                .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_NONE)
+                // Landmarks cost a little but drive the big-eyes warp; contour
+                // mode would cost a lot more and is deliberately off.
+                .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
                 .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
                 .setMinFaceSize(0.15f)
                 .enableTracking()
@@ -91,7 +96,13 @@ class FaceTracker(
                     val (sx, sy) = rotatePoint(cx, cy, rotation)
                     if (mirrorFront) cx = 1f - sx else cx = sx
                     cy = sy
-                    main.post { listener?.onFace(cx, cy, w) }
+                    // Eye landmarks go through the identical mapping so the
+                    // warp shader and the sticker agree on geometry.
+                    val eyeL = f.getLandmark(com.google.mlkit.vision.face.FaceLandmark.LEFT_EYE)
+                        ?.position?.let { mapPoint(it.x / bmp.width, it.y / bmp.height, rotation) }
+                    val eyeR = f.getLandmark(com.google.mlkit.vision.face.FaceLandmark.RIGHT_EYE)
+                        ?.position?.let { mapPoint(it.x / bmp.width, it.y / bmp.height, rotation) }
+                    main.post { listener?.onFace(cx, cy, w, eyeL, eyeR) }
                 }
                 .addOnFailureListener {
                     main.post { listener?.onNoFace() }
@@ -108,6 +119,15 @@ class FaceTracker(
             270 -> Pair(y, 1f - x)
             else -> Pair(x, y)
         }
+    }
+
+    /** Bitmap fraction -> screen fraction (rotate, then front-camera mirror). */
+    private fun mapPoint(fx: Float, fy: Float, rotation: Int): Pair<Float, Float> {
+        val (rx, ry) = rotatePoint(
+            fx.coerceIn(0f, 1f), fy.coerceIn(0f, 1f), rotation
+        )
+        val mx = if (mirrorFront) 1f - rx else rx
+        return Pair(mx, ry)
     }
 
     private fun nv21ToSmallBitmap(proxy: ImageProxy): Bitmap? {

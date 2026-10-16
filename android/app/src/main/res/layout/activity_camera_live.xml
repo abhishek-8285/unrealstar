@@ -107,9 +107,12 @@
                     android:layout_width="100dp"
                     android:layout_height="140dp"
                     android:background="@color/surface_dark"
-                    android:scaleType="centerCrop"
+                    android:padding="24dp"
+                    android:scaleType="centerInside"
+                    android:src="@drawable/ic_poster_placeholder"
                     app:layout_constraintStart_toStartOf="parent"
                     app:layout_constraintTop_toTopOf="parent"
+                    app:tint="@color/text_muted"
                     tools:ignore="ContentDescription" />
 
                 <!-- "Change Poster" overlay on poster bottom -->
@@ -271,7 +274,7 @@
             android:layout_marginBottom="16dp"
             android:gravity="center"
             android:orientation="horizontal"
-            app:layout_constraintBottom_toTopOf="@id/goLiveRow">
+            app:layout_constraintBottom_toTopOf="@id/titleRow">
 
             <LinearLayout
                 android:id="@+id/btnSwitchCamera"
@@ -346,6 +349,36 @@
         </LinearLayout>
 
         <!-- Go Live + Official Talent row — full "Official Talent" text, translucent -->
+        <LinearLayout
+            android:id="@+id/titleRow"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginHorizontal="24dp"
+            android:layout_marginBottom="10dp"
+            android:background="@drawable/bg_chip_translucent"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="14dp"
+            android:paddingVertical="2dp"
+            app:layout_constraintBottom_toTopOf="@id/goLiveRow">
+
+            <EditText
+                android:id="@+id/etStreamTitle"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="@null"
+                android:hint="Give your stream a title…"
+                android:imeOptions="actionDone"
+                android:inputType="text"
+                android:maxLength="40"
+                android:singleLine="true"
+                android:textColor="@color/text_white"
+                android:textColorHint="@color/text_muted"
+                android:textSize="14sp"
+                tools:ignore="LabelFor" />
+        </LinearLayout>
+
         <LinearLayout
             android:id="@+id/goLiveRow"
             android:layout_width="match_parent"
@@ -1247,34 +1280,176 @@
                 android:layout_marginTop="8dp"
                 android:orientation="horizontal" />
 
-            <SeekBar
-                android:id="@+id/sbSmooth"
+            <LinearLayout
+                android:id="@+id/rowSmooth"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="8dp"
-                android:max="100"
-                android:progress="0" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-            <SeekBar
-                android:id="@+id/sbWhiten"
+                <TextView
+                    android:layout_width="86dp"
+                    android:layout_height="wrap_content"
+                    android:text="Smooth"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp"
+                    tools:ignore="HardcodedText" />
+
+                <SeekBar
+                    android:id="@+id/sbSmooth"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:max="100"
+                    android:progress="0" />
+
+                <TextView
+                    android:id="@+id/tvSmoothValue"
+                    android:layout_width="36dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:text="0%"
+                    android:textColor="@color/text_white"
+                    android:textSize="12sp"
+                    tools:ignore="HardcodedText" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/rowWhiten"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:max="100"
-                android:progress="0" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-            <SeekBar
-                android:id="@+id/sbSlim"
+                <TextView
+                    android:layout_width="86dp"
+                    android:layout_height="wrap_content"
+                    android:text="Whiten"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp"
+                    tools:ignore="HardcodedText" />
+
+                <SeekBar
+                    android:id="@+id/sbWhiten"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:max="100"
+                    android:progress="0" />
+
+                <TextView
+                    android:id="@+id/tvWhitenValue"
+                    android:layout_width="36dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:text="0%"
+                    android:textColor="@color/text_white"
+                    android:textSize="12sp"
+                    tools:ignore="HardcodedText" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/rowSlim"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:max="100"
-                android:progress="0" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
 
-            <SeekBar
-                android:id="@+id/sbBigEyes"
+                <TextView
+                    android:layout_width="86dp"
+                    android:layout_height="wrap_content"
+                    android:text="Slim face"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp"
+                    tools:ignore="HardcodedText" />
+
+                <SeekBar
+                    android:id="@+id/sbSlim"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:max="100"
+                    android:progress="0" />
+
+                <TextView
+                    android:id="@+id/tvSlimValue"
+                    android:layout_width="36dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:text="0%"
+                    android:textColor="@color/text_white"
+                    android:textSize="12sp"
+                    tools:ignore="HardcodedText" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/rowBigEyes"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:max="100"
-                android:progress="0" />
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="86dp"
+                    android:layout_height="wrap_content"
+                    android:text="Big eyes"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp"
+                    tools:ignore="HardcodedText" />
+
+                <SeekBar
+                    android:id="@+id/sbBigEyes"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:max="100"
+                    android:progress="0" />
+
+                <TextView
+                    android:id="@+id/tvBigEyesValue"
+                    android:layout_width="36dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:text="0%"
+                    android:textColor="@color/text_white"
+                    android:textSize="12sp"
+                    tools:ignore="HardcodedText" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/rowExposure"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:layout_width="86dp"
+                    android:layout_height="wrap_content"
+                    android:text="Exposure"
+                    android:textColor="@color/text_muted"
+                    android:textSize="12sp"
+                    tools:ignore="HardcodedText" />
+
+                <SeekBar
+                    android:id="@+id/sbExposure"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:max="0"
+                    android:progress="0" />
+
+                <TextView
+                    android:id="@+id/tvExposureValue"
+                    android:layout_width="36dp"
+                    android:layout_height="wrap_content"
+                    android:gravity="end"
+                    android:text="0"
+                    android:textColor="@color/text_white"
+                    android:textSize="12sp"
+                    tools:ignore="HardcodedText" />
+            </LinearLayout>
         </LinearLayout>
 
         <!-- Tab page: stickers -->

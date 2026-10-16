@@ -43,27 +43,152 @@ object GpuFilterProcessor {
         uniform vec4 uB;
         uniform vec4 uA;
         uniform vec4 uBias;
+        uniform vec2 uTexel;
+        uniform float uSmooth;
+        uniform float uWhiten;
+
+        vec3 tapW(vec3 acc, float wsum, vec3 c0, vec2 tuv, vec2 off, float sigma, inout float ws) {
+            vec3 n = texture2D(uTex, tuv + off).rgb;
+            vec3 d = n - c0;
+            float w = exp(-dot(d, d) / (sigma * sigma));
+            ws = wsum + w;
+            return acc + n * w;
+        }
+
         void main() {
-            vec4 c = texture2D(uTex, vUV);
-            gl_FragColor = vec4(
-                dot(c, uR) + uBias.x,
-                dot(c, uG) + uBias.y,
-                dot(c, uB) + uBias.z,
+            vec2 tuv = vUV;
+            vec4 c = texture2D(uTex, tuv);
+            vec3 rgb = c.rgb;
+            if (uSmooth > 0.003) {
+                float sigma = mix(0.02, 0.22, uSmooth);
+                vec3 acc = c.rgb;
+                float ws = 1.0;
+                vec2 px = uTexel;
+                acc = tapW(acc, ws, c.rgb, tuv, vec2(px.x, 0.0), sigma, ws);
+                acc = tapW(acc, ws, c.rgb, tuv, vec2(-px.x, 0.0), sigma, ws);
+                acc = tapW(acc, ws, c.rgb, tuv, vec2(0.0, px.y), sigma, ws);
+                acc = tapW(acc, ws, c.rgb, tuv, vec2(0.0, -px.y), sigma, ws);
+                acc = tapW(acc, ws, c.rgb, tuv, vec2(px.x, px.y), sigma, ws);
+                acc = tapW(acc, ws, c.rgb, tuv, vec2(-px.x, px.y), sigma, ws);
+                acc = tapW(acc, ws, c.rgb, tuv, vec2(px.x, -px.y), sigma, ws);
+                acc = tapW(acc, ws, c.rgb, tuv, vec2(-px.x, -px.y), sigma, ws);
+                rgb = mix(c.rgb, acc / ws, uSmooth);
+            }
+            vec4 g = vec4(
+                dot(vec4(rgb, c.a), uR) + uBias.x,
+                dot(vec4(rgb, c.a), uG) + uBias.y,
+                dot(vec4(rgb, c.a), uB) + uBias.z,
                 dot(c, uA) + uBias.w);
+            g.rgb += uWhiten * vec3(0.07, 0.06, 0.05);
+            gl_FragColor = g;
         }
     """
 
-    fun apply(src: Bitmap, filter: CameraFilter): Bitmap {
-        if (filter.id == "normal") return src
+    fun apply(
+        src: Bitmap,
+        filter: CameraFilter,
+        smooth: Float = 0f,
+        whiten: Float = 0f
+    ): Bitmap {
+        val s = smooth.coerceIn(0f, 1f)
+        val w = whiten.coerceIn(0f, 1f)
+        if (filter.id == "normal" && s <= 0.003f && w <= 0.003f) return src
         return try {
-            renderOffscreen(src, filter)
+            renderOffscreen(src, filter, s, w)
         } catch (t: Throwable) {
-            Log.w(TAG, "GPU bake failed, Canvas fallback", t)
-            canvasFallback(src, filter)
+            Log.w(TAG, "GPU bake failed, CPU fallback", t)
+            cpuBake(src, filter, s, w)
         }
     }
 
-    private fun canvasFallback(src: Bitmap, filter: CameraFilter): Bitmap {
+    /**
+     * Lite-device bake: box-blur smoothing on a quarter-scale copy (fast),
+     * cross-faded over the source, then the grade matrix, then a warm-white
+     * lift. Order matches the GPU shader (smooth → grade → whiten). Also the
+     * GPU-failure fallback, so degraded captures keep the full look.
+     */
+    fun cpuBake(src: Bitmap, filter: CameraFilter, smooth: Float, whiten: Float): Bitmap {
+        var work = src
+        var owned = false
+        if (smooth > 0.003f) {
+            work = blurMix(src, smooth)
+            owned = true
+        }
+        val graded = canvasGrade(work, filter) // always a fresh bitmap
+        if (owned) runCatching { work.recycle() }
+        if (whiten > 0.003f) {
+            val canvas = android.graphics.Canvas(graded)
+            canvas.drawColor(
+                android.graphics.Color.argb(
+                    (whiten * 20).toInt().coerceIn(0, 40), 255, 244, 235
+                )
+            )
+        }
+        return graded
+    }
+
+    /** Downscale → two-pass box blur → draw back over source at [strength] alpha. */
+    private fun blurMix(src: Bitmap, strength: Float): Bitmap {
+        val sw = (src.width / 4).coerceAtLeast(1)
+        val sh = (src.height / 4).coerceAtLeast(1)
+        val small = Bitmap.createScaledBitmap(src, sw, sh, true)
+        val px = IntArray(sw * sh)
+        small.getPixels(px, 0, sw, 0, 0, sw, sh)
+        repeat(2) { boxBlurPass(px, sw, sh, 2) }
+        small.setPixels(px, 0, sw, 0, 0, sw, sh)
+        val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
+        val canvas = android.graphics.Canvas(out)
+        canvas.drawBitmap(src, 0f, 0f, null)
+        val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG).apply {
+            alpha = (strength * 255).toInt().coerceIn(0, 255)
+        }
+        canvas.drawBitmap(small, null, android.graphics.Rect(0, 0, out.width, out.height), paint)
+        small.recycle()
+        return out
+    }
+
+    /** Separable box blur in place, radius r. */
+    private fun boxBlurPass(px: IntArray, w: Int, h: Int, r: Int) {
+        val tmp = IntArray(px.size)
+        // Horizontal.
+        for (y in 0 until h) {
+            var a = 0; var rr = 0; var g = 0; var b = 0
+            for (x in -r..r) {
+                val c = px[y * w + x.coerceIn(0, w - 1)]
+                a += c ushr 24; rr += (c shr 16) and 0xFF; g += (c shr 8) and 0xFF; b += c and 0xFF
+            }
+            for (x in 0 until w) {
+                val n = 2 * r + 1
+                tmp[y * w + x] = (a / n shl 24) or (rr / n shl 16) or (g / n shl 8) or (b / n)
+                val out = px[y * w + (x - r).coerceIn(0, w - 1)]
+                val inn = px[y * w + (x + r + 1).coerceIn(0, w - 1)]
+                a += (inn ushr 24) - (out ushr 24)
+                rr += ((inn shr 16) and 0xFF) - ((out shr 16) and 0xFF)
+                g += ((inn shr 8) and 0xFF) - ((out shr 8) and 0xFF)
+                b += (inn and 0xFF) - (out and 0xFF)
+            }
+        }
+        // Vertical.
+        for (x in 0 until w) {
+            var a = 0; var rr = 0; var g = 0; var b = 0
+            for (y in -r..r) {
+                val c = tmp[y.coerceIn(0, h - 1) * w + x]
+                a += c ushr 24; rr += (c shr 16) and 0xFF; g += (c shr 8) and 0xFF; b += c and 0xFF
+            }
+            for (y in 0 until h) {
+                val n = 2 * r + 1
+                px[y * w + x] = (a / n shl 24) or (rr / n shl 16) or (g / n shl 8) or (b / n)
+                val out = tmp[(y - r).coerceIn(0, h - 1) * w + x]
+                val inn = tmp[(y + r + 1).coerceIn(0, h - 1) * w + x]
+                a += (inn ushr 24) - (out ushr 24)
+                rr += ((inn shr 16) and 0xFF) - ((out shr 16) and 0xFF)
+                g += ((inn shr 8) and 0xFF) - ((out shr 8) and 0xFF)
+                b += (inn and 0xFF) - (out and 0xFF)
+            }
+        }
+    }
+
+    private fun canvasGrade(src: Bitmap, filter: CameraFilter): Bitmap {
         val out = Bitmap.createBitmap(src.width, src.height, Bitmap.Config.ARGB_8888)
         val canvas = android.graphics.Canvas(out)
         val paint = android.graphics.Paint(android.graphics.Paint.FILTER_BITMAP_FLAG)
@@ -74,7 +199,7 @@ object GpuFilterProcessor {
         return out
     }
 
-    private fun renderOffscreen(src: Bitmap, filter: CameraFilter): Bitmap {
+    private fun renderOffscreen(src: Bitmap, filter: CameraFilter, smooth: Float, whiten: Float): Bitmap {
         val w = src.width
         val h = src.height
         require(w > 0 && h > 0)
@@ -100,7 +225,7 @@ object GpuFilterProcessor {
             check(surface != EGL14.EGL_NO_SURFACE) { "pbuffer" }
             check(EGL14.eglMakeCurrent(display, surface, surface, context)) { "makeCurrent" }
             try {
-                val result = draw(src, filter, w, h)
+                val result = draw(src, filter, w, h, smooth, whiten)
                 check(EGL14.eglSwapBuffers(display, surface))
                 return result
             } finally {
@@ -113,7 +238,7 @@ object GpuFilterProcessor {
         }
     }
 
-    private fun draw(src: Bitmap, filter: CameraFilter, w: Int, h: Int): Bitmap {
+    private fun draw(src: Bitmap, filter: CameraFilter, w: Int, h: Int, smooth: Float, whiten: Float): Bitmap {
         val prog = linkProgram(VERT, FRAG)
         GLES20.glUseProgram(prog)
 
@@ -147,6 +272,12 @@ object GpuFilterProcessor {
         GLES20.glUniform4fv(GLES20.glGetUniformLocation(prog, "uB"), 1, row(2), 0)
         GLES20.glUniform4fv(GLES20.glGetUniformLocation(prog, "uA"), 1, row(3), 0)
         GLES20.glUniform4fv(GLES20.glGetUniformLocation(prog, "uBias"), 1, bias, 0)
+        GLES20.glUniform2f(
+            GLES20.glGetUniformLocation(prog, "uTexel"),
+            1f / w.coerceAtLeast(1), 1f / h.coerceAtLeast(1)
+        )
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(prog, "uSmooth"), smooth)
+        GLES20.glUniform1f(GLES20.glGetUniformLocation(prog, "uWhiten"), whiten)
 
         GLES20.glViewport(0, 0, w, h)
         GLES20.glDrawArrays(GLES20.GL_TRIANGLE_STRIP, 0, 4)

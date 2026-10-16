@@ -1,0 +1,84 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:orientation="vertical"
+    android:paddingStart="12dp"
+    android:paddingEnd="12dp"
+    android:paddingTop="4dp"
+    android:paddingBottom="4dp">
+
+    <!-- Received message bubble (Other) -->
+    <LinearLayout
+        android:id="@+id/layoutOther"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="start"
+        android:maxWidth="280dp"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/ivOtherAvatar"
+            android:layout_width="28dp"
+            android:layout_height="28dp"
+            android:layout_marginEnd="8dp"
+            android:layout_gravity="bottom"
+            android:src="@drawable/bg_live_avatar" />
+
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_bubble_other"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvOtherText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="#FFFFFF"
+                android:textSize="14sp"
+                tools:text="Hey there! Excited for the live party tonight?" />
+
+            <TextView
+                android:id="@+id/tvOtherTime"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end"
+                android:layout_marginTop="2dp"
+                android:textColor="#8E8BA5"
+                android:textSize="10sp"
+                tools:text="15:30" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Sent message bubble (Self) -->
+    <LinearLayout
+        android:id="@+id/layoutSelf"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_gravity="end"
+        android:maxWidth="280dp"
+        android:background="@drawable/bg_bubble_self"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvSelfText"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:textColor="#FFFFFF"
+            android:textSize="14sp"
+            tools:text="Yes! Dropping lucky red packets too! 🧧" />
+
+        <TextView
+            android:id="@+id/tvSelfTime"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="end"
+            android:layout_marginTop="2dp"
+            android:textColor="#E0E0FF"
+            android:textSize="10sp"
+            tools:text="15:32" />
+    </LinearLayout>
+
+</LinearLayout>

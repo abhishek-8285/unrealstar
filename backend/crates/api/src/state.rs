@@ -225,12 +225,23 @@ pub fn webhook_secret() -> Option<String> {
 /// amount, never mint new coins.
 #[derive(Debug, Clone)]
 pub struct RedPacketDrop {
+    pub packet_id: String,
+    pub room_id: u64,
     pub dropper_user_id: u64,
     pub total_coins: i64,
     pub split_count: u32,
     /// Users who have already claimed this packet; a user may claim only once.
     pub claimants: HashSet<u64>,
     pub expires_at: chrono::DateTime<Utc>,
+}
+
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct DirectMessageRecord {
+    pub message_id: String,
+    pub sender_id: u64,
+    pub recipient_id: u64,
+    pub text: String,
+    pub created_at: chrono::DateTime<Utc>,
 }
 
 #[derive(Debug, Clone)]
@@ -351,6 +362,7 @@ pub struct AppState {
     pub vip_tiers: Arc<Vec<VipTierItem>>,
     pub families: Arc<RwLock<Vec<FamilyItem>>>,
     pub user_family: Arc<RwLock<HashMap<u64, String>>>,
+    pub direct_messages: Arc<RwLock<HashMap<(u64, u64), Vec<DirectMessageRecord>>>>,
 }
 
 impl Default for AppState {
@@ -638,6 +650,7 @@ impl AppState {
             vip_tiers: Arc::new(vip_tiers),
             families: Arc::new(RwLock::new(initial_families)),
             user_family: Arc::new(RwLock::new(HashMap::new())),
+            direct_messages: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 

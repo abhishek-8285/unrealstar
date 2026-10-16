@@ -1097,6 +1097,105 @@ object UnrealStarApiClient {
             Result.failure(e)
         }
     }
+
+    /** GET /api/v1/conversations/{user_id} */
+    suspend fun fetchConversation(userId: Long): Result<com.unrealstar.live.models.DirectMessageThread> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/conversations/$userId")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.DirectMessageThread::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** POST /api/v1/conversations/{user_id}/send */
+    suspend fun sendDirectMessage(userId: Long, text: String): Result<com.unrealstar.live.models.DirectMessage> = withContext(Dispatchers.IO) {
+        val json = JSONObject().apply {
+            put("text", text)
+        }
+        val request = Request.Builder()
+            .url("$BASE_URL/conversations/$userId/send")
+            .header("Authorization", SessionStore.authorization())
+            .post(json.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.DirectMessage::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** GET /api/v1/gifts/red-packet/room/{room_id}/active */
+    suspend fun fetchActiveRedPackets(roomId: Long): Result<List<com.unrealstar.live.models.ActiveRedPacketItem>> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/gifts/red-packet/room/$roomId/active")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                val type = object : TypeToken<List<com.unrealstar.live.models.ActiveRedPacketItem>>() {}.type
+                Result.success(gson.fromJson(response.body?.string() ?: "[]", type))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** POST /api/v1/gifts/red-packet/drop */
+    suspend fun dropRedPacket(roomId: Long, totalCoins: Long, splitCount: Long): Result<com.unrealstar.live.models.RedPacketDropResponse> = withContext(Dispatchers.IO) {
+        val json = JSONObject().apply {
+            put("room_id", roomId)
+            put("total_coins", totalCoins)
+            put("split_count", splitCount)
+            put("idempotency_key", java.util.UUID.randomUUID().toString())
+        }
+        val request = Request.Builder()
+            .url("$BASE_URL/gifts/red-packet/drop")
+            .header("Authorization", SessionStore.authorization())
+            .post(json.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}: ${response.body?.string()}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.RedPacketDropResponse::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /** POST /api/v1/gifts/red-packet/{id}/claim */
+    suspend fun claimRedPacket(packetId: String): Result<com.unrealstar.live.models.RedPacketClaimResponse> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/gifts/red-packet/$packetId/claim")
+            .header("Authorization", SessionStore.authorization())
+            .post("{}".toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}: ${response.body?.string()}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.RedPacketClaimResponse::class.java)
+                Result.success(res)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
 }
 
 

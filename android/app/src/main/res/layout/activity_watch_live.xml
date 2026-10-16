@@ -199,6 +199,18 @@
                 android:textStyle="bold"
                 tools:ignore="HardcodedText" />
 
+            <!-- Red Packet Shagun Button -->
+            <TextView
+                android:id="@+id/btnRedPacket"
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:layout_marginStart="6dp"
+                android:background="@drawable/bg_chip_translucent"
+                android:gravity="center"
+                android:text="🧧"
+                android:textSize="18sp"
+                tools:ignore="HardcodedText" />
+
             <!-- Wheel Minigame Button -->
             <TextView
                 android:id="@+id/btnToggleWheel"

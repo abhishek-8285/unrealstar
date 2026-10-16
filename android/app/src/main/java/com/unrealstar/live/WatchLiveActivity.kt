@@ -82,6 +82,14 @@ class WatchLiveActivity : AppCompatActivity() {
         }
 
 
+        binding.btnRedPacket.setOnClickListener {
+            val sheet = RedPacketBottomSheet(roomId = roomId) { coinsClaimed ->
+                addChatMessage(SessionStore.userId, "System", "🧧 You claimed +$coinsClaimed Coins from Red Packet!")
+                showGiftBanner("🧧 Claimed +$coinsClaimed Coins from Lucky Shagun Lifafa!")
+            }
+            sheet.show(supportFragmentManager, RedPacketBottomSheet.TAG)
+        }
+
         binding.btnToggleWheel.setOnClickListener {
             val dialog = LuckyWheelDialog(roomId = roomId) { remainingCoins ->
                 addChatMessage(SessionStore.userId, "System", "🎡 Wheel balance updated: $remainingCoins Coins")
