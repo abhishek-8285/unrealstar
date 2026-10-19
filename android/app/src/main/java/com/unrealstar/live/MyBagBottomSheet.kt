@@ -82,8 +82,8 @@ class MyBagBottomSheet(
         }
     }
 
-    private fun loadBag() {
-        binding.bagProgress.isVisible = true
+    private fun loadBag(showSpinner: Boolean = true) {
+        binding.bagProgress.isVisible = showSpinner
         binding.tvBagEmpty.isVisible = false
 
         lifecycleScope.launch {
@@ -107,18 +107,18 @@ class MyBagBottomSheet(
             .setMessage("Unlock this ${item.category.replace('_', ' ')} for 🪙 ${item.price_coins} Coins?\n\n${item.description}")
             .setPositiveButton("Unlock & Equip") { _, _ ->
                 lifecycleScope.launch {
-                    val ok = UnrealStarApiClient.equipCosmetic(item.item_id, item.category, true).getOrDefault(true)
-                    if (ok) {
-                        item.is_owned = true
-                        bagData?.items?.forEach {
-                            if (it.category == item.category) {
-                                it.is_equipped = (it.item_id == item.item_id)
-                            }
+                    UnrealStarApiClient.equipCosmetic(item.item_id, item.category, true)
+                        .onSuccess {
+                            // Re-read the server copy rather than guessing: the
+                            // purchase may have failed (coins) or the server may
+                            // have kept a different equipped item.
+                            loadBag(showSpinner = false)
+                            Toast.makeText(requireContext(), getString(R.string.bag_unlocked, item.name), Toast.LENGTH_SHORT).show()
+                            onBagUpdated?.invoke()
                         }
-                        filterItems()
-                        Toast.makeText(requireContext(), getString(R.string.bag_unlocked, item.name), Toast.LENGTH_SHORT).show()
-                        onBagUpdated?.invoke()
-                    }
+                        .onFailure {
+                            Toast.makeText(requireContext(), it.message, Toast.LENGTH_SHORT).show()
+                        }
                 }
             }
             .setNeutralButton("Recharge") { _, _ ->
@@ -131,19 +131,19 @@ class MyBagBottomSheet(
     private fun toggleEquip(item: CosmeticItem) {
         val nextEquipState = !item.is_equipped
         lifecycleScope.launch {
-            val ok = UnrealStarApiClient.equipCosmetic(item.item_id, item.category, nextEquipState).getOrDefault(true)
-            if (ok) {
-                // If equipping a frame, unequip other frames locally
-                bagData?.items?.forEach {
-                    if (it.category == item.category) {
-                        it.is_equipped = if (it.item_id == item.item_id) nextEquipState else false
-                    }
+            UnrealStarApiClient.equipCosmetic(item.item_id, item.category, nextEquipState)
+                .onSuccess {
+                    // The server owns the "one per category" rule; refresh the
+                    // list so the badges match it instead of a local guess that
+                    // reverts the next time the sheet opens.
+                    loadBag(showSpinner = false)
+                    val action = if (nextEquipState) "Equipped ${item.name}" else "Unequipped ${item.name}"
+                    Toast.makeText(requireContext(), getString(R.string.bag_action, action), Toast.LENGTH_SHORT).show()
+                    onBagUpdated?.invoke()
                 }
-                filterItems()
-                val action = if (nextEquipState) "Equipped ${item.name}" else "Unequipped ${item.name}"
-                Toast.makeText(requireContext(), getString(R.string.bag_action, action), Toast.LENGTH_SHORT).show()
-                onBagUpdated?.invoke()
-            }
+                .onFailure {
+                    Toast.makeText(requireContext(), it.message, Toast.LENGTH_SHORT).show()
+                }
         }
     }
 

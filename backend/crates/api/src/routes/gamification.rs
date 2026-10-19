@@ -4,12 +4,13 @@ use axum::{
     Json,
 };
 use camstar_ledger::{Direction, EntryKind, Line, Money};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 use crate::{
     error::ApiError,
     models::{DailyTaskItem, LeaderboardItem, VipTierItem},
-    state::{system_clearing_account, user_coins_account, AppState},
+    state::{system_clearing_account, user_coins_account, AppState, UserCosmetics},
 };
 
 pub async fn get_leaderboards(State(state): State<AppState>) -> Json<Vec<LeaderboardItem>> {
@@ -165,111 +166,23 @@ pub async fn get_my_bag(
         .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
 
     let origin = crate::public_origin();
+    let mut bags = state.cosmetics.write().await;
+    let bag = bags.entry(user_id).or_insert_with(demo_cosmetics);
 
-    let items = vec![
-        crate::models::CosmeticItem {
-            item_id: "frame_golden_aura".into(),
-            name: "Golden Aura Frame".into(),
-            category: "avatar_frame".into(),
-            icon_url: format!("{origin}/assets/cosmetics/frame_gold.png"),
-            preview_asset: "bg_live_avatar".into(),
-            description: "Glowing 24K radiant gold border with subtle shimmer".into(),
-            is_equipped: true,
-            is_owned: true,
-            price_coins: 500,
-            expires_in_days: Some(30),
-        },
-        crate::models::CosmeticItem {
-            item_id: "frame_cyber_neon".into(),
-            name: "Cyber Neon Frame".into(),
-            category: "avatar_frame".into(),
-            icon_url: format!("{origin}/assets/cosmetics/frame_neon.png"),
-            preview_asset: "bg_live_avatar".into(),
-            description: "Futuristic pulsating cyan & magenta neon frame".into(),
-            is_equipped: false,
-            is_owned: true,
-            price_coins: 800,
-            expires_in_days: Some(15),
-        },
-        crate::models::CosmeticItem {
-            item_id: "frame_royal_vip".into(),
-            name: "Royal VIP Crown".into(),
-            category: "avatar_frame".into(),
-            icon_url: format!("{origin}/assets/cosmetics/frame_royal.png"),
-            preview_asset: "bg_live_avatar".into(),
-            description: "Monarch crown ornament for elite patrons".into(),
-            is_equipped: false,
-            is_owned: false,
-            price_coins: 2000,
-            expires_in_days: Some(60),
-        },
-        crate::models::CosmeticItem {
-            item_id: "frame_rose_bloom".into(),
-            name: "Rose Blossom Frame".into(),
-            category: "avatar_frame".into(),
-            icon_url: format!("{origin}/assets/cosmetics/frame_rose.png"),
-            preview_asset: "bg_live_avatar".into(),
-            description: "Romantic blossoming pink petals with floral aura".into(),
-            is_equipped: false,
-            is_owned: true,
-            price_coins: 600,
-            expires_in_days: Some(7),
-        },
-        crate::models::CosmeticItem {
-            item_id: "ride_supercar_gt".into(),
-            name: "Supercar GT".into(),
-            category: "entry_ride".into(),
-            icon_url: format!("{origin}/assets/cosmetics/ride_car.png"),
-            preview_asset: "ride_car".into(),
-            description: "Thunderous engine rumble and screeching entrance effect".into(),
-            is_equipped: true,
-            is_owned: true,
-            price_coins: 5000,
-            expires_in_days: Some(30),
-        },
-        crate::models::CosmeticItem {
-            item_id: "ride_golden_dragon".into(),
-            name: "Golden Dragon Mount".into(),
-            category: "entry_ride".into(),
-            icon_url: format!("{origin}/assets/cosmetics/ride_dragon.png"),
-            preview_asset: "ride_dragon".into(),
-            description: "Majestic flame-breathing celestial dragon arrival".into(),
-            is_equipped: false,
-            is_owned: false,
-            price_coins: 15000,
-            expires_in_days: Some(90),
-        },
-        crate::models::CosmeticItem {
-            item_id: "bubble_neon".into(),
-            name: "Neon Glow Bubble".into(),
-            category: "chat_bubble".into(),
-            icon_url: format!("{origin}/assets/cosmetics/bubble_neon.png"),
-            preview_asset: "bubble_neon".into(),
-            description: "Cyan-purple glowing broadcast chat bubble".into(),
-            is_equipped: true,
-            is_owned: true,
-            price_coins: 300,
-            expires_in_days: None,
-        },
-        crate::models::CosmeticItem {
-            item_id: "medal_mushaira_poet".into(),
-            name: "AI Mushaira Poet".into(),
-            category: "medal".into(),
-            icon_url: format!("{origin}/assets/cosmetics/medal_poet.png"),
-            preview_asset: "medal_poet".into(),
-            description: "Master of verse, ghazal, and shayari creation".into(),
-            is_equipped: true,
-            is_owned: true,
-            price_coins: 0,
-            expires_in_days: None,
-        },
-    ];
+    let items = cosmetic_catalog(&origin)
+        .into_iter()
+        .map(|mut item| {
+            item.is_owned = bag.owned.contains(&item.item_id);
+            item.is_equipped = bag.equipped.get(&item.category) == Some(&item.item_id);
+            item
+        })
+        .collect();
 
     Ok(Json(crate::models::UserBagResponse {
         user_id,
-        equipped_frame: Some("frame_golden_aura".into()),
-        equipped_ride: Some("ride_supercar_gt".into()),
-        equipped_bubble: Some("bubble_neon".into()),
+        equipped_frame: bag.equipped.get("avatar_frame").cloned(),
+        equipped_ride: bag.equipped.get("entry_ride").cloned(),
+        equipped_bubble: bag.equipped.get("chat_bubble").cloned(),
         items,
     }))
 }
@@ -285,14 +198,227 @@ pub async fn equip_cosmetic(
         .await
         .ok_or_else(|| ApiError::Unauthorized("Missing or invalid token".into()))?;
 
+    let origin = crate::public_origin();
+    let item = cosmetic_catalog(&origin)
+        .into_iter()
+        .find(|i| i.item_id == payload.item_id)
+        .ok_or_else(|| ApiError::NotFound("Cosmetic item not found".into()))?;
+    let category = item.category.clone();
+
+    let already_owned = {
+        let bags = state.cosmetics.read().await;
+        bags.get(&user_id)
+            .map(|b| b.owned.contains(&item.item_id))
+            .unwrap_or(false)
+    };
+
+    // Unlocking is a purchase: debit coins once, then remember the item. The
+    // ledger enforces the balance, so the client cannot equip for free.
+    if payload.equip && !already_owned {
+        let price = item.price_coins as i64;
+        if price > 0 {
+            let coins = state
+                .ledger
+                .balance(user_coins_account(user_id))
+                .await?
+                .to_minor();
+            if coins < price {
+                return Err(ApiError::BadRequest(format!(
+                    "Not enough Coins: {price} needed, {coins} available"
+                )));
+            }
+            let amount = Money::from_minor(price)?;
+            state
+                .ledger
+                .post(
+                    EntryKind::CosmeticPurchase,
+                    &format!("cosmetic_purchase_{user_id}_{}", item.item_id),
+                    vec![
+                        Line {
+                            account: user_coins_account(user_id),
+                            direction: Direction::Debit,
+                            amount,
+                        },
+                        Line {
+                            account: system_clearing_account(),
+                            direction: Direction::Credit,
+                            amount,
+                        },
+                    ],
+                )
+                .await?;
+        }
+        let mut bags = state.cosmetics.write().await;
+        bags.entry(user_id)
+            .or_insert_with(demo_cosmetics)
+            .owned
+            .insert(item.item_id.clone());
+    }
+
+    let (is_equipped, coin_balance) = {
+        let mut bags = state.cosmetics.write().await;
+        let bag = bags.entry(user_id).or_insert_with(demo_cosmetics);
+        if !bag.owned.contains(&item.item_id) {
+            return Err(ApiError::BadRequest("Cosmetic item is not owned".into()));
+        }
+        let equipped = if payload.equip {
+            bag.equipped.insert(category.clone(), item.item_id.clone());
+            true
+        } else {
+            if bag.equipped.get(&category) == Some(&item.item_id) {
+                bag.equipped.remove(&category);
+            }
+            false
+        };
+        drop(bags);
+        let coins = state
+            .ledger
+            .balance(user_coins_account(user_id))
+            .await?
+            .to_minor();
+        (equipped, coins)
+    };
+
     Ok(Json(serde_json::json!({
         "success": true,
         "user_id": user_id,
-        "item_id": payload.item_id,
-        "category": payload.category,
-        "is_equipped": payload.equip,
-        "message": if payload.equip { "Equipped successfully" } else { "Unequipped" }
+        "item_id": item.item_id,
+        "category": category,
+        "is_equipped": is_equipped,
+        "coin_balance": coin_balance,
+        "message": if is_equipped { "Equipped successfully" } else { "Unequipped" }
     })))
+}
+
+/// Cosmetic catalog. Ownership and equipped flags are per caller and filled
+/// in by `get_my_bag`; prices and copy are static demo content.
+fn cosmetic_catalog(origin: &str) -> Vec<crate::models::CosmeticItem> {
+    let item = |item_id: &str,
+                name: &str,
+                category: &str,
+                asset: &str,
+                preview_asset: &str,
+                description: &str,
+                price_coins: u64,
+                expires_in_days: Option<u32>| crate::models::CosmeticItem {
+        item_id: item_id.into(),
+        name: name.into(),
+        category: category.into(),
+        icon_url: format!("{origin}/assets/cosmetics/{asset}"),
+        preview_asset: preview_asset.into(),
+        description: description.into(),
+        is_equipped: false,
+        is_owned: false,
+        price_coins,
+        expires_in_days,
+    };
+
+    vec![
+        item(
+            "frame_golden_aura",
+            "Golden Aura Frame",
+            "avatar_frame",
+            "frame_gold.png",
+            "bg_live_avatar",
+            "Glowing 24K radiant gold border with subtle shimmer",
+            500,
+            Some(30),
+        ),
+        item(
+            "frame_cyber_neon",
+            "Cyber Neon Frame",
+            "avatar_frame",
+            "frame_neon.png",
+            "bg_live_avatar",
+            "Futuristic pulsating cyan & magenta neon frame",
+            800,
+            Some(15),
+        ),
+        item(
+            "frame_royal_vip",
+            "Royal VIP Crown",
+            "avatar_frame",
+            "frame_royal.png",
+            "bg_live_avatar",
+            "Monarch crown ornament for elite patrons",
+            2000,
+            Some(60),
+        ),
+        item(
+            "frame_rose_bloom",
+            "Rose Blossom Frame",
+            "avatar_frame",
+            "frame_rose.png",
+            "bg_live_avatar",
+            "Romantic blossoming pink petals with floral aura",
+            600,
+            Some(7),
+        ),
+        item(
+            "ride_supercar_gt",
+            "Supercar GT",
+            "entry_ride",
+            "ride_car.png",
+            "ride_car",
+            "Thunderous engine rumble and screeching entrance effect",
+            5000,
+            Some(30),
+        ),
+        item(
+            "ride_golden_dragon",
+            "Golden Dragon Mount",
+            "entry_ride",
+            "ride_dragon.png",
+            "ride_dragon",
+            "Majestic flame-breathing celestial dragon arrival",
+            15000,
+            Some(90),
+        ),
+        item(
+            "bubble_neon",
+            "Neon Glow Bubble",
+            "chat_bubble",
+            "bubble_neon.png",
+            "bubble_neon",
+            "Cyan-purple glowing broadcast chat bubble",
+            300,
+            None,
+        ),
+        item(
+            "medal_mushaira_poet",
+            "AI Mushaira Poet",
+            "medal",
+            "medal_poet.png",
+            "medal_poet",
+            "Master of verse, ghazal, and shayari creation",
+            0,
+            None,
+        ),
+    ]
+}
+
+/// Fresh accounts start with the demo closet the bag has always shown, so the
+/// screen is populated the first time it opens. Purchases extend this set.
+fn demo_cosmetics() -> UserCosmetics {
+    UserCosmetics {
+        owned: [
+            "frame_golden_aura",
+            "frame_cyber_neon",
+            "frame_rose_bloom",
+            "ride_supercar_gt",
+            "bubble_neon",
+            "medal_mushaira_poet",
+        ]
+        .iter()
+        .map(|id| id.to_string())
+        .collect(),
+        equipped: HashMap::from([
+            ("avatar_frame".to_string(), "frame_golden_aura".to_string()),
+            ("entry_ride".to_string(), "ride_supercar_gt".to_string()),
+            ("chat_bubble".to_string(), "bubble_neon".to_string()),
+            ("medal".to_string(), "medal_mushaira_poet".to_string()),
+        ]),
+    }
 }
 
 // ---------------------------------------------------------------------------

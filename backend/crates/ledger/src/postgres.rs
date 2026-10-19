@@ -73,6 +73,7 @@ impl PostgresLedger {
             let kind = match kind_str.as_str() {
                 "TopUp" => EntryKind::TopUp,
                 "GiftSpend" => EntryKind::GiftSpend,
+                "CosmeticPurchase" => EntryKind::CosmeticPurchase,
                 "Payout" => EntryKind::Payout,
                 "Reversal" => EntryKind::Reversal,
                 _ => EntryKind::Adjustment,
@@ -282,6 +283,7 @@ impl PostgresLedger {
         let kind_str = match kind {
             EntryKind::TopUp => "TopUp",
             EntryKind::GiftSpend => "GiftSpend",
+            EntryKind::CosmeticPurchase => "CosmeticPurchase",
             EntryKind::Payout => "Payout",
             EntryKind::Reversal => "Reversal",
             EntryKind::Adjustment => "Adjustment",

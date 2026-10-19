@@ -21,6 +21,8 @@ pub enum AccountKind {
 pub enum EntryKind {
     TopUp,
     GiftSpend,
+    /// Coin spend that unlocks a persistent cosmetic in the bag.
+    CosmeticPurchase,
     Payout,
     Reversal,
     Adjustment,

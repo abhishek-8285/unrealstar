@@ -355,6 +355,17 @@ impl RoomSession {
     }
 }
 
+/// Per-user cosmetic ownership: which catalog items were unlocked and which
+/// one is equipped per category. Lives beside the ledger so an equip tap and
+/// the coins it spent survive across requests instead of being recomputed
+/// from a canned payload.
+#[derive(Debug, Default, Clone)]
+pub struct UserCosmetics {
+    pub owned: HashSet<String>,
+    /// category -> item_id. One equipped item per category, mirroring the bag UI.
+    pub equipped: HashMap<String, String>,
+}
+
 #[derive(Clone)]
 pub struct AppState {
     pub ledger: LedgerBackend,
@@ -381,6 +392,9 @@ pub struct AppState {
     pub daily_tasks: Arc<RwLock<HashMap<u64, Vec<DailyTaskItem>>>>,
     pub kyc_records: Arc<RwLock<HashMap<u64, KycRecord>>>,
     pub payouts: Arc<RwLock<Vec<PayoutRecord>>>,
+    /// user_id -> owned/equipped cosmetics. Missing entries start from the
+    /// demo set the bag screen has always shown.
+    pub cosmetics: Arc<RwLock<HashMap<u64, UserCosmetics>>>,
     pub follows: Arc<RwLock<HashMap<u64, HashSet<u64>>>>, // user_id -> set of followed user_ids
     /// moment_id -> set of user_ids who liked it. Lets us answer `liked_by_me`
     /// and refuse a duplicate like instead of blindly incrementing a counter.
@@ -689,6 +703,7 @@ impl AppState {
             daily_tasks: Arc::new(RwLock::new(HashMap::new())),
             kyc_records: Arc::new(RwLock::new(HashMap::new())),
             payouts: Arc::new(RwLock::new(Vec::new())),
+            cosmetics: Arc::new(RwLock::new(HashMap::new())),
             follows: Arc::new(RwLock::new(HashMap::from([(
                 1001u64,
                 // Demo user 1001 already follows one member of the inbox cast,

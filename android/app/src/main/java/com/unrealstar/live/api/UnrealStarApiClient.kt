@@ -1198,9 +1198,18 @@ object UnrealStarApiClient {
             .build()
         try {
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
-                val res = JSONObject(response.body?.string() ?: "{}")
-                Result.success(res.optBoolean("success", true))
+                val raw = response.body?.string() ?: "{}"
+                if (!response.isSuccessful) {
+                    // The server explains refusals ("Not enough Coins: ...");
+                    // surface that copy instead of a bare status code.
+                    val message = runCatching { JSONObject(raw).optString("message") }.getOrNull()
+                    return@withContext Result.failure(
+                        IOException(message?.takeIf { it.isNotBlank() } ?: "HTTP ${response.code}")
+                    )
+                }
+                val res = JSONObject(raw)
+                // `is_equipped` is the state the server actually persisted.
+                Result.success(res.optBoolean("is_equipped", equip))
             }
         } catch (e: Exception) {
             Result.failure(e)

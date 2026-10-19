@@ -1827,3 +1827,183 @@ async fn test_kyc_review_endpoint_gates_and_decides() {
 
     std::env::remove_var("CAMSTAR_ADMIN_TOKEN");
 }
+
+#[tokio::test]
+async fn test_bag_equip_persists_and_swaps_one_per_category() {
+    let state = AppState::new();
+    let app = create_router(state.clone());
+    let user_id = state.create_user("+919876543301", 0).await;
+    let token = format!("tok_{user_id}_bag");
+    state.grant_test_token(&token, user_id).await;
+
+    let bag = |app: axum::Router, token: String| async move {
+        let req = Request::get("/api/v1/users/me/bag")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        json_response(app.oneshot(req).await.unwrap()).await
+    };
+    let equip = |app: axum::Router, token: String, item_id: &'static str, equip: bool| async move {
+        let req = Request::post("/api/v1/users/me/bag/equip")
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                json!({
+                    "item_id": item_id,
+                    "category": "avatar_frame",
+                    "equip": equip
+                })
+                .to_string(),
+            ))
+            .unwrap();
+        json_response(app.oneshot(req).await.unwrap()).await
+    };
+
+    // The demo closet starts with Golden Aura equipped.
+    let (status, body) = bag(app.clone(), token.clone()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["equipped_frame"], "frame_golden_aura");
+    assert_eq!(body["equipped_ride"], "ride_supercar_gt");
+
+    // Equipping an owned frame survives the request instead of resetting to
+    // the canned payload on the next read.
+    let (status, body) = equip(app.clone(), token.clone(), "frame_cyber_neon", true).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["is_equipped"], true);
+
+    let (status, body) = bag(app.clone(), token.clone()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["equipped_frame"], "frame_cyber_neon");
+    // Only the avatar slot moved: the ride stays equipped.
+    assert_eq!(body["equipped_ride"], "ride_supercar_gt");
+    let items = body["items"].as_array().unwrap();
+    let neon = items
+        .iter()
+        .find(|i| i["item_id"] == "frame_cyber_neon")
+        .unwrap();
+    let golden = items
+        .iter()
+        .find(|i| i["item_id"] == "frame_golden_aura")
+        .unwrap();
+    assert_eq!(neon["is_equipped"], true);
+    assert_eq!(golden["is_equipped"], false);
+
+    // Unequip clears the slot.
+    let (status, body) = equip(app.clone(), token.clone(), "frame_cyber_neon", false).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["is_equipped"], false);
+    let (_, body) = bag(app.clone(), token.clone()).await;
+    assert!(body["equipped_frame"].is_null());
+}
+
+#[tokio::test]
+async fn test_bag_purchase_spends_coins_once_and_stays_owned() {
+    let state = AppState::new();
+    let app = create_router(state.clone());
+    let user_id = state.create_user("+919876543302", 2500).await;
+    let token = format!("tok_{user_id}_bagbuy");
+    state.grant_test_token(&token, user_id).await;
+
+    let balance = |app: axum::Router, token: String| async move {
+        let req = Request::get("/api/v1/wallet/balance")
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        json_response(app.oneshot(req).await.unwrap()).await
+    };
+    let equip = |app: axum::Router, token: String| async move {
+        let req = Request::post("/api/v1/users/me/bag/equip")
+            .header("Authorization", format!("Bearer {token}"))
+            .header("Content-Type", "application/json")
+            .body(Body::from(
+                json!({
+                    "item_id": "frame_royal_vip",
+                    "category": "avatar_frame",
+                    "equip": true
+                })
+                .to_string(),
+            ))
+            .unwrap();
+        json_response(app.oneshot(req).await.unwrap()).await
+    };
+
+    // Unlocking the 2,000-coin crown debits the ledger and equips it.
+    let (status, body) = equip(app.clone(), token.clone()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["is_equipped"], true);
+    assert_eq!(body["coin_balance"], 500);
+
+    let (_, body) = balance(app.clone(), token.clone()).await;
+    assert_eq!(body["coins"], 500);
+
+    // A retry must not charge again (already owned, idempotent key).
+    let (status, body) = equip(app.clone(), token.clone()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["coin_balance"], 500);
+
+    let req = Request::get("/api/v1/users/me/bag")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (_, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(body["equipped_frame"], "frame_royal_vip");
+    let royal = body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["item_id"] == "frame_royal_vip")
+        .unwrap();
+    assert_eq!(royal["is_owned"], true);
+    assert_eq!(royal["is_equipped"], true);
+}
+
+#[tokio::test]
+async fn test_bag_purchase_rejects_insufficient_coins() {
+    let state = AppState::new();
+    let app = create_router(state.clone());
+    let user_id = state.create_user("+919876543303", 100).await;
+    let token = format!("tok_{user_id}_bagpoor");
+    state.grant_test_token(&token, user_id).await;
+
+    // The Golden Dragon Mount costs 15,000 coins, far past the balance.
+    let req = Request::post("/api/v1/users/me/bag/equip")
+        .header("Authorization", format!("Bearer {token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            json!({
+                "item_id": "ride_golden_dragon",
+                "category": "entry_ride",
+                "equip": true
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let (status, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::BAD_REQUEST);
+    assert!(body["message"]
+        .as_str()
+        .unwrap()
+        .contains("Not enough Coins"));
+
+    // Nothing changed: still poor, still riding the default car.
+    let req = Request::get("/api/v1/users/me/bag")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (_, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(body["equipped_ride"], "ride_supercar_gt");
+    let dragon = body["items"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|i| i["item_id"] == "ride_golden_dragon")
+        .unwrap();
+    assert_eq!(dragon["is_owned"], false);
+
+    let req = Request::get("/api/v1/wallet/balance")
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (_, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(body["coins"], 100);
+}
