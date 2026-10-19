@@ -1,16 +1,15 @@
 plugins {
     id("com.android.application")
-    id("org.jetbrains.kotlin.android")
 }
 
 android {
     namespace = "com.unrealstar.live"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.unrealstar.live"
         minSdk = 26
-        targetSdk = 36
+        targetSdk = 37
         versionCode = 1
         versionName = "1.0.0"
 
@@ -79,10 +78,6 @@ android {
         targetCompatibility = JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
     buildFeatures {
         viewBinding = true
         // AGP 8 no longer generates BuildConfig unless asked; SessionStore needs
@@ -92,7 +87,7 @@ android {
 }
 
 dependencies {
-    implementation("androidx.core:core-ktx:1.17.0")
+    implementation("androidx.core:core-ktx:1.19.1")
     implementation("androidx.appcompat:appcompat:1.8.0")
     implementation("com.google.android.material:material:1.14.0")
     implementation("androidx.constraintlayout:constraintlayout:2.2.2")
@@ -126,13 +121,11 @@ dependencies {
     implementation("androidx.media3:media3-datasource:$media3Version")
 
     // Renders cover_url and author_avatar_url, which the feed API now returns.
-    // 5.0.9 requires compileSdk 37 (AGP 9.1); held at the latest SDK-36 build.
-    implementation("com.github.bumptech.glide:glide:5.0.5")
+    implementation("com.github.bumptech.glide:glide:5.0.9")
 
     // Networking & WebSocket
-    // OkHttp 5.x requires compileSdk 37; held on the 4.12 line for SDK 36.
-    implementation("com.squareup.okhttp3:okhttp:4.12.0")
-    implementation("com.squareup.okhttp3:logging-interceptor:4.12.0")
+    implementation("com.squareup.okhttp3:okhttp:5.5.0")
+    implementation("com.squareup.okhttp3:logging-interceptor:5.5.0")
     implementation("com.google.code.gson:gson:2.14.0")
 
     // Encrypted token storage (Keystore-backed, AES256_GCM).

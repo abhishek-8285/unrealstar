@@ -1,4 +1,5 @@
 plugins {
-    id("com.android.application") version "8.13.0" apply false
-    id("org.jetbrains.kotlin.android") version "2.2.10" apply false
+    // AGP 9.4 is the latest stable line supporting compileSdk 37. Kotlin
+    // support is built into AGP 9 — the kotlin-android plugin is gone.
+    id("com.android.application") version "9.4.1" apply false
 }
