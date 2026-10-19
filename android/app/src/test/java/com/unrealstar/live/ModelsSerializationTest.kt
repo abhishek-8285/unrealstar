@@ -288,5 +288,62 @@ class ModelsSerializationTest {
         assertEquals("#Party", deserialized.tags?.get(0))
         assertEquals("#Music", deserialized.tags?.get(1))
     }
+
+    @Test
+    fun testOtherUserProfileDeserialization() {
+        // Mirrors the exact GET /users/{id} payload from the backend: the
+        // UserProfile contract plus the per-caller is_following the route
+        // adds on the serialized value (see routes::auth::get_user).
+        val json = """
+            {
+                "user_id": 2111,
+                "phone": "+919000002111",
+                "nickname": "Host_2111",
+                "avatar_url": "http://127.0.0.1:3000/assets/avatars/a1.jpg",
+                "bio": "Live tonight — gifts unlock the finale 🎁",
+                "gender": "female",
+                "city": "Pune",
+                "age": 21,
+                "can_publish": true,
+                "creator_status": "Established",
+                "wealth_tier": "Notable",
+                "vip_level": "One",
+                "followers_count": 15778,
+                "following_count": 12,
+                "is_live": true,
+                "live_room_id": 12,
+                "likes_received": 32443,
+                "is_following": true
+            }
+        """.trimIndent()
+
+        val profile = gson.fromJson(json, com.unrealstar.live.models.OtherUserProfile::class.java)
+        assertEquals(2111L, profile.user_id)
+        assertEquals("Host_2111", profile.nickname)
+        assertEquals("Pune", profile.city)
+        assertEquals(21, profile.age)
+        assertTrue(profile.can_publish)
+        assertEquals("Established", profile.creator_status)
+        assertEquals("Notable", profile.wealth_tier)
+        assertEquals("One", profile.vip_level)
+        assertEquals(15778L, profile.followers_count)
+        assertEquals(12L, profile.following_count)
+        assertTrue(profile.is_live)
+        assertEquals(12L, profile.live_room_id)
+        assertEquals(32443L, profile.likes_received)
+        assertTrue(profile.is_following)
+    }
+
+    @Test
+    fun testOtherUserProfileHandlesMissingFollowState() {
+        // Anonymous lookup: the route omits is_following entirely; the sheet
+        // must still render against the defaults rather than throw.
+        val json = """ {"user_id": 2101, "nickname": "Host_2101", "is_live": false} """.trimIndent()
+
+        val profile = gson.fromJson(json, com.unrealstar.live.models.OtherUserProfile::class.java)
+        assertEquals(2101L, profile.user_id)
+        assertFalse(profile.is_following)
+        assertEquals(null, profile.live_room_id)
+    }
 }
 

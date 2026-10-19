@@ -25,7 +25,9 @@ import java.util.TimeZone
 class DirectMessageBottomSheet(
     private val targetUserId: Long = 1002,
     private val targetNickname: String = "Satya Rajput",
-    private val targetAvatarUrl: String = ""
+    private val targetAvatarUrl: String = "",
+    /** Fired after a line is stored, so the inbox row behind the sheet refreshes. */
+    private val onConversationChanged: (() -> Unit)? = null
 ) : BottomSheetDialogFragment() {
 
     private var _binding: SheetDirectMessageBinding? = null
@@ -83,6 +85,7 @@ class DirectMessageBottomSheet(
     private fun loadConversation() {
         lifecycleScope.launch {
             val result = UnrealStarApiClient.fetchConversation(targetUserId)
+            if (_binding == null) return@launch
             result.onSuccess { thread ->
                 messages.clear()
                 messages.addAll(thread.messages)
@@ -91,7 +94,9 @@ class DirectMessageBottomSheet(
                     binding.rvChatMessages.scrollToPosition(messages.size - 1)
                 }
             }.onFailure {
-                Toast.makeText(requireContext(), "Failed to load messages", Toast.LENGTH_SHORT).show()
+                context?.let { ctx ->
+                    Toast.makeText(ctx, getString(R.string.dm_load_failed), Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -100,18 +105,24 @@ class DirectMessageBottomSheet(
         val text = binding.etMessageInput.text.toString().trim()
         if (text.isEmpty()) return
 
-        binding.etMessageInput.setText("")
         binding.btnSendMessage.isEnabled = false
 
         lifecycleScope.launch {
             val res = UnrealStarApiClient.sendDirectMessage(targetUserId, text)
+            if (_binding == null) return@launch
             binding.btnSendMessage.isEnabled = true
             res.onSuccess { msg ->
+                // Clear the box only once the line is stored, so a failed send
+                // never eats what the user typed.
+                binding.etMessageInput.setText("")
                 messages.add(msg)
                 adapter.submit(messages)
                 binding.rvChatMessages.smoothScrollToPosition(messages.size - 1)
+                onConversationChanged?.invoke()
             }.onFailure { err ->
-                Toast.makeText(requireContext(), "Send failed: ${err.message}", Toast.LENGTH_SHORT).show()
+                context?.let { ctx ->
+                    Toast.makeText(ctx, getString(R.string.dm_send_failed, err.message), Toast.LENGTH_SHORT).show()
+                }
             }
         }
     }
@@ -132,9 +143,10 @@ class DirectMessageBottomSheet(
         private val items = mutableListOf<DirectMessage>()
 
         fun submit(next: List<DirectMessage>) {
+            val oldSize = items.size
             items.clear()
             items.addAll(next)
-            notifyDataSetChanged()
+            notifyListReplaced(oldSize, items.size)
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MsgViewHolder {

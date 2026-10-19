@@ -27,12 +27,13 @@
             android:layout_height="wrap_content"
             android:layout_alignParentStart="true"
             android:layout_centerVertical="true"
+            android:layout_toStartOf="@id/btnCloseMushaira"
             android:orientation="vertical">
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="📜 AI Mushaira"
+                android:text="@string/ai_mushaira"
                 android:textColor="@color/text_white"
                 android:textSize="18sp"
                 android:textStyle="bold" />
@@ -41,7 +42,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:text="Generate stylized poetic verses for your moments"
+                android:text="@string/generate_stylized_poetic_verses_for"
                 android:textColor="@color/text_muted"
                 android:textSize="12sp" />
         </LinearLayout>
@@ -54,7 +55,7 @@
             android:layout_centerVertical="true"
             android:background="?attr/selectableItemBackgroundBorderless"
             android:gravity="center"
-            android:text="✕"
+            android:text="@string/watch_close"
             android:textColor="@color/text_muted"
             android:textSize="18sp" />
     </RelativeLayout>
@@ -70,7 +71,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Language of poem:"
+            android:text="@string/language_of_poem"
             android:textColor="@color/text_muted"
             android:textSize="12sp" />
 
@@ -82,7 +83,7 @@
             android:background="@drawable/bg_chip_translucent"
             android:paddingHorizontal="10dp"
             android:paddingVertical="4dp"
-            android:text="English ▾"
+            android:text="@string/poem_language"
             android:textColor="@color/text_white"
             android:textSize="12sp"
             android:textStyle="bold" />
@@ -109,7 +110,7 @@
                 android:background="@drawable/bg_chip_active"
                 android:paddingHorizontal="14dp"
                 android:paddingVertical="6dp"
-                android:text="❤️ Love poem"
+                android:text="@string/chip_love_poem"
                 android:textColor="@color/text_white"
                 android:textSize="12sp" />
 
@@ -121,7 +122,7 @@
                 android:background="@drawable/bg_chip_translucent"
                 android:paddingHorizontal="14dp"
                 android:paddingVertical="6dp"
-                android:text="🌙 Ghazal"
+                android:text="@string/chip_ghazal"
                 android:textColor="@color/text_white"
                 android:textSize="12sp" />
 
@@ -133,7 +134,7 @@
                 android:background="@drawable/bg_chip_translucent"
                 android:paddingHorizontal="14dp"
                 android:paddingVertical="6dp"
-                android:text="😂 Funny poem"
+                android:text="@string/chip_funny_poem"
                 android:textColor="@color/text_white"
                 android:textSize="12sp" />
 
@@ -145,7 +146,7 @@
                 android:background="@drawable/bg_chip_translucent"
                 android:paddingHorizontal="14dp"
                 android:paddingVertical="6dp"
-                android:text="✨ Ode"
+                android:text="@string/chip_ode"
                 android:textColor="@color/text_white"
                 android:textSize="12sp" />
 
@@ -157,7 +158,7 @@
                 android:background="@drawable/bg_chip_translucent"
                 android:paddingHorizontal="14dp"
                 android:paddingVertical="6dp"
-                android:text="💫 Shayari"
+                android:text="@string/chip_shayari"
                 android:textColor="@color/text_white"
                 android:textSize="12sp" />
         </LinearLayout>
@@ -180,14 +181,15 @@
             android:layout_height="wrap_content"
             android:background="@null"
             android:gravity="top|start"
-            android:hint="Enter prompt or topic (e.g. Stars falling over the sea at midnight...)"
+            android:hint="@string/mushaira_prompt_hint"
             android:inputType="textMultiLine|textCapSentences"
             android:minLines="2"
             android:maxLines="4"
             android:padding="12dp"
             android:textColor="@color/text_white"
             android:textColorHint="@color/text_muted"
-            android:textSize="13sp" />
+            android:textSize="13sp"
+            android:importantForAutofill="no" />
     </com.google.android.material.card.MaterialCardView>
 
     <!-- Generate Verse Button -->
@@ -197,7 +199,7 @@
         android:layout_height="46dp"
         android:layout_marginBottom="14dp"
         android:background="@drawable/bg_chip_active"
-        android:text="✨ Generate AI Verse"
+        android:text="@string/generate_verse"
         android:textAllCaps="false"
         android:textColor="@color/text_white"
         android:textSize="14sp"
@@ -225,7 +227,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="❝"
+                android:text="@string/label_2"
                 android:textColor="#A29BFE"
                 android:textSize="24sp"
                 android:textStyle="bold" />
@@ -236,7 +238,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginVertical="6dp"
                 android:lineSpacingExtra="4dp"
-                android:text="In shadows deep where whispered dreams ignite,\nThe silver moon commands the quiet night.\nEach heartbeat echoes through the silent skies,\nUnveiling wonder in your shining eyes."
+                android:text="@string/generated_verse"
                 android:textColor="@color/text_white"
                 android:textSize="14sp"
                 android:fontFamily="serif" />
@@ -251,7 +253,8 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_alignParentStart="true"
-                    android:text="— AI Mushaira feat. You"
+                    android:layout_toStartOf="@id/tvPoemTag"
+                    android:text="@string/poem_author"
                     android:textColor="#A29BFE"
                     android:textSize="11sp" />
 
@@ -260,7 +263,7 @@
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:layout_alignParentEnd="true"
-                    android:text="#LovePoem #Mushaira"
+                    android:text="@string/poem_tag"
                     android:textColor="#FDCB6E"
                     android:textSize="11sp"
                     android:textStyle="bold" />
@@ -283,7 +286,7 @@
             android:layout_weight="1"
             android:layout_marginEnd="4dp"
             android:background="@drawable/bg_chip_translucent"
-            android:text="🔊 Recite"
+            android:text="@string/listen_poem"
             android:textAllCaps="false"
             android:textColor="@color/text_white"
             android:textSize="12sp"
@@ -296,7 +299,7 @@
             android:layout_weight="1"
             android:layout_marginHorizontal="2dp"
             android:background="@drawable/bg_chip_translucent"
-            android:text="📋 Copy"
+            android:text="@string/copy_poem"
             android:textAllCaps="false"
             android:textColor="@color/text_white"
             android:textSize="12sp"
@@ -309,7 +312,7 @@
             android:layout_weight="1"
             android:layout_marginStart="4dp"
             android:background="@drawable/bg_chip_translucent"
-            android:text="📤 Share"
+            android:text="@string/share_poem"
             android:textAllCaps="false"
             android:textColor="@color/text_white"
             android:textSize="12sp"
@@ -322,7 +325,7 @@
         android:layout_width="match_parent"
         android:layout_height="52dp"
         android:background="@drawable/bg_btn_gradient_orange"
-        android:text="🚀 Post Verse to Moments"
+        android:text="@string/post_poem_to_feed"
         android:textAllCaps="false"
         android:textColor="@color/text_white"
         android:textSize="15sp"

@@ -19,7 +19,9 @@ class EarningsBottomSheet(
     private var _binding: SheetEarningsBinding? = null
     private val binding get() = _binding!!
 
-    private var currentDiamonds: Long = 7_500_000L
+    private var currentDiamonds: Long = 0L
+    /** Survives failure so timeout retaps reuse one idempotency key. */
+    private var payoutKey: String? = null
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -56,28 +58,37 @@ class EarningsBottomSheet(
         binding.btnWithdrawUpi.setOnClickListener {
             val upiId = binding.etUpiAddress.text.toString().trim()
             if (!upiId.contains("@") || upiId.length < 5) {
-                Toast.makeText(requireContext(), "Please enter a valid UPI ID (e.g. name@bank)", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.earn_upi_invalid), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
             binding.btnWithdrawUpi.isEnabled = false
-            binding.btnWithdrawUpi.text = "Processing UPI Cashout..."
+            binding.btnWithdrawUpi.text = getString(R.string.earn_processing_cashout)
             binding.btnWithdrawUpi.alpha = 0.7f
 
+            // Key survives failure: a timeout has unknown outcome, so the
+            // retap reuses the same key and the server dedupes. Cleared only
+            // after a confirmed payout.
+            val key = payoutKey ?: java.util.UUID.randomUUID().toString().also { payoutKey = it }
             lifecycleScope.launch {
-                val res = UnrealStarApiClient.requestPayout(diamondsAmount = 1000)
+                val res = UnrealStarApiClient.requestPayout(diamondsAmount = 1000, idempotencyKey = key)
                 res.onSuccess { record ->
-                    binding.btnWithdrawUpi.isEnabled = true
-                    binding.btnWithdrawUpi.text = "✓ Payout Initiated"
-                    binding.tvPayoutStatusMsg.text = "🎉 ₹${record.net_inr} transferred to $upiId (Txn: ${record.payout_id.take(18)}...)"
-                    binding.tvPayoutStatusMsg.setTextColor(requireContext().getColor(R.color.disclaimer_green))
-                    Toast.makeText(requireContext(), "Instant Cashout Successful! Payout ID: ${record.payout_id}", Toast.LENGTH_LONG).show()
+                    payoutKey = null
+                    _binding?.let { b ->
+                        b.btnWithdrawUpi.isEnabled = true
+                        b.btnWithdrawUpi.text = getString(R.string.earn_payout_initiated)
+                        b.tvPayoutStatusMsg.text = getString(R.string.earn_payout_transferred, record.net_inr, upiId, record.payout_id.take(18))
+                        b.tvPayoutStatusMsg.setTextColor(requireContext().getColor(R.color.disclaimer_green))
+                    }
+                    Toast.makeText(requireContext(), getString(R.string.earn_cashout_ok, record.payout_id), Toast.LENGTH_LONG).show()
                     onPayoutSuccess?.invoke()
                 }.onFailure { err ->
-                    binding.btnWithdrawUpi.isEnabled = true
-                    binding.btnWithdrawUpi.text = "💸 Instant Cashout to UPI"
-                    binding.btnWithdrawUpi.alpha = 1.0f
-                    Toast.makeText(requireContext(), "Payout notice: ${err.message}", Toast.LENGTH_SHORT).show()
+                    _binding?.let { b ->
+                        b.btnWithdrawUpi.isEnabled = true
+                        b.btnWithdrawUpi.text = getString(R.string.withdraw_upi)
+                        b.btnWithdrawUpi.alpha = 1.0f
+                    }
+                    Toast.makeText(requireContext(), getString(R.string.earn_payout_note, err.message), Toast.LENGTH_SHORT).show()
                 }
             }
         }

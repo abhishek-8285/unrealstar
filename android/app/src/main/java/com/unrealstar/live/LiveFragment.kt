@@ -38,14 +38,24 @@ class LiveFragment : Fragment() {
     private val binding get() = _binding!!
 
     private val adapter = RoomAdapter { room ->
+        // Debounced: a double-tap must not open two watch sessions.
+        val now = android.os.SystemClock.elapsedRealtime()
+        if (now - lastRoomOpenMs < 600) return@RoomAdapter
+        lastRoomOpenMs = now
         // Enter the watch screen: join + WebRTC viewer session happens there.
         WatchLiveActivity.start(requireContext(), room.room_id, room.host_nickname)
     }
+    // Host chip tap on a room card opens the host's public profile.
+    private val profileOpener = { room: FeedRoomItem ->
+        ProfileBottomSheet(room.host_id, room.host_nickname)
+            .show(childFragmentManager, ProfileBottomSheet.TAG)
+    }
+    private var lastRoomOpenMs: Long = 0L
     private val bannerAdapter = BannerAdapter { banner ->
         if (banner.title.contains("Bonus", ignoreCase = true) || banner.title.contains("Coin", ignoreCase = true)) {
             CoinStoreBottomSheet().show(childFragmentManager, CoinStoreBottomSheet.TAG)
         } else {
-            Toast.makeText(requireContext(), "🎉 Joined event: ${banner.title}!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), getString(R.string.livegrid_joined_event, banner.title), Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -82,6 +92,7 @@ class LiveFragment : Fragment() {
 
         binding.rvRooms.layoutManager = GridLayoutManager(requireContext(), 2)
         binding.rvRooms.adapter = adapter
+        adapter.onOpenProfile = profileOpener
 
         binding.btnRank.setOnClickListener {
             LeaderboardBottomSheet().show(childFragmentManager, LeaderboardBottomSheet.TAG)
@@ -188,29 +199,48 @@ class LiveFragment : Fragment() {
 
     private fun loadBanners() {
         viewLifecycleOwner.lifecycleScope.launch {
-            bannerAdapter.submit(UnrealStarApiClient.fetchLiveBanners().banners)
+            try {
+                bannerAdapter.submit(UnrealStarApiClient.fetchLiveBanners().banners)
+            } catch (t: Throwable) {
+                android.util.Log.w("LiveFeed", "banners failed", t)
+            }
         }
     }
 
+    private var hasMorePages = true
+
     private fun loadPage(page: Int, append: Boolean) {
-        if (isLoading) return
+        if (isLoading || (append && !hasMorePages)) return
         isLoading = true
 
         viewLifecycleOwner.lifecycleScope.launch {
-            val result = UnrealStarApiClient.fetchRooms(currentTab, page)
-            isLoading = false
-            val current = _binding ?: return@launch
+            try {
+                val result = UnrealStarApiClient.fetchRooms(currentTab, page)
+                val current = _binding ?: return@launch
 
-            currentPage = result.page
-            if (append) {
-                adapter.append(result.rooms)
-            } else {
-                adapter.submit(result.rooms)
+                currentPage = result.page
+                if (result.rooms.isEmpty()) {
+                    // Exhausted feed: stop polling further pages.
+                    hasMorePages = append
+                }
+                if (append) {
+                    adapter.append(result.rooms)
+                } else {
+                    hasMorePages = true
+                    adapter.submit(result.rooms)
+                }
+
+                val empty = adapter.itemCount == 0
+                current.tvEmpty.visibility = if (empty) View.VISIBLE else View.GONE
+                current.rvBanners.visibility = if (empty) View.GONE else View.VISIBLE
+            } catch (t: Throwable) {
+                android.util.Log.w("LiveFeed", "rooms page $page failed", t)
+                try {
+                    _binding?.tvEmpty?.visibility = View.VISIBLE
+                } catch (_: Throwable) {}
+            } finally {
+                isLoading = false
             }
-
-            val empty = adapter.itemCount == 0
-            current.tvEmpty.visibility = if (empty) View.VISIBLE else View.GONE
-            current.rvBanners.visibility = if (empty) View.GONE else View.VISIBLE
         }
     }
 
@@ -218,6 +248,7 @@ class LiveFragment : Fragment() {
         super.onDestroyView()
         binding.rvRooms.adapter = null
         binding.rvBanners.adapter = null
+        tabViews.clear()
         _binding = null
     }
 }
@@ -228,12 +259,15 @@ private class RoomAdapter(
     private val onOpen: (FeedRoomItem) -> Unit
 ) : RecyclerView.Adapter<RoomAdapter.RoomViewHolder>() {
 
+    var onOpenProfile: ((FeedRoomItem) -> Unit)? = null
+
     private val items = mutableListOf<FeedRoomItem>()
 
     fun submit(next: List<FeedRoomItem>) {
+        val oldSize = items.size
         items.clear()
         items.addAll(next)
-        notifyDataSetChanged()
+        notifyListReplaced(oldSize, items.size)
     }
 
     fun append(next: List<FeedRoomItem>) {
@@ -256,6 +290,9 @@ private class RoomAdapter(
 
         fun bind(room: FeedRoomItem) {
             binding.tvHost.text = room.host_nickname
+            // Secondary tap on the host chip opens the profile; the card tap
+            // (root click listener) still enters the room.
+            binding.tvHost.setOnClickListener { onOpenProfile?.invoke(room) }
             binding.tvTitle.text = room.title
             binding.tvViewers.text = compactCount(room.viewers_count)
 
@@ -330,9 +367,10 @@ private class BannerAdapter(
     private val items = mutableListOf<LiveBanner>()
 
     fun submit(next: List<LiveBanner>) {
+        val oldSize = items.size
         items.clear()
         items.addAll(next)
-        notifyDataSetChanged()
+        notifyListReplaced(oldSize, items.size)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = BannerViewHolder(
@@ -359,7 +397,9 @@ private class BannerAdapter(
 
 /** 1200 -> "1.2K", 1733 -> "1.7K", matching the compact counts on the cards. */
 private fun compactCount(value: Long): String = when {
-    value >= 1_000_000 -> String.format("%.1fM", value / 1_000_000.0)
-    value >= 1_000 -> String.format("%.1fK", value / 1_000.0)
+    // Locale.US: the "K"/"M" suffixes are ASCII and the counts must render
+    // with ASCII digits regardless of the device's locale.
+    value >= 1_000_000 -> String.format(java.util.Locale.US, "%.1fM", value / 1_000_000.0)
+    value >= 1_000 -> String.format(java.util.Locale.US, "%.1fK", value / 1_000.0)
     else -> value.toString()
 }

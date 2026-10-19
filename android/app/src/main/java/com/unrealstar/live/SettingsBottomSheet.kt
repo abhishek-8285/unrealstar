@@ -6,9 +6,13 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.core.content.edit
+import androidx.lifecycle.lifecycleScope
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import com.unrealstar.live.api.SessionStore
+import com.unrealstar.live.api.UnrealStarApiClient
 import com.unrealstar.live.databinding.SheetSettingsBinding
+import kotlinx.coroutines.launch
 import java.io.File
 import java.util.Locale
 
@@ -29,11 +33,11 @@ class SettingsBottomSheet : BottomSheetDialogFragment() {
     override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
         super.onViewCreated(view, savedInstanceState)
 
-        binding.tvSettingsUserId.text = SessionStore.userId.toString()
+        binding.tvSettingsUserId.text = getString(R.string.number_plain, SessionStore.userId)
         binding.tvSettingsUserId.setOnClickListener {
             val cm = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             cm.setPrimaryClip(android.content.ClipData.newPlainText("User ID", SessionStore.userId.toString()))
-            Toast.makeText(requireContext(), "User ID ${SessionStore.userId} copied to clipboard", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), getString(R.string.common_copied_uid, SessionStore.userId.toString()), Toast.LENGTH_SHORT).show()
         }
         updateCacheSize()
 
@@ -42,14 +46,17 @@ class SettingsBottomSheet : BottomSheetDialogFragment() {
         val prefs = requireContext().getSharedPreferences("camstar_settings", android.content.Context.MODE_PRIVATE)
         binding.switchPushNotifications.isChecked = prefs.getBoolean("push_notifications", true)
         binding.switchPushNotifications.setOnCheckedChangeListener { _, isChecked ->
-            prefs.edit().putBoolean("push_notifications", isChecked).apply()
-            val status = if (isChecked) "Enabled" else "Muted"
-            Toast.makeText(requireContext(), "Push Notifications $status", Toast.LENGTH_SHORT).show()
+            prefs.edit { putBoolean("push_notifications", isChecked) }
+            // No FCM channel exists in this build yet: the preference is
+            // stored for when push ships, not applied to the system.
+            val status = if (isChecked) getString(R.string.settings_push_saved)
+            else getString(R.string.settings_push_muted)
+            Toast.makeText(requireContext(), status, Toast.LENGTH_SHORT).show()
         }
 
         binding.rowClearCache.setOnClickListener {
             clearAppCache()
-            Toast.makeText(requireContext(), "🧹 Media Cache Cleared Successfully", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), getString(R.string.settings_cache_cleared), Toast.LENGTH_SHORT).show()
             updateCacheSize()
         }
 
@@ -62,8 +69,12 @@ class SettingsBottomSheet : BottomSheetDialogFragment() {
         }
 
         binding.btnLogout.setOnClickListener {
+            val ctx = requireContext()
             dismiss()
-            startActivity(Intent(requireContext(), OtpLoginActivity::class.java))
+            lifecycleScope.launch {
+                runCatching { UnrealStarApiClient.logout(ctx) }
+                startActivity(Intent(ctx, OtpLoginActivity::class.java))
+            }
         }
     }
 

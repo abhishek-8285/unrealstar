@@ -29,7 +29,7 @@
             android:background="@drawable/bg_inbox_badge"
             android:gravity="center"
             android:textColor="#FFFFFF"
-            android:textSize="9sp"
+            android:textSize="11sp"
             android:textStyle="bold"
             tools:text="12" />
     </FrameLayout>
@@ -41,6 +41,6 @@
         android:layout_marginTop="5dp"
         android:maxLines="1"
         android:textColor="@color/text_muted"
-        android:textSize="10sp"
+        android:textSize="11sp"
         tools:text="Likes" />
 </LinearLayout>

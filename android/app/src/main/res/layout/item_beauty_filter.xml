@@ -11,8 +11,9 @@
         android:layout_width="48dp"
         android:layout_height="48dp"
         android:background="@drawable/gradient_scrim_bottom"
+        android:contentDescription="@null"
         android:padding="4dp"
-        android:src="@android:drawable/ic_menu_crop" />
+        android:scaleType="centerCrop" />
 
     <TextView
         android:id="@+id/tvMatteName"
@@ -22,5 +23,5 @@
         android:ellipsize="end"
         android:maxLines="1"
         android:textColor="@color/text_white"
-        android:textSize="10sp" />
+        android:textSize="11sp" />
 </LinearLayout>

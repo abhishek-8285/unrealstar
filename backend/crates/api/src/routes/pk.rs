@@ -7,9 +7,46 @@ use uuid::Uuid;
 
 use crate::{
     error::ApiError,
-    models::{PkInviteRequest, PkMatchRequest, PkRespondRequest, PkStatusResponse},
+    models::{
+        PkInviteRequest, PkMatchRequest, PkRespondRequest, PkStatusResponse, WsServerMessage,
+    },
     state::AppState,
 };
+
+/// Push the current PK score to every room hosted by either duelist.
+/// No-op when neither host has a live room with a broadcast channel.
+pub(crate) async fn broadcast_pk_state(state: &AppState, pk: &PkStatusResponse) {
+    let room_ids: Vec<u64> = {
+        let rooms = state.rooms.read().await;
+        rooms
+            .values()
+            .filter(|r| r.host_id == pk.host_a_id || r.host_id == pk.host_b_id)
+            .map(|r| r.room_id)
+            .collect()
+    };
+    if room_ids.is_empty() {
+        return;
+    }
+    let ws_rooms = state.ws_rooms.read().await;
+    for rid in room_ids {
+        if let Some(tx) = ws_rooms.get(&rid) {
+            let _ = tx.send(WsServerMessage::PkStateChanged {
+                pk_id: pk.pk_id.clone(),
+                points_a: pk.host_a_points,
+                points_b: pk.host_b_points,
+            });
+        }
+    }
+}
+
+/// Best-effort nickname for the room badge; falls back to Host_<id>.
+async fn nickname_of(state: &AppState, user_id: u64) -> String {
+    let users = state.users.read().await;
+    users
+        .get(&user_id)
+        .map(|u| u.nickname.clone())
+        .unwrap_or_else(|| format!("Host_{user_id}"))
+}
 
 pub async fn request_match(
     headers: HeaderMap,
@@ -86,7 +123,35 @@ pub async fn respond_invite(
         pk.status = "declined".into();
     }
 
-    Ok(Json(pk.clone()))
+    let pk_snapshot = pk.clone();
+    drop(pks);
+
+    if pk_snapshot.status == "in_battle" {
+        // Badge both duelists' rooms so the Live grid shows the battle, and
+        // push the opening 0–0 score so connected viewers render the board
+        // without polling get_status.
+        let opp_a = nickname_of(&state, pk_snapshot.host_b_id).await;
+        let opp_b = nickname_of(&state, pk_snapshot.host_a_id).await;
+        {
+            let mut rooms = state.rooms.write().await;
+            for room in rooms.values_mut().filter(|r| {
+                r.host_id == pk_snapshot.host_a_id || r.host_id == pk_snapshot.host_b_id
+            }) {
+                room.is_pk = true;
+                room.pk_opponent = Some(if room.host_id == pk_snapshot.host_a_id {
+                    opp_a.clone()
+                } else {
+                    opp_b.clone()
+                });
+            }
+        }
+        broadcast_pk_state(&state, &pk_snapshot).await;
+    }
+    // Declines need no broadcast: the responder learns from this response
+    // and the inviter polls get_status. A PkStateChanged with 0–0 would
+    // masquerade as a battle start.
+
+    Ok(Json(pk_snapshot))
 }
 
 pub async fn get_status(

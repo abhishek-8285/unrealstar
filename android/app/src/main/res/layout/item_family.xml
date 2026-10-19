@@ -71,7 +71,7 @@
         android:background="@drawable/bg_btn_primary"
         android:paddingHorizontal="14dp"
         android:paddingVertical="6dp"
-        android:text="Join"
+        android:text="@string/join"
         android:textColor="@color/text_white"
         android:textSize="12sp"
         android:textStyle="bold"

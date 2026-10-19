@@ -201,11 +201,23 @@ pub async fn payment_webhook(
         return Err(ApiError::BadRequest("Unsupported payment provider".into()));
     }
     // Without a configured secret anyone could mint coins. Real providers must
-    // always present the secret; only the local test provider stays open when
-    // no secret is configured (dev/test).
+    // always present the secret; the local test provider stays open only in
+    // debug builds or when explicitly enabled for a staging environment —
+    // never in production by default.
     match webhook_secret() {
         Some(_) => {}
-        None if provider == "test-provider" => {}
+        None if provider == "test-provider" => {
+            let test_open = cfg!(debug_assertions)
+                || matches!(
+                    std::env::var("CAMSTAR_ALLOW_TEST_PROVIDER").as_deref(),
+                    Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes") | Ok("YES")
+                );
+            if !test_open {
+                return Err(ApiError::Unauthorized(
+                    "Test provider is disabled in this environment".into(),
+                ));
+            }
+        }
         None => {
             return Err(ApiError::Unauthorized(
                 "Webhook secret is not configured".into(),

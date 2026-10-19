@@ -25,7 +25,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="🏆 Top Broadcasters"
+            android:text="@string/top_broadcasters"
             android:textColor="@color/text_white"
             android:textSize="18sp"
             android:textStyle="bold"
@@ -36,7 +36,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:padding="8dp"
-            android:text="✕"
+            android:text="@string/watch_close"
             android:textColor="@color/text_muted"
             android:textSize="16sp"
             tools:ignore="HardcodedText" />

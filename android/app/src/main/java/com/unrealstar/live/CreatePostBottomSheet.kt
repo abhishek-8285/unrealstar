@@ -53,7 +53,7 @@ class CreatePostBottomSheet(
         binding.btnPublishPost.setOnClickListener {
             val caption = binding.etCaption.text.toString().trim()
             if (caption.isEmpty()) {
-                Toast.makeText(requireContext(), "Please enter a caption or message", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.post_caption_required), Toast.LENGTH_SHORT).show()
                 return@setOnClickListener
             }
 
@@ -138,7 +138,7 @@ class CreatePostBottomSheet(
 
     private fun publishMoment(caption: String) {
         binding.btnPublishPost.isEnabled = false
-        binding.btnPublishPost.text = "Publishing..."
+        binding.btnPublishPost.text = getString(R.string.publishing_dots)
         binding.btnPublishPost.alpha = 0.7f
 
         lifecycleScope.launch {
@@ -152,14 +152,14 @@ class CreatePostBottomSheet(
 
             val res = UnrealStarApiClient.createMoment(req)
             res.onSuccess { post ->
-                Toast.makeText(requireContext(), "🎉 Moment published to feed!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.post_published), Toast.LENGTH_SHORT).show()
                 onPostCreated?.invoke(post)
                 dismiss()
             }.onFailure { err ->
                 binding.btnPublishPost.isEnabled = true
-                binding.btnPublishPost.text = "🚀 Publish Moment"
+                binding.btnPublishPost.text = getString(R.string.publish_moment)
                 binding.btnPublishPost.alpha = 1.0f
-                Toast.makeText(requireContext(), "Publish error: ${err.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.post_publish_error, err.message), Toast.LENGTH_SHORT).show()
             }
         }
     }

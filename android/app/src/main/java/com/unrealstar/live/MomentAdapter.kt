@@ -11,6 +11,7 @@ import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
+import androidx.core.graphics.toColorInt
 import androidx.core.view.updatePadding
 import androidx.media3.common.MediaItem
 import androidx.media3.exoplayer.ExoPlayer
@@ -72,12 +73,13 @@ class MomentAdapter : RecyclerView.Adapter<MomentAdapter.MomentViewHolder>() {
         }
 
     fun submit(next: List<FeedPost>) {
+        val oldSize = items.size
         acted.clear()
         items.clear()
         items.addAll(next)
         activePosition = RecyclerView.NO_POSITION
         activeHolder = null
-        notifyDataSetChanged()
+        notifyListReplaced(oldSize, items.size)
     }
 
     /** Appends the next page without disturbing what is already on screen. */
@@ -164,7 +166,7 @@ class MomentAdapter : RecyclerView.Adapter<MomentAdapter.MomentViewHolder>() {
             binding.tvAuthor.text = moment.author_nickname
             binding.tvCaption.text = highlightTags(moment.caption, moment.tags)
             binding.tvSuggestedName.text = moment.author_nickname
-            binding.tvTimer.text = "${moment.duration_secs}s"
+            binding.tvTimer.text = binding.root.context.getString(R.string.moment_duration_secs, moment.duration_secs)
 
             syncCounts(moment)
             syncLiked(moment)
@@ -428,9 +430,9 @@ class MomentAdapter : RecyclerView.Adapter<MomentAdapter.MomentViewHolder>() {
     }
 
     companion object {
-        private val primary = Color.parseColor("#FF0055")
-        private val gold = Color.parseColor("#FFD700")
-        private val tagColor = Color.parseColor("#25A8F0")
+        private val primary = "#FF0055".toColorInt()
+        private val gold = "#FFD700".toColorInt()
+        private val tagColor = "#25A8F0".toColorInt()
 
         /**
          * Colours `#hashtag` runs inside the caption, the way Instagram and

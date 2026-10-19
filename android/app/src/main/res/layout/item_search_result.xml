@@ -22,6 +22,7 @@
             android:layout_width="48dp"
             android:layout_height="48dp"
             android:background="@drawable/bg_live_avatar"
+            android:contentDescription="@string/creator_avatar"
             android:scaleType="centerCrop" />
 
         <TextView
@@ -34,9 +35,9 @@
             android:paddingTop="1dp"
             android:paddingEnd="4dp"
             android:paddingBottom="1dp"
-            android:text="LIVE"
+            android:text="@string/live_indicator"
             android:textColor="@color/text_white"
-            android:textSize="8sp"
+            android:textSize="11sp"
             android:textStyle="bold"
             android:visibility="gone" />
     </FrameLayout>
@@ -76,9 +77,9 @@
                 android:paddingTop="1dp"
                 android:paddingEnd="6dp"
                 android:paddingBottom="1dp"
-                android:text="Lv 25"
+                android:text="@string/privilege_level"
                 android:textColor="@color/level_gold"
-                android:textSize="9sp"
+                android:textSize="11sp"
                 android:textStyle="bold"
                 android:visibility="gone" />
         </LinearLayout>
@@ -106,7 +107,7 @@
         android:paddingTop="6dp"
         android:paddingEnd="14dp"
         android:paddingBottom="6dp"
-        android:text="Join"
+        android:text="@string/join"
         android:textColor="@color/text_white"
         android:textSize="11sp"
         android:textStyle="bold" />

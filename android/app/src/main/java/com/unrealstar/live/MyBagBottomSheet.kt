@@ -116,7 +116,7 @@ class MyBagBottomSheet(
                             }
                         }
                         filterItems()
-                        Toast.makeText(requireContext(), "🎉 Unlocked and equipped ${item.name}!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(requireContext(), getString(R.string.bag_unlocked, item.name), Toast.LENGTH_SHORT).show()
                         onBagUpdated?.invoke()
                     }
                 }
@@ -141,7 +141,7 @@ class MyBagBottomSheet(
                 }
                 filterItems()
                 val action = if (nextEquipState) "Equipped ${item.name}" else "Unequipped ${item.name}"
-                Toast.makeText(requireContext(), "✨ $action", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.bag_action, action), Toast.LENGTH_SHORT).show()
                 onBagUpdated?.invoke()
             }
         }
@@ -164,9 +164,10 @@ class CosmeticAdapter(
     private val items = mutableListOf<CosmeticItem>()
 
     fun submit(newItems: List<CosmeticItem>) {
+        val oldSize = items.size
         items.clear()
         items.addAll(newItems)
-        notifyDataSetChanged()
+        notifyListReplaced(oldSize, items.size)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CosmeticViewHolder {
@@ -202,13 +203,13 @@ class CosmeticAdapter(
                 .into(binding.ivCosmeticIcon)
 
             if (!item.is_owned) {
-                binding.btnCosmeticAction.text = "🪙 ${item.price_coins}"
+                binding.btnCosmeticAction.text = binding.root.context.getString(R.string.cosmetic_price, item.price_coins)
                 binding.btnCosmeticAction.setBackgroundResource(R.drawable.bg_me_pill_outline)
             } else if (item.is_equipped) {
-                binding.btnCosmeticAction.text = "In Use"
+                binding.btnCosmeticAction.text = binding.root.context.getString(R.string.in_use)
                 binding.btnCosmeticAction.setBackgroundResource(R.drawable.bg_me_pill_gradient)
             } else {
-                binding.btnCosmeticAction.text = "Equip"
+                binding.btnCosmeticAction.text = binding.root.context.getString(R.string.equip)
                 binding.btnCosmeticAction.setBackgroundResource(R.drawable.bg_me_pill_outline)
             }
 

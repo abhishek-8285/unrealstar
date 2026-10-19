@@ -54,14 +54,29 @@ pub async fn create_room(
 
     let roster = RoomRoster::new(room_id, user_id);
 
+    // Cover URLs are echoed into every room card: cap length and require an
+    // http(s) URL so a malicious string cannot smuggle javascript: payloads
+    // or megabyte blobs into the feed.
+    let cover_image_url = match req.cover_image_url {
+        None => "https://cdn.camstar.live/covers/default.png".into(),
+        Some(url) => {
+            let valid =
+                url.len() <= 512 && (url.starts_with("https://") || url.starts_with("http://"));
+            if !valid {
+                return Err(ApiError::BadRequest(
+                    "cover_image_url must be an http(s) URL under 512 chars".into(),
+                ));
+            }
+            url
+        }
+    };
+
     let session = RoomSession {
         room_id,
         title: req.title.clone(),
         host_id: user_id,
         category: req.category_id,
-        cover_image_url: req
-            .cover_image_url
-            .unwrap_or_else(|| "https://cdn.camstar.live/covers/default.png".into()),
+        cover_image_url,
         roster,
         is_active: true,
         peak_viewers: 1,
@@ -72,6 +87,7 @@ pub async fn create_room(
         host_badge: None,
         present: HashSet::new(),
         viewers_base: 0,
+        started_at: chrono::Utc::now(),
     };
 
     rooms.insert(room_id, session);
@@ -134,10 +150,16 @@ pub async fn join_room(
         return Err(ApiError::BadRequest("Room is already closed".into()));
     }
 
+    // Audience cap: the host is never counted and always admits; everyone
+    // else is rejected once tracked presence hits the ceiling so one viral
+    // room cannot grow presence and broadcast fan-out without bound.
+    if user_id != room.host_id && room.at_viewer_capacity() {
+        return Err(ApiError::Forbidden("Room is full".into()));
+    }
+
     // Presence-tracked counting: a user who joined and left repeatedly cannot
     // inflate the count, and a user who never joined cannot decrement it.
     let joined = room.mark_present(user_id);
-
 
     let users = state.users.read().await;
     let host_profile =
@@ -207,7 +229,9 @@ async fn broadcast_viewer_count(state: &AppState, room_id: u64) {
     let Some(viewers) = viewers else { return };
     let ws_rooms = state.ws_rooms.read().await;
     if let Some(tx) = ws_rooms.get(&room_id) {
-        let _ = tx.send(WsServerMessage::ViewerCount { viewers_count: viewers });
+        let _ = tx.send(WsServerMessage::ViewerCount {
+            viewers_count: viewers,
+        });
     }
 }
 
@@ -308,6 +332,11 @@ pub async fn close_room(
     let room_id = room.room_id;
     let peak_viewers = room.peak_viewers;
     let diamonds_earned = room.diamonds_earned;
+    // Real stream length, not a constant: the ended screen shows this.
+    let duration_secs = chrono::Utc::now()
+        .signed_duration_since(room.started_at)
+        .num_seconds()
+        .max(0) as u64;
 
     // Update user state
     {
@@ -328,7 +357,7 @@ pub async fn close_room(
     broadcast_to_room(&state, room_id, WsServerMessage::RoomClosed).await;
 
     Ok(Json(CloseRoomResponse {
-        duration_secs: 1800,
+        duration_secs,
         peak_viewers,
         diamonds_earned,
     }))
@@ -579,14 +608,17 @@ pub async fn ws_handler(
     {
         let rooms = state.rooms.read().await;
         match rooms.get(&room_id) {
-            Some(room) if room.is_active => {}
+            Some(room) if room.is_active => {
+                // Same ceiling as HTTP join: a full room rejects the socket
+                // upgrade instead of admitting a viewer the HTTP path refused.
+                if user_id != room.host_id && room.at_viewer_capacity() {
+                    return ApiError::Forbidden("Room is full".to_string()).into_response();
+                }
+            }
             Some(_) => {
-                return ApiError::BadRequest("Room is already closed".to_string())
-                    .into_response()
+                return ApiError::BadRequest("Room is already closed".to_string()).into_response()
             }
-            None => {
-                return ApiError::NotFound("Room not found".to_string()).into_response()
-            }
+            None => return ApiError::NotFound("Room not found".to_string()).into_response(),
         }
     }
 
@@ -614,16 +646,48 @@ async fn handle_socket(socket: WebSocket, room_id: u64, state: AppState, user_id
     // Presence counting for WS-only audiences: a socket open is presence.
     // The host is excluded inside mark_present, and the socket close below
     // undoes it, so a socket that half-dies mid-negotiation cannot leak a
-    // permanent viewer.
-    let presence_changed = {
+    // permanent viewer. The cap is re-checked under the write lock: two
+    // sockets can pass upgrade admission together, but only one wins here —
+    // the loser is closed with a room-full policy code. The host and users
+    // already counted in presence always admit (a second socket from the
+    // same user adds no count under set semantics).
+    enum Admission {
+        Ok(bool),
+        Gone,
+        Full,
+    }
+    let admission = {
         let mut rooms = state.rooms.write().await;
-        rooms
-            .get_mut(&room_id)
-            .map(|r| r.mark_present(user_id))
-            .unwrap_or(false)
+        match rooms.get_mut(&room_id) {
+            None => Admission::Gone,
+            Some(r) if user_id == r.host_id || r.present.contains(&user_id) => {
+                Admission::Ok(r.mark_present(user_id))
+            }
+            Some(r) if r.at_viewer_capacity() => Admission::Full,
+            Some(r) => Admission::Ok(r.mark_present(user_id)),
+        }
     };
-    if presence_changed {
-        broadcast_viewer_count(&state, room_id).await;
+    match admission {
+        Admission::Ok(changed) => {
+            if changed {
+                broadcast_viewer_count(&state, room_id).await;
+            }
+        }
+        Admission::Gone => {
+            // No room (and only the lazy broadcast channel): plain close.
+            let _ = sender.send(Message::Close(None)).await;
+            return;
+        }
+        Admission::Full => {
+            use axum::extract::ws::{close_code, CloseFrame};
+            let _ = sender
+                .send(Message::Close(Some(CloseFrame {
+                    code: close_code::POLICY,
+                    reason: "Room is full".into(),
+                })))
+                .await;
+            return;
+        }
     }
 
     // Forward broadcast messages to this client. The socket's own signals
@@ -634,8 +698,9 @@ async fn handle_socket(socket: WebSocket, room_id: u64, state: AppState, user_id
     let mut send_task = tokio::spawn(async move {
         loop {
             match rx.recv().await {
-                Ok(WsServerMessage::RtcSignalRelay { ref from_user_id, .. })
-                    if *from_user_id == user_id => continue,
+                Ok(WsServerMessage::RtcSignalRelay {
+                    ref from_user_id, ..
+                }) if *from_user_id == user_id => continue,
                 Ok(msg) => {
                     if let Ok(json_str) = serde_json::to_string(&msg) {
                         if sender.send(Message::Text(json_str.into())).await.is_err() {

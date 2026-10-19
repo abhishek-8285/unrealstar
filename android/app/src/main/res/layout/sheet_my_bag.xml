@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/surface_dark"
@@ -19,17 +20,20 @@
         android:background="#44FFFFFF" />
 
     <!-- Header Title -->
+    <!-- Title and close button are separate views; merging the trailing
+         icon into the text would fold the close target into the title. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        tools:ignore="UseCompoundDrawables">
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="🎒 My Bag &amp; Cosmetics"
+            android:text="@string/my_bag_cosmetics"
             android:textColor="@color/text_white"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -39,7 +43,7 @@
             android:layout_width="28dp"
             android:layout_height="28dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Close"
+            android:contentDescription="@string/desc_close"
             android:padding="4dp"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
             app:tint="@color/text_muted" />
@@ -50,7 +54,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginTop="2dp"
-        android:text="Equip luxury frames, entry effects &amp; medals to stand out in live streams"
+        android:text="@string/equip_luxury_frames_entry_effects"
         android:textColor="@color/text_muted"
         android:textSize="12sp" />
 
@@ -70,7 +74,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:padding="8dp"
-            android:text="Frames"
+            android:text="@string/tab_frames"
             android:textColor="@color/text_white"
             android:textSize="13sp"
             android:textStyle="bold" />
@@ -82,7 +86,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:padding="8dp"
-            android:text="Rides"
+            android:text="@string/tab_rides"
             android:textColor="@color/text_muted"
             android:textSize="13sp" />
 
@@ -93,7 +97,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:padding="8dp"
-            android:text="Bubbles"
+            android:text="@string/tab_bubbles"
             android:textColor="@color/text_muted"
             android:textSize="13sp" />
 
@@ -104,7 +108,7 @@
             android:layout_weight="1"
             android:gravity="center"
             android:padding="8dp"
-            android:text="Medals"
+            android:text="@string/tab_medals"
             android:textColor="@color/text_muted"
             android:textSize="13sp" />
     </LinearLayout>
@@ -137,7 +141,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_gravity="center"
-            android:text="No items found in this category"
+            android:text="@string/bag_empty"
             android:textColor="@color/text_muted"
             android:textSize="13sp"
             android:visibility="gone" />

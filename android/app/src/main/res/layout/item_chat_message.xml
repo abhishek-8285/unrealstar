@@ -18,7 +18,7 @@
         android:paddingHorizontal="4dp"
         android:paddingVertical="1dp"
         android:textColor="@color/gold"
-        android:textSize="9sp"
+        android:textSize="11sp"
         android:textStyle="bold"
         android:visibility="gone" />
 
@@ -32,7 +32,7 @@
         android:paddingHorizontal="4dp"
         android:paddingVertical="1dp"
         android:textColor="@color/background_dark"
-        android:textSize="9sp"
+        android:textSize="11sp"
         android:textStyle="bold"
         android:visibility="gone" />
 

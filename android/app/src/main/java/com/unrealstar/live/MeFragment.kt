@@ -85,8 +85,15 @@ class MeFragment : Fragment() {
                     R.string.me_creator -> {
                         lifecycleScope.launch {
                             val kyc = UnrealStarApiClient.fetchKycStatus().getOrNull()
-                            val msg = if (kyc != null) "KYC Status: ${kyc.status.uppercase()}" else "Creator Center Active"
-                            Toast.makeText(requireContext(), "🌟 $msg", Toast.LENGTH_SHORT).show()
+                            // A rejection reason written by the review desk
+                            // must reach the applicant, not just the status.
+                            val msg = when {
+                                kyc == null -> getString(R.string.me_creator_active)
+                                kyc.status.equals("rejected", true) && !kyc.rejection_reason.isNullOrBlank() ->
+                                    getString(R.string.me_kyc_rejected, kyc.rejection_reason)
+                                else -> getString(R.string.me_kyc_status, kyc.status.uppercase())
+                            }
+                            Toast.makeText(requireContext(), getString(R.string.me_cheer, msg), Toast.LENGTH_SHORT).show()
                         }
                     }
                     else -> {
@@ -121,13 +128,13 @@ class MeFragment : Fragment() {
                         binding.filterRow.visibility = View.GONE
                         binding.statGridTop.visibility = View.VISIBLE
                         binding.statGridBottom.visibility = View.GONE
-                        Toast.makeText(requireContext(), "📹 0 Moments uploaded. Tap '+' to go live!", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(requireContext(), getString(R.string.me_no_moments), Toast.LENGTH_SHORT).show()
                     }
                     2 -> {
                         binding.filterRow.visibility = View.GONE
                         binding.statGridTop.visibility = View.GONE
                         binding.statGridBottom.visibility = View.VISIBLE
-                        Toast.makeText(requireContext(), "❤️ 0 Favorite items saved", Toast.LENGTH_SHORT).show()
+                        Toast.makeText(requireContext(), getString(R.string.me_no_favorites), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -167,12 +174,12 @@ class MeFragment : Fragment() {
             val id = binding.tvDisplayId.text.toString().removePrefix("ID:").trim()
             val cm = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             cm.setPrimaryClip(android.content.ClipData.newPlainText("User ID", id))
-            Toast.makeText(requireContext(), "User ID $id copied to clipboard", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), getString(R.string.common_copied_uid, id), Toast.LENGTH_SHORT).show()
         }
 
         binding.ivAvatar.setOnClickListener {
             val name = binding.tvNickname.text.toString()
-            Toast.makeText(requireContext(), "👤 Logged in as $name", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), getString(R.string.me_logged_in, name), Toast.LENGTH_SHORT).show()
         }
 
         val openLeaderboard = View.OnClickListener {
@@ -195,7 +202,7 @@ class MeFragment : Fragment() {
         binding.tvNickname.text = me.nickname
         binding.tvBio.text = me.bio
         binding.tvDisplayId.text = me.display_id
-        binding.tvAge.text = getString(R.string.me_age_years, me.age)
+        binding.tvAge.text = resources.getQuantityString(R.plurals.me_age_years, me.age, me.age)
         binding.tvLevel.text = getString(R.string.me_level, me.level)
 
         binding.tvFollowing.text = compactCount(me.following_count)

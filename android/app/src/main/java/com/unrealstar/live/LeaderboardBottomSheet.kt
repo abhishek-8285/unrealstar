@@ -45,7 +45,7 @@ class LeaderboardBottomSheet : BottomSheetDialogFragment() {
                 binding.rvLeaderboard.visibility = View.VISIBLE
                 binding.rvLeaderboard.adapter = LeaderboardAdapter(list)
             }.onFailure { err ->
-                Toast.makeText(requireContext(), "Failed to load leaderboard: ${err.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.board_load_failed, err.message), Toast.LENGTH_SHORT).show()
                 dismiss()
             }
         }
@@ -74,7 +74,7 @@ class LeaderboardBottomSheet : BottomSheetDialogFragment() {
             }
             holder.b.tvRank.text = rankText
             holder.b.tvNickname.text = item.nickname
-            holder.b.tvScore.text = "⚡ ${item.score}"
+            holder.b.tvScore.text = getString(R.string.leaderboard_score, item.score)
 
             Glide.with(holder.b.ivAvatar)
                 .load(UnrealStarApiClient.localise(item.avatar_url))

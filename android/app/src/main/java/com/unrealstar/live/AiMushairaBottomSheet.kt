@@ -87,7 +87,7 @@ class AiMushairaBottomSheet(
         binding.tvPoemLanguage.setOnClickListener {
             langIndex = (langIndex + 1) % languages.size
             selectedLang = languages[langIndex]
-            binding.tvPoemLanguage.text = "$selectedLang ▾"
+            binding.tvPoemLanguage.text = getString(R.string.mushaira_lang_picker, selectedLang)
             generatePoem()
         }
     }
@@ -110,7 +110,7 @@ class AiMushairaBottomSheet(
                     chip.setBackgroundResource(R.drawable.bg_chip_translucent)
                 }
             }
-            binding.tvPoemTag.text = "#${active.replace(" ", "")} #Mushaira"
+            binding.tvPoemTag.text = getString(R.string.mushaira_poem_tag, active.replace(" ", ""))
             generatePoem()
         }
 
@@ -139,7 +139,7 @@ class AiMushairaBottomSheet(
         }
 
         binding.tvGeneratedVerse.text = finalVerse
-        binding.tvPoemAuthor.text = "— AI Mushaira ($selectedLang) feat. Creator #${SessionStore.userId}"
+        binding.tvPoemAuthor.text = getString(R.string.mushaira_poem_author, selectedLang, SessionStore.userId)
     }
 
     private fun setupPublishAction() {
@@ -148,7 +148,7 @@ class AiMushairaBottomSheet(
             val tag = binding.tvPoemTag.text.toString().trim()
 
             binding.btnPostPoemToFeed.isEnabled = false
-            binding.btnPostPoemToFeed.text = "Publishing Verse..."
+            binding.btnPostPoemToFeed.text = getString(R.string.mushaira_publishing)
             binding.btnPostPoemToFeed.alpha = 0.7f
 
             lifecycleScope.launch {
@@ -162,14 +162,14 @@ class AiMushairaBottomSheet(
 
                 val res = UnrealStarApiClient.createMoment(req)
                 res.onSuccess { post ->
-                    Toast.makeText(requireContext(), "🎉 Verse published to feed!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), getString(R.string.mushaira_published), Toast.LENGTH_SHORT).show()
                     onPoemPublished?.invoke(post)
                     dismiss()
                 }.onFailure { err ->
                     binding.btnPostPoemToFeed.isEnabled = true
-                    binding.btnPostPoemToFeed.text = "🚀 Post Verse to Moments"
+                    binding.btnPostPoemToFeed.text = getString(R.string.mushaira_post_verse)
                     binding.btnPostPoemToFeed.alpha = 1.0f
-                    Toast.makeText(requireContext(), "Error: ${err.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), getString(R.string.mushaira_error, err.message), Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -186,7 +186,7 @@ class AiMushairaBottomSheet(
                 }
                 tts?.language = locale
                 tts?.speak(verse, android.speech.tts.TextToSpeech.QUEUE_FLUSH, null, "mushaira_recite")
-                Toast.makeText(requireContext(), "🔊 Reciting verse...", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.mushaira_reciting), Toast.LENGTH_SHORT).show()
             }
         }
 
@@ -196,7 +196,7 @@ class AiMushairaBottomSheet(
             val clip = "$verse\n\n$tag via CamStar Live"
             val clipboard = requireContext().getSystemService(android.content.Context.CLIPBOARD_SERVICE) as android.content.ClipboardManager
             clipboard.setPrimaryClip(android.content.ClipData.newPlainText("Mushaira Shayari", clip))
-            Toast.makeText(requireContext(), "📋 Copied verse to clipboard!", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), getString(R.string.mushaira_copied), Toast.LENGTH_SHORT).show()
         }
 
         binding.btnSharePoem.setOnClickListener {

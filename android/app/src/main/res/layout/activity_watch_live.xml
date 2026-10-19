@@ -4,7 +4,8 @@
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@android:color/black">
+    android:background="@android:color/black"
+    android:keepScreenOn="true">
 
     <org.webrtc.SurfaceViewRenderer
         android:id="@+id/renderer"
@@ -41,7 +42,7 @@
             android:background="@drawable/bg_feed_follow_badge"
             android:paddingHorizontal="10dp"
             android:paddingVertical="4dp"
-            android:text="+ Follow"
+            android:text="@string/follow_host"
             android:textColor="@color/text_white"
             android:textSize="12sp"
             android:textStyle="bold"
@@ -71,55 +72,49 @@
     <LinearLayout
         android:id="@+id/layoutPkBar"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
+        android:layout_height="28dp"
+        android:layout_marginHorizontal="16dp"
         android:layout_marginTop="56dp"
-        android:paddingHorizontal="16dp"
-        android:orientation="vertical">
+        android:background="@drawable/bg_chip_translucent"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingHorizontal="8dp">
 
-        <LinearLayout
-            android:layout_width="match_parent"
-            android:layout_height="28dp"
-            android:background="@drawable/bg_chip_translucent"
-            android:gravity="center_vertical"
-            android:orientation="horizontal"
-            android:paddingHorizontal="8dp">
+        <TextView
+            android:id="@+id/tvPkHostAPoints"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:textColor="#2196F3"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:text="@string/pk_host_a_points"
+            tools:ignore="HardcodedText" />
 
-            <TextView
-                android:id="@+id/tvPkHostAPoints"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:textColor="#2196F3"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:text="🔵 Blue: 0"
-                tools:ignore="HardcodedText" />
+        <TextView
+            android:id="@+id/tvPkStatus"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_pk_edge_badge"
+            android:paddingHorizontal="8dp"
+            android:paddingVertical="2dp"
+            android:textColor="@color/text_white"
+            android:textSize="11sp"
+            android:textStyle="bold"
+            android:text="@string/pk_status"
+            tools:ignore="HardcodedText" />
 
-            <TextView
-                android:id="@+id/tvPkStatus"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/bg_pk_edge_badge"
-                android:paddingHorizontal="8dp"
-                android:paddingVertical="2dp"
-                android:textColor="@color/text_white"
-                android:textSize="11sp"
-                android:textStyle="bold"
-                android:text="⚔️ PK BATTLE"
-                tools:ignore="HardcodedText" />
-
-            <TextView
-                android:id="@+id/tvPkHostBPoints"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:gravity="end"
-                android:textColor="#F44336"
-                android:textSize="12sp"
-                android:textStyle="bold"
-                android:text="0 :Red 🔴"
-                tools:ignore="HardcodedText" />
-        </LinearLayout>
+        <TextView
+            android:id="@+id/tvPkHostBPoints"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="end"
+            android:textColor="#F44336"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:text="@string/pk_host_b_points"
+            tools:ignore="HardcodedText" />
     </LinearLayout>
 
     <!-- Bottom Container: Chat messages + Input / Actions -->
@@ -183,7 +178,8 @@
                 android:paddingHorizontal="12dp"
                 android:textColor="@color/text_white"
                 android:textColorHint="@color/text_muted"
-                android:textSize="13sp" />
+                android:textSize="13sp"
+                android:importantForAutofill="no" />
 
             <TextView
                 android:id="@+id/btnSendChat"
@@ -193,7 +189,7 @@
                 android:background="@drawable/bg_chip_translucent"
                 android:gravity="center"
                 android:paddingHorizontal="12dp"
-                android:text="Send"
+                android:text="@string/send"
                 android:textColor="@color/primary"
                 android:textSize="13sp"
                 android:textStyle="bold"
@@ -207,7 +203,7 @@
                 android:layout_marginStart="6dp"
                 android:background="@drawable/bg_chip_translucent"
                 android:gravity="center"
-                android:text="🧧"
+                android:text="@string/red_packet"
                 android:textSize="18sp"
                 tools:ignore="HardcodedText" />
 
@@ -219,7 +215,7 @@
                 android:layout_marginStart="6dp"
                 android:background="@drawable/bg_chip_translucent"
                 android:gravity="center"
-                android:text="🎡"
+                android:text="@string/toggle_wheel"
                 android:textSize="18sp"
                 tools:ignore="HardcodedText" />
 
@@ -231,7 +227,7 @@
                 android:layout_marginStart="6dp"
                 android:background="@drawable/bg_chip_translucent"
                 android:gravity="center"
-                android:text="🎁"
+                android:text="@string/toggle_gifts"
                 android:textSize="18sp"
                 tools:ignore="HardcodedText" />
         </LinearLayout>

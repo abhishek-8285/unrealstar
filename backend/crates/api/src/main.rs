@@ -1,15 +1,10 @@
 use camstar_api::models::MomentItem;
+use camstar_api::seed::{origin, seed_demo_rooms};
 use camstar_api::{create_router, AppState};
 use chrono::Utc;
 
-/// Origin the phone fetches from. Overridable so a USB/loopback setup can
-/// point the app at this host without publishing a DNS name.
-fn origin() -> String {
-    std::env::var("PUBLIC_ORIGIN").unwrap_or_else(|_| "https://us.avandab.com".to_string())
-}
-use tokio::net::TcpListener;
-use std::collections::HashSet;
 use std::net::SocketAddr;
+use tokio::net::TcpListener;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -42,10 +37,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Also explicitly give user 1001 and host 9999 accounts in ledger and seed Room 1
     {
         use camstar_api::state::{
-            system_clearing_account, user_coins_account, user_diamonds_account, RoomSession,
+            system_clearing_account, user_coins_account, user_diamonds_account,
         };
         use camstar_ledger::{AccountKind, Direction, EntryKind, Line, Money};
-        use camstar_roles::RoomRoster;
 
         let _ = state
             .ledger
@@ -86,182 +80,8 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .register_account(user_diamonds_account(9999), AccountKind::Owned)
             .await;
 
-        // Seed a realistic set of live rooms. The Live grid is a two-column
-        // card wall, so the fixtures deliberately span every tab (party,
-        // talent, pk, nearby) and a wide viewer range, plus the PK pairs and
-        // promotional chips the card chrome renders.
-        struct SeedRoom {
-            id: u64,
-            title: &'static str,
-            host: u64,
-            category: &'static str,
-            viewers: u64,
-            rank_tag: Option<&'static str>,
-            host_badge: Option<&'static str>,
-            is_pk: bool,
-            pk_opponent: Option<&'static str>,
-        }
-
-        let seed_rooms = [
-            SeedRoom {
-                id: 1,
-                title: "Be My Guest Tonight",
-                host: 9999,
-                category: "party",
-                viewers: 1204,
-                rank_tag: Some("Hourly TOP!"),
-                host_badge: Some("👑"),
-                is_pk: false,
-                pk_opponent: None,
-            },
-            SeedRoom {
-                id: 2,
-                title: "Bollywood Nights",
-                host: 2101,
-                category: "party",
-                viewers: 382,
-                rank_tag: None,
-                host_badge: Some("🎀"),
-                is_pk: true,
-                pk_opponent: Some("trisha"),
-            },
-            SeedRoom {
-                id: 3,
-                title: "Unplugged & Chill",
-                host: 2102,
-                category: "talent",
-                viewers: 278,
-                rank_tag: Some("Hourly TOP!"),
-                host_badge: None,
-                is_pk: false,
-                pk_opponent: None,
-            },
-            SeedRoom {
-                id: 4,
-                title: "Coffee Date Live",
-                host: 2103,
-                category: "nearby",
-                viewers: 206,
-                rank_tag: None,
-                host_badge: Some("💖"),
-                is_pk: false,
-                pk_opponent: None,
-            },
-            SeedRoom {
-                id: 5,
-                title: "Dimple's Room",
-                host: 2104,
-                category: "party",
-                viewers: 217,
-                rank_tag: Some("Free coins"),
-                host_badge: Some("🎁"),
-                is_pk: true,
-                pk_opponent: Some("aisha"),
-            },
-            SeedRoom {
-                id: 6,
-                title: "Late Night Talk",
-                host: 2105,
-                category: "talent",
-                viewers: 98,
-                rank_tag: None,
-                host_badge: None,
-                is_pk: false,
-                pk_opponent: None,
-            },
-            SeedRoom {
-                id: 7,
-                title: "Game Night Arena",
-                host: 2106,
-                category: "party",
-                viewers: 1420,
-                rank_tag: Some("Hot 🔥"),
-                host_badge: Some("👑"),
-                is_pk: false,
-                pk_opponent: None,
-            },
-            SeedRoom {
-                id: 8,
-                title: "Sing Along With Me",
-                host: 2107,
-                category: "talent",
-                viewers: 511,
-                rank_tag: None,
-                host_badge: Some("🎤"),
-                is_pk: false,
-                pk_opponent: None,
-            },
-            SeedRoom {
-                id: 9,
-                title: "Dance Floor Open",
-                host: 2108,
-                category: "party",
-                viewers: 640,
-                rank_tag: None,
-                host_badge: Some("💃"),
-                is_pk: true,
-                pk_opponent: Some("meera"),
-            },
-            SeedRoom {
-                id: 10,
-                title: "Study Buddy Lounge",
-                host: 2109,
-                category: "nearby",
-                viewers: 74,
-                rank_tag: None,
-                host_badge: None,
-                is_pk: false,
-                pk_opponent: None,
-            },
-            SeedRoom {
-                id: 11,
-                title: "New Star Debut",
-                host: 2110,
-                category: "talent",
-                viewers: 45,
-                rank_tag: Some("New star"),
-                host_badge: Some("✨"),
-                is_pk: false,
-                pk_opponent: None,
-            },
-            SeedRoom {
-                id: 12,
-                title: "Weekend Party Pit",
-                host: 2111,
-                category: "party",
-                viewers: 1733,
-                rank_tag: Some("Hourly TOP!"),
-                host_badge: Some("👑"),
-                is_pk: false,
-                pk_opponent: None,
-            },
-        ];
-
-        let mut rooms = state.rooms.write().await;
-        for seed in seed_rooms {
-            let mut roster = RoomRoster::new(seed.id, seed.host);
-            roster.set_viewer_count(seed.viewers);
-            rooms.insert(
-                seed.id,
-                RoomSession {
-                    room_id: seed.id,
-                    title: seed.title.into(),
-                    host_id: seed.host,
-                    category: seed.category.into(),
-                    cover_image_url: format!("{}/assets/covers/{}.jpg", origin(), seed.id),
-                    roster,
-                    is_active: true,
-                    peak_viewers: seed.viewers,
-                    diamonds_earned: 0,
-                    is_pk: seed.is_pk,
-                    pk_opponent: seed.pk_opponent.map(str::to_string),
-                    rank_tag: seed.rank_tag.map(str::to_string),
-                    host_badge: seed.host_badge.map(str::to_string),
-                    present: HashSet::new(),
-                    viewers_base: seed.viewers,
-                },
-            );
-        }
+        // Live-grid fixtures; shared with the regression tests.
+        seed_demo_rooms(&state).await;
         // Seed a feed of moments. Without these the Home tab renders an empty
         // wall: moments were only ever created through the API, so every
         // backend restart emptied the feed. Clips are served by the local
@@ -415,6 +235,38 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 likes_received: 99_272,
             },
         );
+
+        // The seeded rooms reference host ids (9999, 2101..=2111) that never
+        // got UserProfiles, so GET /users/{host_id} 404'd and the profile
+        // sheet degraded for every host on the Live grid. Fixture profiles
+        // carry the live-room link the sheet's Join Live action uses.
+        // Same `users` guard as above — taking it again would deadlock.
+        for host_id in [9999u64].into_iter().chain(2101..=2111) {
+            let room_id = if host_id == 9999 { 1 } else { host_id - 2099 };
+            let idx = (host_id % 4) as usize;
+            users.insert(
+                host_id,
+                UserProfile {
+                    user_id: host_id,
+                    phone: format!("+91900000{host_id}"),
+                    nickname: format!("Host_{host_id}"),
+                    avatar_url: format!("{}/assets/avatars/a{}.jpg", origin(), idx + 1),
+                    bio: "Live tonight — gifts unlock the finale 🎁".into(),
+                    gender: if host_id % 2 == 0 { "female" } else { "male" }.into(),
+                    city: ["Mumbai", "Delhi", "Jaipur", "Pune"][idx].into(),
+                    age: 20 + (host_id % 5) as u8,
+                    can_publish: true,
+                    creator_status: CreatorStatus::Established,
+                    wealth_tier: Tier::Notable,
+                    vip_level: VipLevel::One,
+                    followers_count: 1_000 + host_id * 7,
+                    following_count: 12,
+                    is_live: true,
+                    live_room_id: Some(room_id),
+                    likes_received: 5_000 + host_id * 13,
+                },
+            );
+        }
     }
     println!("🚀 CamStar API Server initialized.");
     println!(

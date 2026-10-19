@@ -21,3 +21,7 @@ android/local.properties
 
 # Local seed media (generated, large binaries)
 media-seed/
+
+# Python bytecode
+__pycache__/
+*.pyc

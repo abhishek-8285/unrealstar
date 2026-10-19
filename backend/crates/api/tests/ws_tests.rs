@@ -40,7 +40,9 @@ async fn ws_connect(port: u16, room_id: u64, token: &str) -> (WsTx, WsRx) {
 }
 
 async fn send_json(tx: &mut WsTx, v: Value) {
-    tx.send(WsMessage::Text(v.to_string().into())).await.unwrap();
+    tx.send(WsMessage::Text(v.to_string().into()))
+        .await
+        .unwrap();
 }
 
 enum Read {
@@ -145,7 +147,9 @@ async fn relay_chat_mutes_and_signals() {
     let host = state.create_user("+918100000001", 0).await;
     state.grant_test_token(&format!("tok_{host}_t"), host).await;
     let viewer = state.create_user("+918100000002", 0).await;
-    state.grant_test_token(&format!("tok_{viewer}_t"), viewer).await;
+    state
+        .grant_test_token(&format!("tok_{viewer}_t"), viewer)
+        .await;
     let host_token = format!("tok_{host}_t");
     let viewer_token = format!("tok_{viewer}_t");
 
@@ -275,7 +279,9 @@ async fn admission_rejection_and_room_closed() {
     let host = state.create_user("+918200000001", 0).await;
     state.grant_test_token(&format!("tok_{host}_t"), host).await;
     let viewer = state.create_user("+918200000002", 0).await;
-    state.grant_test_token(&format!("tok_{viewer}_t"), viewer).await;
+    state
+        .grant_test_token(&format!("tok_{viewer}_t"), viewer)
+        .await;
     let host_token = format!("tok_{host}_t");
     let viewer_token = format!("tok_{viewer}_t");
 

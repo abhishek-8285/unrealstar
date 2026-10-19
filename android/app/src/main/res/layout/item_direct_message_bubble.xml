@@ -24,6 +24,7 @@
             android:layout_height="28dp"
             android:layout_marginEnd="8dp"
             android:layout_gravity="bottom"
+            android:contentDescription="@string/creator_avatar"
             android:src="@drawable/bg_live_avatar" />
 
         <LinearLayout
@@ -47,7 +48,7 @@
                 android:layout_gravity="end"
                 android:layout_marginTop="2dp"
                 android:textColor="#8E8BA5"
-                android:textSize="10sp"
+                android:textSize="11sp"
                 tools:text="15:30" />
         </LinearLayout>
     </LinearLayout>
@@ -77,7 +78,7 @@
             android:layout_gravity="end"
             android:layout_marginTop="2dp"
             android:textColor="#E0E0FF"
-            android:textSize="10sp"
+            android:textSize="11sp"
             tools:text="15:32" />
     </LinearLayout>
 

@@ -7,10 +7,7 @@ use serde_json::json;
 use tower::ServiceExt;
 
 mod common {
-    use axum::{
-        body::Body,
-        http::Request,
-    };
+    use axum::{body::Body, http::Request};
     use http_body_util::BodyExt;
     use serde_json::{json, Value};
     use tower::ServiceExt;
@@ -345,4 +342,3 @@ async fn test_search_backpack_and_levels() {
     assert!(body["total_badges"].as_u64().unwrap() >= 4);
     assert!(body["unlocked_count"].as_u64().unwrap() >= 1);
 }
-

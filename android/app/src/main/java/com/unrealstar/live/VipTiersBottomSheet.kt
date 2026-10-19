@@ -44,7 +44,7 @@ class VipTiersBottomSheet : BottomSheetDialogFragment() {
                 binding.rvTiers.visibility = View.VISIBLE
                 binding.rvTiers.adapter = VipAdapter(tiers)
             }.onFailure { err ->
-                Toast.makeText(requireContext(), "Failed to load VIP tiers: ${err.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.vip_load_failed, err.message), Toast.LENGTH_SHORT).show()
                 dismiss()
             }
         }
@@ -67,7 +67,7 @@ class VipTiersBottomSheet : BottomSheetDialogFragment() {
             val tier = tiers[position]
             holder.b.tvTierName.text = tier.name
             holder.b.tvPrivileges.text = tier.privileges.joinToString(", ")
-            holder.b.tvPrice.text = "₹${tier.price_inr}"
+            holder.b.tvPrice.text = getString(R.string.coin_price_rupee, tier.price_inr)
 
             holder.b.root.setOnClickListener {
                 upgradeVip(tier)
@@ -85,7 +85,7 @@ class VipTiersBottomSheet : BottomSheetDialogFragment() {
             .setTitle("👑 Upgrade to ${tier.name}")
             .setMessage("Price: ₹${tier.price_inr}\n\nPrivileges unlocked:\n• " + tier.privileges.joinToString("\n• ") + "\n\nActivate VIP status now?")
             .setPositiveButton("Activate (₹${tier.price_inr})") { _, _ ->
-                Toast.makeText(requireContext(), "🎉 Welcome to ${tier.name}! VIP Privileges active.", Toast.LENGTH_LONG).show()
+                Toast.makeText(requireContext(), getString(R.string.vip_welcome, tier.name), Toast.LENGTH_LONG).show()
                 dismiss()
             }
             .setNegativeButton("Cancel", null)

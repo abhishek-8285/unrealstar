@@ -35,7 +35,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="💎 Creator Earnings &amp; Cashout"
+                android:text="@string/creator_earnings_cashout"
                 android:textColor="@color/text_white"
                 android:textSize="17sp"
                 android:textStyle="bold" />
@@ -44,7 +44,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:text="Instant UPI transfer with automated Section 194Q TDS"
+                android:text="@string/instant_upi_transfer_with_automated"
                 android:textColor="@color/text_muted"
                 android:textSize="12sp" />
         </LinearLayout>
@@ -56,7 +56,7 @@
             android:layout_alignParentEnd="true"
             android:layout_centerVertical="true"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Close"
+            android:contentDescription="@string/desc_close"
             android:padding="4dp"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
             app:tint="@color/text_muted" />
@@ -73,7 +73,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="AVAILABLE BALANCE"
+            android:text="@string/available_balance"
             android:textColor="@color/text_muted"
             android:textSize="11sp"
             android:textStyle="bold" />
@@ -89,7 +89,7 @@
                 android:id="@+id/tvEarningsDiamonds"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="7,500,000"
+                android:text="@string/earnings_diamonds"
                 android:textColor="@color/level_gold"
                 android:textSize="26sp"
                 android:textStyle="bold" />
@@ -98,7 +98,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginStart="6dp"
-                android:text="Diamonds"
+                android:text="@string/me_diamonds"
                 android:textColor="@color/text_muted"
                 android:textSize="14sp" />
         </LinearLayout>
@@ -119,7 +119,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Gross Payout Value (10 💎 = ₹1)"
+                android:text="@string/gross_payout_value_10_1"
                 android:textColor="@color/text_muted"
                 android:textSize="12sp" />
 
@@ -127,7 +127,7 @@
                 android:id="@+id/tvGrossInr"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="₹75,000"
+                android:text="@string/gross_inr"
                 android:textColor="@color/text_white"
                 android:textSize="13sp"
                 android:textStyle="bold" />
@@ -143,7 +143,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Section 194Q TDS (1% Govt Tax)"
+                android:text="@string/section_194_q_tds_1_govt"
                 android:textColor="@color/text_muted"
                 android:textSize="12sp" />
 
@@ -151,7 +151,7 @@
                 android:id="@+id/tvTdsInr"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="- ₹750"
+                android:text="@string/tds_inr"
                 android:textColor="#FF6B6B"
                 android:textSize="13sp"
                 android:textStyle="bold" />
@@ -167,7 +167,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Net Payout Transferable"
+                android:text="@string/net_payout_transferable"
                 android:textColor="@color/text_white"
                 android:textSize="13sp"
                 android:textStyle="bold" />
@@ -176,7 +176,7 @@
                 android:id="@+id/tvNetPayoutInr"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="₹74,250"
+                android:text="@string/net_payout_inr"
                 android:textColor="@color/disclaimer_green"
                 android:textSize="15sp"
                 android:textStyle="bold" />
@@ -189,7 +189,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:layout_marginBottom="6dp"
-        android:text="Withdrawal Destination (UPI ID)"
+        android:text="@string/withdrawal_destination_upi_id"
         android:textColor="@color/text_white"
         android:textSize="13sp"
         android:textStyle="bold" />
@@ -214,7 +214,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="UPI"
+                android:text="@string/upi"
                 android:textColor="@color/primary"
                 android:textSize="13sp"
                 android:textStyle="bold" />
@@ -225,13 +225,14 @@
                 android:layout_height="48dp"
                 android:layout_marginStart="10dp"
                 android:background="@null"
-                android:hint="e.g. prisha@okhdfcbank"
+                android:hint="@string/earnings_upi_hint"
                 android:inputType="textEmailAddress"
                 android:singleLine="true"
-                android:text="prisha.rajput@okhdfcbank"
+                android:text="@string/upi_address"
                 android:textColor="@color/text_white"
                 android:textColorHint="@color/text_muted"
-                android:textSize="13sp" />
+                android:textSize="13sp"
+                android:importantForAutofill="no" />
         </LinearLayout>
     </com.google.android.material.card.MaterialCardView>
 
@@ -242,7 +243,7 @@
         android:layout_height="50dp"
         android:layout_marginTop="16dp"
         android:background="@drawable/bg_btn_gradient_orange"
-        android:text="💸 Instant Cashout to UPI"
+        android:text="@string/withdraw_upi"
         android:textAllCaps="false"
         android:textColor="@color/text_white"
         android:textSize="15sp"
@@ -255,7 +256,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="8dp"
         android:gravity="center"
-        android:text="⚡ Payouts processed 24/7 directly to your bank account"
+        android:text="@string/payout_status_msg"
         android:textColor="@color/text_muted"
         android:textSize="11sp" />
 

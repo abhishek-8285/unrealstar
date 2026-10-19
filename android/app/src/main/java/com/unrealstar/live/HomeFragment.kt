@@ -63,7 +63,7 @@ class HomeFragment : Fragment() {
         binding.header.doOnPreDraw { header ->
             val gap = (8 * resources.displayMetrics.density).toInt()
             adapter.bannerTopOffsetPx = header.bottom + gap
-            adapter.notifyDataSetChanged()
+            if (adapter.itemCount > 0) adapter.notifyItemRangeChanged(0, adapter.itemCount)
         }
 
         player = ExoPlayer.Builder(requireContext())
@@ -105,17 +105,16 @@ class HomeFragment : Fragment() {
                 recipientId = moment.author_id
             ) { gift, count, comboSeq, _ ->
                 adapter.markActed(moment.moment_id, MomentAction.GIFT)
-                Toast.makeText(requireContext(), "🎁 Sent ${count}x ${gift.name} to ${moment.author_nickname}!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.feed_gift_sent, count, gift.name, moment.author_nickname), Toast.LENGTH_SHORT).show()
             }
             sheet.show(childFragmentManager, GiftBottomSheet.TAG)
         }
         adapter.onOpenProfile = { moment ->
-            val dmSheet = DirectMessageBottomSheet(
-                targetUserId = moment.author_id,
-                targetNickname = moment.author_nickname,
-                targetAvatarUrl = moment.author_avatar_url
-            )
-            dmSheet.show(childFragmentManager, DirectMessageBottomSheet.TAG)
+            ProfileBottomSheet(
+                userId = moment.author_id,
+                fallbackNickname = moment.author_nickname,
+                fallbackAvatarUrl = moment.author_avatar_url
+            ).show(childFragmentManager, ProfileBottomSheet.TAG)
         }
         adapter.onOpenComments = { moment ->
             CommentsBottomSheet.newInstance(moment.moment_id, moment.comment_count)
@@ -187,23 +186,31 @@ class HomeFragment : Fragment() {
         isLoadingPage = true
 
         viewLifecycleOwner.lifecycleScope.launch {
-            val auth = UnrealStarApiClient.probeAuth()
-            signedOut = auth == UnrealStarApiClient.AuthState.SignedOut
-            loadFailed = auth == UnrealStarApiClient.AuthState.Unreachable
+            try {
+                val auth = UnrealStarApiClient.probeAuth()
+                signedOut = auth == UnrealStarApiClient.AuthState.SignedOut
+                loadFailed = auth == UnrealStarApiClient.AuthState.Unreachable
 
-            if (signedOut || loadFailed) {
-                allMoments.clear()
-                nextCursor = null
-                isLoadingPage = false
-            } else {
-                val page = UnrealStarApiClient.fetchFeed(cursor = null, limit = PAGE_SIZE, followedOnly = showingFollowed)
-                allMoments.clear()
-                allMoments.addAll(page.posts)
-                nextCursor = page.next_cursor
+                if (signedOut || loadFailed) {
+                    allMoments.clear()
+                    nextCursor = null
+                } else {
+                    val page = UnrealStarApiClient.fetchFeed(cursor = null, limit = PAGE_SIZE, followedOnly = showingFollowed)
+                    allMoments.clear()
+                    allMoments.addAll(page.posts)
+                    nextCursor = page.next_cursor
+                }
+                _binding ?: return@launch
+                applyFilter()
+            } catch (t: Throwable) {
+                android.util.Log.w("HomeFeed", "moments load failed", t)
+                loadFailed = true
+                try {
+                    _binding?.let { applyFilter() }
+                } catch (_: Throwable) {}
+            } finally {
                 isLoadingPage = false
             }
-            _binding ?: return@launch
-            applyFilter()
         }
     }
 
@@ -214,12 +221,17 @@ class HomeFragment : Fragment() {
         isLoadingPage = true
 
         viewLifecycleOwner.lifecycleScope.launch {
-            val page = UnrealStarApiClient.fetchFeed(cursor = cursor, limit = PAGE_SIZE, followedOnly = showingFollowed)
-            isLoadingPage = false
-            nextCursor = page.next_cursor
-            if (page.posts.isEmpty()) return@launch
-            allMoments.addAll(page.posts)
-            adapter.append(page.posts)
+            try {
+                val page = UnrealStarApiClient.fetchFeed(cursor = cursor, limit = PAGE_SIZE, followedOnly = showingFollowed)
+                nextCursor = page.next_cursor
+                if (page.posts.isEmpty()) return@launch
+                allMoments.addAll(page.posts)
+                adapter.append(page.posts)
+            } catch (t: Throwable) {
+                android.util.Log.w("HomeFeed", "next page failed", t)
+            } finally {
+                isLoadingPage = false
+            }
         }
     }
 
@@ -276,9 +288,9 @@ class HomeFragment : Fragment() {
                 val res = UnrealStarApiClient.followUser(moment.author_id)
                 res.onSuccess {
                     adapter.markActed(moment.moment_id, MomentAction.FOLLOW)
-                    Toast.makeText(requireContext(), "Followed ${moment.author_nickname}!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), getString(R.string.feed_followed_user, moment.author_nickname), Toast.LENGTH_SHORT).show()
                 }.onFailure {
-                    Toast.makeText(requireContext(), "Follow note: ${it.message}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), getString(R.string.feed_follow_note, it.message), Toast.LENGTH_SHORT).show()
                 }
             }
             return

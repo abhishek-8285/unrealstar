@@ -4,8 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background_dark">
+    android:layout_height="match_parent">
 
     <!-- Header: avatar badge, scrollable tabs, leaderboard trophy. -->
     <LinearLayout
@@ -86,7 +85,7 @@
         android:layout_height="0dp"
         android:clipToPadding="false"
         android:paddingTop="4dp"
-        android:paddingBottom="16dp"
+        android:paddingBottom="48dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"

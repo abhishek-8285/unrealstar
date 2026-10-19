@@ -1,0 +1,143 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rowOfficial"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?android:attr/selectableItemBackground"
+    android:paddingStart="14dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="14dp"
+    android:paddingBottom="10dp">
+
+    <!-- Leading slot: one 44dp avatar, or the stacked 32dp pair. -->
+    <FrameLayout
+        android:id="@+id/leadingSlot"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageView
+            android:id="@+id/ivActor"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:layout_gravity="center"
+            android:contentDescription="@null"
+            android:scaleType="centerCrop"
+            tools:src="@drawable/bg_live_avatar" />
+
+        <ImageView
+            android:id="@+id/ivActorBack"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="bottom|end"
+            android:contentDescription="@null"
+            android:scaleType="centerCrop"
+            tools:src="@drawable/bg_live_avatar" />
+
+        <ImageView
+            android:id="@+id/ivActorFront"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:layout_gravity="top|start"
+            android:background="@drawable/bg_inbox_avatar_ring"
+            android:contentDescription="@null"
+            android:padding="2dp"
+            android:scaleType="centerCrop"
+            tools:src="@drawable/bg_live_avatar" />
+    </FrameLayout>
+
+    <!-- Trailing slot: one of thumbnail / Follow pill / Confirm + Delete. -->
+    <FrameLayout
+        android:id="@+id/trailingSlot"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ImageView
+            android:id="@+id/ivTrailingThumb"
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="@drawable/bg_inbox_thumb"
+            android:contentDescription="@null"
+            android:scaleType="centerCrop"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+        <TextView
+            android:id="@+id/btnTrailingFollow"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="@drawable/bg_btn_primary"
+            android:paddingStart="16dp"
+            android:paddingTop="7dp"
+            android:paddingEnd="16dp"
+            android:paddingBottom="7dp"
+            android:text="@string/follow"
+            android:textColor="@color/text_white"
+            android:textSize="12sp"
+            android:textStyle="bold"
+            android:visibility="gone"
+            tools:visibility="visible" />
+
+        <LinearLayout
+            android:id="@+id/trailingActions"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:visibility="gone"
+            tools:visibility="visible">
+
+            <TextView
+                android:id="@+id/btnConfirm"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_btn_primary"
+                android:paddingStart="16dp"
+                android:paddingTop="7dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="7dp"
+                android:text="@string/inbox_confirm"
+                android:textColor="@color/text_white"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+
+            <TextView
+                android:id="@+id/btnDelete"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:background="@drawable/bg_me_pill_outline"
+                android:paddingStart="16dp"
+                android:paddingTop="7dp"
+                android:paddingEnd="16dp"
+                android:paddingBottom="7dp"
+                android:text="@string/inbox_delete"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <TextView
+        android:id="@+id/tvOfficialBody"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:layout_marginEnd="10dp"
+        android:lineSpacingExtra="3dp"
+        android:textColor="#C9C9E4"
+        android:textSize="13sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toStartOf="@id/trailingSlot"
+        app:layout_constraintStart_toEndOf="@id/leadingSlot"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="Kundan rangdar and Mubarak Alam liked your comment: @prisha  5d" />
+</androidx.constraintlayout.widget.ConstraintLayout>

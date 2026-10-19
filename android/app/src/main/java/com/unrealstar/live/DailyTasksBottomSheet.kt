@@ -51,12 +51,13 @@ class DailyTasksBottomSheet(
             val res = UnrealStarApiClient.fetchDailyTasks()
             binding.progressBar.visibility = View.GONE
             res.onSuccess { tasks ->
+                val oldSize = taskList.size
                 taskList.clear()
                 taskList.addAll(tasks)
                 binding.rvTasks.visibility = View.VISIBLE
-                adapter.notifyDataSetChanged()
+                adapter.notifyListReplaced(oldSize, taskList.size)
             }.onFailure { err ->
-                Toast.makeText(requireContext(), "Failed to load tasks: ${err.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.tasks_load_failed, err.message), Toast.LENGTH_SHORT).show()
                 dismiss()
             }
         }
@@ -66,12 +67,12 @@ class DailyTasksBottomSheet(
         lifecycleScope.launch {
             val res = UnrealStarApiClient.claimDailyTask(task.task_id)
             res.onSuccess { coins ->
-                Toast.makeText(requireContext(), "🎉 Claimed +$coins Coins!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), resources.getQuantityString(R.plurals.tasks_claimed, coins.toInt(), coins), Toast.LENGTH_SHORT).show()
                 taskList[pos] = task.copy(is_claimed = true)
                 adapter.notifyItemChanged(pos)
                 onRewardClaimed?.invoke()
             }.onFailure { err ->
-                Toast.makeText(requireContext(), "Claim note: ${err.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.tasks_claim_note, err.message), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -90,18 +91,18 @@ class DailyTasksBottomSheet(
         override fun onBindViewHolder(holder: VH, position: Int) {
             val task = taskList[position]
             holder.b.tvTaskTitle.text = task.title
-            holder.b.tvTaskReward.text = "+${task.reward_coins} Coins (${task.progress}/${task.target})"
+            holder.b.tvTaskReward.text = resources.getQuantityString(R.plurals.task_reward_progress, task.reward_coins.toInt(), task.reward_coins, task.progress, task.target)
             holder.b.pbTask.max = task.target
             holder.b.pbTask.progress = task.progress
 
             when {
                 task.is_claimed -> {
-                    holder.b.btnClaim.text = "Claimed"
+                    holder.b.btnClaim.text = getString(R.string.task_claimed)
                     holder.b.btnClaim.alpha = 0.4f
                     holder.b.btnClaim.setOnClickListener(null)
                 }
                 task.progress >= task.target -> {
-                    holder.b.btnClaim.text = "Claim"
+                    holder.b.btnClaim.text = getString(R.string.task_claim)
                     holder.b.btnClaim.alpha = 1.0f
                     holder.b.btnClaim.setOnClickListener {
                         val p = holder.bindingAdapterPosition
@@ -111,7 +112,7 @@ class DailyTasksBottomSheet(
                     }
                 }
                 else -> {
-                    holder.b.btnClaim.text = "In Progress"
+                    holder.b.btnClaim.text = getString(R.string.task_in_progress)
                     holder.b.btnClaim.alpha = 0.5f
                     holder.b.btnClaim.setOnClickListener(null)
                 }
@@ -119,12 +120,12 @@ class DailyTasksBottomSheet(
 
             holder.b.root.setOnClickListener {
                 if (task.is_claimed) {
-                    Toast.makeText(requireContext(), "✓ Task already completed & claimed", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), getString(R.string.tasks_already_claimed), Toast.LENGTH_SHORT).show()
                 } else if (task.progress >= task.target) {
                     val p = holder.bindingAdapterPosition
                     if (p != RecyclerView.NO_POSITION) claimTask(taskList[p], p)
                 } else {
-                    Toast.makeText(requireContext(), "🎯 ${task.title}: (${task.progress}/${task.target}) - Keep exploring to complete!", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(requireContext(), getString(R.string.tasks_progress, task.title, task.progress, task.target), Toast.LENGTH_SHORT).show()
                 }
             }
         }

@@ -21,7 +21,6 @@
     <color name="ended_scrim">#F2000000</color>
     <color name="level_gold">#FFD54F</color>
     <color name="xp_bar_blue">#4FC3F7</color>
-    <color name="topup_gold">#F5C542</color>
     <color name="chip_translucent">#59FFFFFF</color>
     <color name="icon_circle_translucent">#66000000</color>
     <color name="countdown_circle">#99000000</color>
@@ -31,6 +30,4 @@
     <color name="live_mode_dim">#B3FFFFFF</color>
     <color name="topup_banner_start">#FFB300</color>
     <color name="topup_banner_end">#FF6F00</color>
-    <color name="share_circle_white">#FFFFFF</color>
-    <color name="share_circle_dark">#333333</color>
 </resources>

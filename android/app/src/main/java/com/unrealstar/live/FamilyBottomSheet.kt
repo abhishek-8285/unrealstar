@@ -57,8 +57,8 @@ class FamilyBottomSheet : BottomSheetDialogFragment() {
             .setPositiveButton("Create (Free)") { _, _ ->
                 val name = input.text.toString().trim()
                 if (name.isNotEmpty()) {
-                    binding.tvMyFamilyStatus.text = "$name 🦁\nRole: LEADER • Lv.1 • 1 Members"
-                    Toast.makeText(requireContext(), "🎉 Family Clan '$name' created successfully!", Toast.LENGTH_LONG).show()
+                    binding.tvMyFamilyStatus.text = getString(R.string.family_my_status_founder, name)
+                    Toast.makeText(requireContext(), getString(R.string.family_created, name), Toast.LENGTH_LONG).show()
                 }
             }
             .setNegativeButton("Cancel", null)
@@ -70,11 +70,11 @@ class FamilyBottomSheet : BottomSheetDialogFragment() {
             .setTitle("🛡️ Clan Management")
             .setItems(arrayOf("View Clan Roster", "Clan Level Perks", "Leave Clan")) { _, which ->
                 when (which) {
-                    0 -> Toast.makeText(requireContext(), "👥 88 active members online", Toast.LENGTH_SHORT).show()
-                    1 -> Toast.makeText(requireContext(), "⚡ Clan Perks: +15% PK Exp, Exclusive Badge", Toast.LENGTH_SHORT).show()
+                    0 -> Toast.makeText(requireContext(), getString(R.string.family_online), Toast.LENGTH_SHORT).show()
+                    1 -> Toast.makeText(requireContext(), getString(R.string.family_perks), Toast.LENGTH_SHORT).show()
                     2 -> {
-                        binding.tvMyFamilyStatus.text = "You haven't joined a family yet.\nJoin a top clan below to unlock family bonuses!"
-                        Toast.makeText(requireContext(), "Left clan.", Toast.LENGTH_SHORT).show()
+                        binding.tvMyFamilyStatus.text = getString(R.string.family_my_status_none)
+                        Toast.makeText(requireContext(), getString(R.string.family_left), Toast.LENGTH_SHORT).show()
                     }
                 }
             }
@@ -91,9 +91,9 @@ class FamilyBottomSheet : BottomSheetDialogFragment() {
             val myFamRes = UnrealStarApiClient.fetchMyFamily().getOrNull()
             if (myFamRes?.family != null) {
                 val f = myFamRes.family
-                binding.tvMyFamilyStatus.text = "${f.name} ${f.badge}\nRole: ${myFamRes.my_role.uppercase()} • Lv.${f.level} • ${f.members_count} Members"
+                binding.tvMyFamilyStatus.text = resources.getQuantityString(R.plurals.family_my_status_member, f.members_count.toInt(), f.name, f.badge, myFamRes.my_role.uppercase(), f.level, f.members_count)
             } else {
-                binding.tvMyFamilyStatus.text = "You haven't joined a family yet.\nJoin a top clan below to unlock family bonuses!"
+                binding.tvMyFamilyStatus.text = getString(R.string.family_my_status_none)
             }
 
             // 2. Load family leaderboard
@@ -103,7 +103,7 @@ class FamilyBottomSheet : BottomSheetDialogFragment() {
                 binding.rvFamilies.visibility = View.VISIBLE
                 binding.rvFamilies.adapter = FamilyAdapter(list)
             }.onFailure { err ->
-                Toast.makeText(requireContext(), "Failed to load families: ${err.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.family_load_failed, err.message), Toast.LENGTH_SHORT).show()
                 dismiss()
             }
         }
@@ -113,10 +113,10 @@ class FamilyBottomSheet : BottomSheetDialogFragment() {
         lifecycleScope.launch {
             val res = UnrealStarApiClient.joinFamily(family.family_id)
             res.onSuccess {
-                Toast.makeText(requireContext(), "🎉 Successfully joined ${family.name}!", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.family_joined, family.name), Toast.LENGTH_SHORT).show()
                 loadData()
             }.onFailure {
-                Toast.makeText(requireContext(), "Failed to join: ${it.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.family_join_failed, it.message), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -141,7 +141,7 @@ class FamilyBottomSheet : BottomSheetDialogFragment() {
             holder.b.tvRank.text = "${item.rank}"
             holder.b.tvFamilyName.text = item.name
             holder.b.tvBadge.text = item.badge
-            holder.b.tvDetails.text = "Lv.${item.level} • ${item.members_count} Members • Leader: ${item.leader_name}"
+            holder.b.tvDetails.text = resources.getQuantityString(R.plurals.family_details_line, item.members_count.toInt(), item.level, item.members_count, item.leader_name)
 
             holder.b.btnJoin.setOnClickListener {
                 joinFamily(item)

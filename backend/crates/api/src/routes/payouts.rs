@@ -11,7 +11,10 @@ use uuid::Uuid;
 
 use crate::{
     error::ApiError,
-    models::{KycRecord, KycSubmitRequest, PayoutPreviewResponse, PayoutRecord, PayoutRequest},
+    models::{
+        KycRecord, KycReviewRequest, KycSubmitRequest, PayoutPreviewResponse, PayoutRecord,
+        PayoutRequest,
+    },
     state::{system_clearing_account, user_diamonds_account, AppState},
 };
 
@@ -125,7 +128,7 @@ pub async fn submit_kyc(
     })))
 }
 
-/// Dev-only KYC approval. Marks the record approved and grants the
+/// Production KYC approval. Marks the record approved and grants the
 /// `RequestPayout` capability. Gated by [`dev_kyc_enabled`]; in production
 /// this route is absent so a real review queue must own approvals.
 pub async fn approve_kyc(
@@ -136,17 +139,58 @@ pub async fn approve_kyc(
         return Err(ApiError::Forbidden("KYC approval is not enabled".into()));
     }
 
+    apply_kyc_decision(&state, target_user_id, true, None).await?;
+
+    Ok(Json(serde_json::json!({
+        "status": "approved",
+        "user_id": target_user_id,
+        "message": "KYC verified successfully"
+    })))
+}
+
+/// Operations token for the production KYC review queue. Unset (the default)
+/// disables the review route entirely, so a forgotten env var fails closed.
+/// Generate with `openssl rand -hex 32`; never ship it to clients.
+pub fn admin_token() -> Option<String> {
+    std::env::var("CAMSTAR_ADMIN_TOKEN")
+        .ok()
+        .filter(|s| !s.is_empty())
+}
+
+/// Length-checked XOR fold: no early exit on the first differing byte, so a
+/// remote timing probe learns nothing beyond the (public) token length.
+fn constant_time_eq(a: &str, b: &str) -> bool {
+    let (a, b) = (a.as_bytes(), b.as_bytes());
+    if a.len() != b.len() {
+        return false;
+    }
+    a.iter().zip(b).fold(0u8, |acc, (x, y)| acc | (x ^ y)) == 0
+}
+
+/// Shared decision application for the dev route and the production review
+/// queue: flips the record, then mirrors it into the capability authorizer.
+async fn apply_kyc_decision(
+    state: &AppState,
+    target_user_id: u64,
+    approve: bool,
+    reason: Option<String>,
+) -> Result<(), ApiError> {
     {
         let mut kyc_records = state.kyc_records.write().await;
         let record = kyc_records
             .get_mut(&target_user_id)
             .ok_or_else(|| ApiError::NotFound("No KYC submission for user".into()))?;
-        record.status = "approved".into();
-        record.rejection_reason = None;
+        if approve {
+            record.status = "approved".into();
+            record.rejection_reason = None;
+        } else {
+            record.status = "rejected".into();
+            record.rejection_reason = reason;
+        }
     }
 
-    {
-        let mut auth = state.authorizer.write().await;
+    let mut auth = state.authorizer.write().await;
+    if approve {
         auth.grant(
             target_user_id,
             camstar_roles::AccountType::Agency,
@@ -154,13 +198,65 @@ pub async fn approve_kyc(
             Scope::Platform,
             None,
         );
+    } else {
+        auth.revoke(
+            target_user_id,
+            Capability::RequestPayout,
+            Scope::Platform,
+        );
+    }
+    Ok(())
+}
+
+/// Production KYC review: `POST /api/v1/kyc/review/{user_id}` with
+/// `X-Admin-Token: <CAMSTAR_ADMIN_TOKEN>` and body
+/// `{"decision": "approve" | "reject", "reason": "..."}` (reason required for
+/// rejections). This is the staffing tool for the review queue the
+/// [`dev_kyc_enabled`] comment promises: production keeps `CAMSTAR_DEV_KYC`
+/// unset and reviewers use this route instead.
+pub async fn review_kyc(
+    Path(target_user_id): Path<u64>,
+    State(state): State<AppState>,
+    headers: HeaderMap,
+    Json(req): Json<KycReviewRequest>,
+) -> Result<Json<serde_json::Value>, ApiError> {
+    let expected = admin_token()
+        .ok_or_else(|| ApiError::Forbidden("KYC review is not configured".into()))?;
+    let presented = headers
+        .get("X-Admin-Token")
+        .and_then(|h| h.to_str().ok())
+        .unwrap_or("");
+    if !constant_time_eq(&expected, presented) {
+        return Err(ApiError::Unauthorized("Invalid admin token".into()));
     }
 
-    Ok(Json(serde_json::json!({
-        "status": "approved",
-        "user_id": target_user_id,
-        "message": "KYC verified successfully"
-    })))
+    let decision = req.decision.trim().to_lowercase();
+    match decision.as_str() {
+        "approve" => {
+            apply_kyc_decision(&state, target_user_id, true, None).await?;
+            Ok(Json(serde_json::json!({
+                "status": "approved",
+                "user_id": target_user_id,
+            })))
+        }
+        "reject" => {
+            let reason = req
+                .reason
+                .map(|r| r.trim().to_string())
+                .filter(|r| !r.is_empty())
+                .ok_or_else(|| {
+                    ApiError::BadRequest("reason is required when rejecting".into())
+                })?;
+            apply_kyc_decision(&state, target_user_id, false, Some(reason)).await?;
+            Ok(Json(serde_json::json!({
+                "status": "rejected",
+                "user_id": target_user_id,
+            })))
+        }
+        _ => Err(ApiError::BadRequest(
+            "decision must be \"approve\" or \"reject\"".into(),
+        )),
+    }
 }
 
 pub async fn preview_payout(
@@ -176,19 +272,16 @@ pub async fn preview_payout(
 
     let diamonds = match query.diamonds {
         Some(d) if d > 0 => d,
-        _ => {
-            let balance = state
-                .ledger
-                .balance(user_diamonds_account(user_id))
-                .await
-                .map(|m| m.to_minor())
-                .unwrap_or(0);
-            if balance > 0 {
-                balance
-            } else {
-                7_500_000
-            }
-        }
+        // No hypothetical quote requested: report the real balance, even
+        // when it is zero. A demo fallback here turns into support tickets
+        // when withdrawals 422/403 in production.
+        _ => state
+            .ledger
+            .balance(user_diamonds_account(user_id))
+            .await
+            .map(|m| m.to_minor())
+            .unwrap_or(0)
+            .max(0),
     };
 
     // 10 diamonds = 1 INR

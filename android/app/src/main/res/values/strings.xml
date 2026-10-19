@@ -1,12 +1,9 @@
-<resources>
+<resources xmlns:tools="http://schemas.android.com/tools">
     <string name="app_name">Unreal Star</string>
     <string name="start_broadcast">Go Live</string>
     <string name="beauty_filters">Filters</string>
-    <string name="gifts">Gifts</string>
-    <string name="chat_placeholder">Say something nice...</string>
+    <string name="chat_placeholder">Say something nice…</string>
     <string name="send">Send</string>
-    <string name="flip_camera">Flip</string>
-    <string name="close_stream">End Stream</string>
     <string name="nav_home">Home</string>
     <string name="nav_live">Live</string>
     <string name="nav_inbox">Inbox</string>
@@ -24,15 +21,15 @@
     <string name="unlike">Unlike</string>
     <string name="cover_image">Video cover</string>
     <string name="comments_title">Comments</string>
-    <string name="comment_placeholder">Add a comment...</string>
+    <string name="comment_placeholder">Add a comment…</string>
     <string name="no_comments">No comments yet</string>
-    <string name="tab_hot">Hot</string>
-    <string name="tab_nearby">Nearby</string>
     <string name="tab_pk">PK</string>
-    <string name="tab_new_stars">New Stars</string>
     <string name="rooms_empty">No one is live right now.</string>
     <string name="reply_action">Reply</string>
-    <string name="reply_count">View %1$d replies</string>
+    <plurals name="reply_count">
+        <item quantity="one">View %1$d reply</item>
+        <item quantity="other">View %1$d replies</item>
+    </plurals>
     <string name="replying_to">Replying to @%1$s</string>
     <string name="cancel_reply">Cancel</string>
     <string name="search">Search</string>
@@ -63,11 +60,9 @@
     <string name="live_tab_pk">PK</string>
     <string name="live_avatar_initial">E</string>
     <string name="live_rank">Leaderboard</string>
-    <string name="live_rank_soon">Leaderboard coming soon</string>
     <string name="live_room_cover">Room cover</string>
     <string name="live_banner_image">Promotion</string>
     <string name="live_chip_pk">PK · %1$s</string>
-    <string name="live_room_opening">Opening %1$s\'s room…</string>
 
     <!-- Watch live -->
     <string name="watch_host">Live</string>
@@ -85,8 +80,13 @@
     <string name="inbox_tab_information">Information</string>
     <string name="inbox_pin">Pin</string>
     <string name="inbox_empty">Nothing here yet.</string>
-    <string name="inbox_official_soon">Official notices coming soon</string>
-    <string name="inbox_pin_soon">Pinned messages coming soon</string>
+    <string name="inbox_new_messages">4+ new messages</string>
+    <string name="inbox_confirm">Confirm</string>
+    <string name="inbox_delete">Delete</string>
+    <string name="inbox_follow_requests">Follow requests</string>
+    <string name="inbox_follow_failed">Couldn\'t update follow. Try again.</string>
+    <string name="inbox_messages_empty">No messages yet.\nSay hi from a live room.</string>
+    <string name="inbox_messages_failed">Couldn\'t load messages.\nTap to retry.</string>
 
     <!-- Me -->
     <string name="me_space">OutSpace</string>
@@ -109,25 +109,21 @@
     <string name="me_stat_time">Time Spent</string>
     <string name="me_stat_active">Active Days</string>
     <string name="me_soon">Coming soon</string>
-    <string name="me_age_years">%1$d yrs</string>
+    <plurals name="me_age_years">
+        <item quantity="one">%1$d yr</item>
+        <item quantity="other">%1$d yrs</item>
+    </plurals>
     <string name="me_level">Lvl %1$d</string>
     <string name="me_live_action">Live</string>
     <string name="me_creator">Creator</string>
     <string name="me_family">Family</string>
     <string name="me_store">Store</string>
     <string name="me_svip">SVIP</string>
-    <string name="me_wifi">Wifi</string>
     <string name="me_earnings">Earnings</string>
     <string name="me_tasks">My Tasks</string>
     <string name="me_badge">My Badge</string>
     <string name="me_bag">My Bag</string>
     <string name="me_mylevel">My Level</string>
-    <string name="me_market">My Market</string>
-    <string name="me_invites">My Invites</string>
-    <string name="me_room_mgmt">Room Mgmt</string>
-    <string name="me_help">Help &amp; Support</string>
-    <string name="me_top_up">Top up</string>
-    <string name="me_balance">Balance</string>
 
     <!-- Go Live: pre-broadcast setup -->
     <string name="live_go_live">Go Live</string>
@@ -141,19 +137,14 @@
     <string name="live_connection_speed">Connection Speed</string>
     <string name="live_mode_chat_party">Chat Party</string>
     <string name="live_mode_video_party">Video Party</string>
-    <string name="live_share_facebook">Share to Facebook</string>
-    <string name="live_share_twitter">Share to Twitter</string>
 
     <!-- Go Live: countdown -->
-    <string name="live_countdown">Go Live in %1$d</string>
 
     <!-- Go Live: live HUD -->
-    <string name="live_hour_star">Hour Star</string>
     <string name="live_zero_star">0 Star</string>
     <string name="live_pk_sl">PK SL</string>
     <string name="live_disclaimer">Sexual or violent content is strictly prohibited. All violators will be banned. Do not expose your personal info such as phone or location.</string>
     <string name="live_top_up_offer">TOP-UP OFFER 2026</string>
-    <string name="live_viewers_count">%1$d</string>
     <string name="live_host_chip">Himalaya</string>
     <string name="live_like_plus_zero">+0</string>
 
@@ -168,6 +159,492 @@
     <string name="live_stat_fans">Fans Added</string>
     <string name="live_stat_shares"># of Shares</string>
     <string name="live_stat_duration_value">%1$dmin</string>
+    <string name="live_stat_duration_secs_value">%1$ds</string>
+    <string name="live_stat_gems_value">💎 %1$d</string>
+    <string name="live_viewers_eye">👁 %1$d</string>
+    <string name="live_exposure_level">%1$d</string>
+    <string name="live_countdown_seconds">%1$d</string>
+    <string name="live_rec">REC</string>
+    <string name="live_shorts_timer">🔴 00:00 / 00:15</string>
+    <string name="live_shorts_record_short">⚡ Record Short (15s)</string>
+    <string name="live_percent_value">%1$d%%</string>
+    <string name="chat_vip_tag">VIP %1$d</string>
+    <string name="chat_sender_format">%1$s:</string>
     <string name="live_stat_zero">0</string>
     <string name="live_brand">Streamkar</string>
+
+    <!-- Accessibility labels for icon-only buttons -->
+    <string name="desc_close">Close</string>
+    <string name="desc_pk">PK battle</string>
+    <string name="desc_gifts">Send gift</string>
+    <string name="desc_filters">Filters</string>
+    <string name="desc_wheel">Lucky wheel</string>
+    <string name="desc_more">More options</string>
+
+    <!-- Live permissions & camera -->
+    <string name="live_mic_denied">Mic denied — streaming without audio</string>
+    <string name="live_camera_required">Camera permission is required for live streaming</string>
+    <string name="live_camera_failed">Failed to start camera: %1$s</string>
+
+    <!-- Live poster capture -->
+    <string name="live_poster_capturing">Capturing poster…</string>
+    <string name="live_poster_failed">Capture failed — try again</string>
+    <string name="live_poster_updated">Poster updated</string>
+    <string name="live_poster_bad_image">Couldn\'t load that image</string>
+    <string name="live_bw_capture_only">B&amp;W applies to captures on this device</string>
+
+    <!-- Live gifting & PK -->
+    <string name="live_gift_sent_host">✨ Diwali Sparkler sent! (Remaining coins: %1$,d)</string>
+    <string name="live_gift_note">Gifting note: %1$s</string>
+    <string name="live_pk_starting">⚔️ Initiating PK Battle Match…</string>
+    <string name="live_pk_error">PK: %1$s</string>
+    <string name="live_pk_score">⚔️ PK %1$,d : %2$,d</string>
+    <string name="live_pk_live_badge">⚔️ PK LIVE</string>
+    <string name="live_pk_chat">⚔️ PK Battle live! Us %1$,d vs Them %2$,d</string>
+    <string name="live_gift_chat_host">🎁 Sent %1$dx %2$s (Combo x%3$d)</string>
+
+    <!-- Live misc toasts -->
+    <string name="live_shorts_done">🎉 15s Short Video Recorded with Beauty Filters!</string>
+    <string name="live_invite_sent">📡 Invitation broadcasted to viewers</string>
+    <string name="live_automod">🛡️ AI Auto-Moderation Active (Safe Mode)</string>
+    <string name="live_audience">👥 Live Audience: %1$s</string>
+    <string name="live_host_label">👤 Host: %1$s</string>
+    <string name="live_app_missing">%1$s is not installed</string>
+
+    <!-- Watch screen -->
+    <string name="watch_viewers_now">👥 Viewers currently watching: %1$s</string>
+    <string name="watch_viewers_eye">👁 %1$d</string>
+    <string name="watch_reconnecting">Reconnecting…</string>
+    <string name="watch_following">✓ Following</string>
+    <string name="level_lv_badge">Lv %1$d</string>
+    <string name="level_unlocked_check">✓ Unlocked</string>
+    <string name="locked">Locked</string>
+    <string name="unlocked_upper">UNLOCKED</string>
+    <string name="locked_upper">LOCKED</string>
+    <plurals name="search_result_user_subtitle">
+        <item quantity="one">ID: %1$d • %2$d follower</item>
+        <item quantity="other">ID: %1$d • %2$d followers</item>
+    </plurals>
+    <plurals name="search_result_user_subtitle_bio">
+        <item quantity="one">ID: %1$d • %2$d follower • %3$s</item>
+        <item quantity="other">ID: %1$d • %2$d followers • %3$s</item>
+    </plurals>
+    <string name="search_result_pk_badge">PK</string>
+    <plurals name="search_result_room_subtitle">
+        <item quantity="one">Host: %1$s • 👥 %2$d watching • %3$s</item>
+        <item quantity="other">Host: %1$s • 👥 %2$d watching • %3$s</item>
+    </plurals>
+    <plurals name="search_result_topic_subtitle">
+        <item quantity="one">%1$d moment posted under this topic</item>
+        <item quantity="other">%1$d moments posted under this topic</item>
+    </plurals>
+    <string name="watch_action">Watch</string>
+    <string name="explore_action">Explore</string>
+    <string name="mushaira_poem_tag">#%1$s #Mushaira</string>
+    <string name="mushaira_poem_author">— AI Mushaira (%1$s) feat. Creator #%2$d</string>
+    <string name="mushaira_publishing">Publishing Verse…</string>
+    <string name="mushaira_post_verse">🚀 Post Verse to Moments</string>
+    <string name="mushaira_lang_picker">%1$s ▾</string>
+    <string name="watch_joining">Joining room… try again in a second</string>
+    <string name="watch_followed">Followed %1$s!</string>
+    <string name="profile_fallback_name">User_%1$d</string>
+    <string name="profile_load_failed">Profile unavailable right now</string>
+    <string name="profile_follow_failed">Couldn\'t update follow — try again</string>
+    <string name="watch_follow_note">Follow note: %1$s</string>
+    <string name="watch_gift_sent">✨ Gift sent! (Remaining coins: %1$,d)</string>
+    <string name="watch_gift_note">Gifting note: %1$s</string>
+    <string name="watch_gift_banner_other">🎁 %1$s sent %2$s x%3$d</string>
+    <string name="watch_gift_chat_other">🎁 sent %1$s x%2$d!</string>
+    <string name="watch_pk_chat">⚔️ PK Battle live! Blue %1$,d vs Red %2$,d</string>
+    <string name="watch_pk_live_badge">⚔️ PK LIVE</string>
+    <string name="watch_pk_blue">🔵 Blue: %1$,d</string>
+    <string name="watch_pk_red">🔴 Red: %1$,d</string>
+
+    <!-- Shared across sheets -->
+    <string name="common_copied_uid">User ID %1$s copied to clipboard</string>
+
+    <!-- Coin store -->
+    <string name="coin_connecting">Connecting UPI payment gateway for ₹%1$,d…</string>
+    <plurals name="coin_credited">
+        <item quantity="one">🎉 Successfully credited %1$,d coin!</item>
+        <item quantity="other">🎉 Successfully credited %1$,d coins!</item>
+    </plurals>
+    <string name="coin_not_settled">Payment not settled yet (order %1$s). Please retry.</string>
+    <string name="coin_purchase_error">Purchase error: %1$s</string>
+
+    <!-- Earnings / payout -->
+    <string name="earn_upi_invalid">Please enter a valid UPI ID (e.g. name@bank)</string>
+    <string name="earn_cashout_ok">Instant Cashout Successful! Payout ID: %1$s</string>
+    <string name="earn_payout_note">Payout notice: %1$s</string>
+
+    <!-- Red packet -->
+    <!-- "%2$d Coin Packet" is a name, not a count: always singular. -->
+    <string name="redpacket_dropper_info" tools:ignore="PluralsCandidate">%1$s dropped a %2$d Coin Packet!</string>
+    <plurals name="redpacket_splits_remaining">
+        <item quantity="one">%1$d of %2$d splits remaining • Tap Open to claim!</item>
+        <item quantity="other">%1$d of %2$d splits remaining • Tap Open to claim!</item>
+    </plurals>
+    <string name="redpacket_none_active">No active Red Packets in this room</string>
+    <string name="redpacket_promo">Be the hero! Drop a packet to shower coins on viewers 🧧</string>
+    <string name="redpacket_no_packet_active">No Packet Active</string>
+    <string name="redpacket_opening">Opening…</string>
+    <string name="redpacket_claimed">✓ Claimed!</string>
+    <plurals name="redpacket_claim_outcome">
+        <item quantity="one">🎉 You grabbed +%1$,d Coins! (%2$d split left)</item>
+        <item quantity="other">🎉 You grabbed +%1$,d Coins! (%2$d splits left)</item>
+    </plurals>
+    <string name="redpacket_dropping">Dropping…</string>
+    <plurals name="redpacket_received">
+        <item quantity="one">🎉 Received %1$,d Coin!</item>
+        <item quantity="other">🎉 Received %1$,d Coins!</item>
+    </plurals>
+    <plurals name="family_details_line">
+        <item quantity="one">Lv.%1$d • %2$d Member • Leader: %3$s</item>
+        <item quantity="other">Lv.%1$d • %2$d Members • Leader: %3$s</item>
+    </plurals>
+    <string name="family_my_status_founder">%1$s 🦁\nRole: LEADER • Lv.1 • 1 Members</string>
+    <string name="family_my_status_none">You haven\'t joined a family yet.\nJoin a top clan below to unlock family bonuses!</string>
+    <plurals name="family_my_status_member">
+        <item quantity="one">%1$s %2$s\nRole: %3$s • Lv.%4$d • %5$d Member</item>
+        <item quantity="other">%1$s %2$s\nRole: %3$s • Lv.%4$d • %5$d Members</item>
+    </plurals>
+    <plurals name="redpacket_dropped">
+        <item quantity="one">🧧 Dropped %1$,d Coin (%2$,d splits) into room!</item>
+        <item quantity="other">🧧 Dropped %1$,d Coins (%2$,d splits) into room!</item>
+    </plurals>
+    <string name="redpacket_drop_failed">Drop failed: %1$s</string>
+    <string name="redpacket_pick_valid">Pick a valid amount and split count</string>
+    <string name="redpacket_claim_failed">Claim failed: %1$s</string>
+
+    <!-- Family clan -->
+    <string name="family_created">🎉 Family Clan \'%1$s\' created successfully!</string>
+    <string name="family_online">👥 88 active members online</string>
+    <string name="family_perks">⚡ Clan Perks: +15% PK Exp, Exclusive Badge</string>
+    <string name="family_left">Left clan.</string>
+    <string name="family_load_failed">Failed to load families: %1$s</string>
+    <string name="family_joined">🎉 Successfully joined %1$s!</string>
+    <string name="family_join_failed">Failed to join: %1$s</string>
+
+    <!-- Daily tasks -->
+    <string name="tasks_load_failed">Failed to load tasks: %1$s</string>
+    <plurals name="tasks_claimed">
+        <item quantity="one">🎉 Claimed +%1$,d Coin!</item>
+        <item quantity="other">🎉 Claimed +%1$,d Coins!</item>
+    </plurals>
+    <string name="tasks_claim_note">Claim note: %1$s</string>
+    <string name="tasks_already_claimed">✓ Task already completed &amp; claimed</string>
+    <string name="tasks_progress">🎯 %1$s: (%2$d/%3$d) - Keep exploring to complete!</string>
+
+    <!-- Me / profile -->
+    <string name="me_no_moments">📹 0 Moments uploaded. Tap \'+\' to go live!</string>
+    <string name="me_no_favorites">❤️ 0 Favorite items saved</string>
+    <string name="me_logged_in">👤 Logged in as %1$s</string>
+    <string name="me_cheer">🌟 %1$s</string>
+    <string name="me_kyc_status">KYC Status: %1$s</string>
+    <string name="me_kyc_rejected">KYC rejected: %1$s — please resubmit with clearer documents</string>
+    <string name="me_creator_active">Creator Center Active</string>
+
+    <!-- Create post -->
+    <string name="post_caption_required">Please enter a caption or message</string>
+    <string name="post_published">🎉 Moment published to feed!</string>
+    <string name="post_publish_error">Publish error: %1$s</string>
+
+    <!-- AI Mushaira -->
+    <string name="mushaira_published">🎉 Verse published to feed!</string>
+    <string name="mushaira_error">Error: %1$s</string>
+    <string name="mushaira_reciting">🔊 Reciting verse…</string>
+    <string name="mushaira_copied">📋 Copied verse to clipboard!</string>
+
+    <!-- VIP -->
+    <string name="vip_load_failed">Failed to load VIP tiers: %1$s</string>
+    <string name="vip_welcome">🎉 Welcome to %1$s! VIP Privileges active.</string>
+
+    <!-- Direct messages -->
+    <string name="dm_load_failed">Failed to load messages</string>
+    <string name="dm_send_failed">Send failed: %1$s</string>
+
+    <!-- Gifts -->
+    <string name="gift_insufficient">Insufficient coins. Please recharge!</string>
+    <string name="gift_sent_host">✨ Sent %1$dx %2$s!</string>
+
+    <!-- Levels &amp; bag -->
+    <string name="level_status">%1$s: %2$s</string>
+    <string name="level_crown">👑 %1$s: %2$s</string>
+    <string name="bag_unlocked">🎉 Unlocked and equipped %1$s!</string>
+    <string name="bag_action">✨ %1$s</string>
+
+    <!-- Settings -->
+    <string name="settings_cache_cleared">🧹 Media Cache Cleared Successfully</string>
+    <string name="settings_push_saved">Saved — takes effect when push notifications ship</string>
+    <string name="settings_push_muted">Muted</string>
+
+    <!-- OTP login -->
+    <string name="otp_send_first">Send OTP first</string>
+    <string name="otp_signed_in">Signed in</string>
+    <string name="otp_bad_phone">Enter a valid phone number (e.g. +919876543210)</string>
+    <string name="otp_resend_wait">Wait a moment before resending the code</string>
+    <string name="otp_code_sent">Code sent</string>
+    <string name="otp_code_hint">6-digit code</string>
+    <string name="otp_phone_hint">Phone (e.g. +919876543210)</string>
+    <string name="otp_send_failed">Send failed: %1$s</string>
+    <string name="otp_need_six">Enter the 6-digit code</string>
+    <string name="otp_too_many">Too many attempts — request a new code</string>
+    <string name="otp_verify_failed">Verify failed: %1$s</string>
+
+    <!-- Live grid / feed -->
+    <string name="livegrid_joined_event">🎉 Joined event: %1$s!</string>
+    <string name="feed_followed_user">✓ Following %1$s</string>
+    <string name="feed_unfollowed">Unfollowed</string>
+    <string name="feed_follow_note">Follow note: %1$s</string>
+
+    <!-- Misc singletons -->
+    <string name="wheel_spin_error">Spin error: %1$s</string>
+    <string name="board_load_failed">Failed to load leaderboard: %1$s</string>
+    <string name="inbox_marked_read">✓ All messages marked as read</string>
+    <string name="feed_gift_sent">🎁 Sent %1$dx %2$s to %3$s!</string>
+    <string name="otp_debug_code">Debug code: %1$s</string>
+
+    <!-- Extracted from layouts (hardcoded android:text). -->
+    <string name="share_twitter">𝕏</string>
+    <string name="share_facebook">f</string>
+    <string name="grade_d">D</string>
+    <string name="countdown_number">3</string>
+    <string name="hour_star_timer">18:56</string>
+    <string name="hour_star_more">>></string>
+    <string name="speed_chip">289KB/s</string>
+    <string name="level_badge">💛 1</string>
+    <string name="stat_duration_value">1min</string>
+    <string name="tab_beauty">Beauty</string>
+    <string name="tab_stickers">Stickers</string>
+    <string name="intensity">Intensity</string>
+    <string name="grade_value">100%%</string>
+    <string name="smooth">Smooth</string>
+    <string name="smooth_value">0%%</string>
+    <string name="whiten">Whiten</string>
+    <string name="slim_face">Slim face</string>
+    <string name="big_eyes">Big eyes</string>
+    <string name="sharpen">Sharpen</string>
+    <string name="contrast">Contrast</string>
+    <string name="saturation">Saturation</string>
+    <string name="ruddy">Ruddy</string>
+    <string name="eyes_teeth">Eyes/Teeth</string>
+    <string name="exposure">Exposure</string>
+    <string name="strength_value">60%%</string>
+    <string name="follow_host">+ Follow</string>
+    <string name="pk_host_a_points">🔵 Blue: 0</string>
+    <string name="pk_status">⚔️ PK BATTLE</string>
+    <string name="pk_host_b_points">🔴 Red: 0</string>
+    <string name="red_packet">🧧</string>
+    <string name="toggle_wheel">🎡</string>
+    <string name="toggle_gifts">🎁</string>
+    <string name="lucky_wheel_of_fortune">🎡 Lucky Wheel of Fortune</string>
+    <string name="wheel_coins_balance">🪙 1,000 Coins</string>
+    <plurals name="wheel_coins_balance_fmt">
+        <item quantity="one">🪙 %1$,d Coin</item>
+        <item quantity="other">🪙 %1$,d Coins</item>
+    </plurals>
+    <string name="wheel_coins_offline">🪙 — Coins (offline)</string>
+    <string name="wheel_spinning">SPINNING…</string>
+    <string name="wheel_spin_started">Good luck! The wheel is spinning…</string>
+    <string name="spin_wheel_action_bet">SPIN WHEEL (%1$d COINS)</string>
+    <string name="wheel_spin_failed">Spin failed: %1$s</string>
+    <string name="wheel_spin_timeout">Spin timed out — coins were not necessarily lost; check balance.</string>
+    <plurals name="wheel_winner">
+        <item quantity="one">🎉 WINNER! %1$s (%2$dx)! Won %3$,d Coin!</item>
+        <item quantity="other">🎉 WINNER! %1$s (%2$dx)! Won %3$,d Coins!</item>
+    </plurals>
+    <string name="wheel_loser">😢 Better luck next time! (%1$s)</string>
+    <string name="spin_result">Choose bet and test your luck!</string>
+    <string name="bet10">10 🪙</string>
+    <string name="bet50">50 🪙</string>
+    <string name="bet100">100 🪙</string>
+    <string name="bet500">500 🪙</string>
+    <string name="spin_wheel_action">SPIN WHEEL (10 COINS)</string>
+    <string name="badge_status">UNLOCKED</string>
+    <string name="coin_bonus_tag">+15 BONUS</string>
+    <string name="coins">Coins</string>
+    <string name="cosmetic_equipped_badge">IN USE</string>
+    <string name="cosmetic_action">Equip</string>
+    <string name="join">Join</string>
+    <string name="label">🪙</string>
+    <string name="paid_badge">₹</string>
+    <string name="banner_pill">🔥 +100</string>
+    <string name="privilege_level">Lv 25</string>
+    <string name="privilege_status">Unlocked</string>
+    <string name="live_indicator">LIVE</string>
+    <string name="tier_badge">👑</string>
+    <string name="ai_mushaira">📜 AI Mushaira</string>
+    <string name="generate_stylized_poetic_verses_for">Generate stylized poetic verses for your moments</string>
+    <string name="language_of_poem">Language of poem:</string>
+    <string name="poem_language">English ▾</string>
+    <string name="chip_love_poem">❤️ Love poem</string>
+    <string name="chip_ghazal">🌙 Ghazal</string>
+    <string name="chip_funny_poem">😂 Funny poem</string>
+    <string name="chip_ode">✨ Ode</string>
+    <string name="chip_shayari">💫 Shayari</string>
+    <string name="generate_verse">✨ Generate AI Verse</string>
+    <string name="label_2">❝</string>
+    <string name="generated_verse">In shadows deep where whispered dreams ignite,\nThe silver moon commands the quiet night.\nEach heartbeat echoes through the silent skies,\nUnveiling wonder in your shining eyes.</string>
+    <string name="poem_author">— AI Mushaira feat. You</string>
+    <string name="poem_tag">#LovePoem #Mushaira</string>
+    <string name="listen_poem">🔊 Recite</string>
+    <string name="copy_poem">📋 Copy</string>
+    <string name="share_poem">📤 Share</string>
+    <string name="post_poem_to_feed">🚀 Post Verse to Moments</string>
+    <string name="coin_store_top_up">🪙 Coin Store &amp; Top Up</string>
+    <string name="recharge_coins_for_sending_live">Recharge coins for sending live gifts &amp; mini-games</string>
+    <string name="current_coin_balance">CURRENT COIN BALANCE</string>
+    <string name="current_coins">12,450 Coins</string>
+    <string name="top_up_perk">VIP 2x EXP</string>
+    <string name="select_recharge_package">Select Recharge Package</string>
+    <string name="label_100_safe_instant_delivery_supports">🔒 100%% Safe &amp; Instant delivery • Supports UPI, Cards &amp; NetBanking</string>
+    <string name="create">✨ Create</string>
+    <string name="choose_what_you_want_to">Choose what you want to share</string>
+    <string name="label_3">📝</string>
+    <string name="post_moment">Post Moment</string>
+    <string name="share_photos_thoughts_hashtags_to">Share photos, thoughts &amp; hashtags to feed</string>
+    <string name="label_4">›</string>
+    <string name="label_5">⚡</string>
+    <string name="short_video">Short Video</string>
+    <string name="record_15s_or_60s_clips">Record 15s or 60s clips with beauty filters</string>
+    <string name="label_6">🎥</string>
+    <string name="live_video_go_live">Live Video (Go Live)</string>
+    <string name="start_live_broadcast_pk_battles">Start live broadcast, PK battles &amp; earn gifts</string>
+    <string name="label_7">📜</string>
+    <string name="ai_mushaira_write_poem">AI Mushaira (Write Poem)</string>
+    <string name="generate_verses_with_ai_share">Generate verses with AI &amp; share poetic moments</string>
+    <string name="label_8">🖼️</string>
+    <string name="choose_from_album">Choose from Album</string>
+    <string name="select_photos_or_videos_from">Select photos or videos from your library</string>
+    <string name="create_moment">📝 Create Moment</string>
+    <string name="attach_cover_photo_theme">Attach Cover Photo / Theme</string>
+    <string name="cover_party">🎉 Night Party</string>
+    <string name="cover_studio">🌟 Star Studio</string>
+    <string name="cover_concert">🎸 Live Concert</string>
+    <string name="cover_bollywood">🎬 Bollywood</string>
+    <string name="popular_hashtags">Popular Hashtags</string>
+    <string name="tag_party">#Party</string>
+    <string name="tag_trending">#Trending</string>
+    <string name="tag_dance">#Dance</string>
+    <string name="tag_music">#Music</string>
+    <string name="tag_live">#Live</string>
+    <string name="tag_bollywood">#Bollywood</string>
+    <string name="moment_duration">Moment Duration</string>
+    <string name="chip_dur15">15s</string>
+    <string name="chip_dur30">30s</string>
+    <string name="chip_dur60">60s</string>
+    <string name="publish_post">🚀 Publish Moment</string>
+    <string name="daily_missions">🎯 Daily Missions</string>
+    <string name="online_cam_star_vip">Online • CamStar VIP</string>
+    <string name="creator_earnings_cashout">💎 Creator Earnings &amp; Cashout</string>
+    <string name="instant_upi_transfer_with_automated">Instant UPI transfer with automated Section 194Q TDS</string>
+    <string name="available_balance">AVAILABLE BALANCE</string>
+    <string name="earnings_diamonds">7,500,000</string>
+    <string name="gross_payout_value_10_1">Gross Payout Value (10 💎 = ₹1)</string>
+    <string name="gross_inr">₹75,000</string>
+    <string name="section_194_q_tds_1_govt">Section 194Q TDS (1%% Govt Tax)</string>
+    <string name="tds_inr">- ₹750</string>
+    <string name="net_payout_transferable">Net Payout Transferable</string>
+    <string name="net_payout_inr">₹74,250</string>
+    <string name="withdrawal_destination_upi_id">Withdrawal Destination (UPI ID)</string>
+    <string name="upi">UPI</string>
+    <string name="upi_address">prisha.rajput@okhdfcbank</string>
+    <string name="withdraw_upi">💸 Instant Cashout to UPI</string>
+    <string name="payout_status_msg">⚡ Payouts processed 24/7 directly to your bank account</string>
+    <string name="family_clan_center">🛡️ Family Clan Center</string>
+    <string name="create_clan">+ Create</string>
+    <string name="my_family_title">My Family Clan</string>
+    <string name="my_family_status">Loading family status…</string>
+    <string name="top_family_rankings">🏆 Top Family Rankings</string>
+    <string name="gift_coin_balance">🪙 5,000 Coins</string>
+    <string name="recharge_coins">+ Recharge</string>
+    <string name="chip_qty1">x1</string>
+    <string name="chip_qty5">x5</string>
+    <string name="chip_qty10">x10</string>
+    <string name="chip_qty66">x66</string>
+    <string name="chip_qty99">x99</string>
+    <string name="send_gift_action">SEND</string>
+    <string name="gift_send_action_total">SEND (%1$d 🪙)</string>
+    <string name="gift_select_action">SELECT GIFT</string>
+    <plurals name="coin_balance_fmt">
+        <item quantity="one">🪙 %1$,d Coin</item>
+        <item quantity="other">🪙 %1$,d Coins</item>
+    </plurals>
+    <string name="coin_price_rupee">₹%1$d</string>
+    <string name="coin_bonus_fmt">+%1$d BONUS</string>
+    <string name="earn_processing_cashout">Processing UPI Cashout…</string>
+    <string name="earn_payout_initiated">✓ Payout Initiated</string>
+    <!-- ₹ is a currency amount, not a count: plural forms do not apply. -->
+    <string name="earn_payout_transferred" tools:ignore="PluralsCandidate">🎉 ₹%1$d transferred to %2$s (Txn: %3$s…)</string>
+    <string name="task_claim">Claim</string>
+    <string name="task_in_progress">In Progress</string>
+    <string name="task_claimed">Claimed</string>
+    <plurals name="task_reward_progress">
+        <item quantity="one">+%1$,d Coins (%2$d/%3$d)</item>
+        <item quantity="other">+%1$,d Coins (%2$d/%3$d)</item>
+    </plurals>
+    <string name="cosmetic_price">🪙 %1$d</string>
+    <string name="in_use">In Use</string>
+    <string name="equip">Equip</string>
+    <string name="send_otp">Send OTP</string>
+    <string name="create_stream_title_hint">Give your stream a title…</string>
+    <string name="equipped_frame">Equipped Frame</string>
+    <string name="mushaira_prompt_hint">Enter prompt or topic (e.g. Stars falling over the sea at midnight…)</string>
+    <string name="create_post_hint">What\'s happening? Share with your fans…</string>
+    <string name="dm_input_hint">Type a private message…</string>
+    <string name="earnings_upi_hint">e.g. prisha@okhdfcbank</string>
+    <string name="search_input_hint">Search host, room ID, or topic (#Party)</string>
+    <string name="clear">Clear</string>
+    <string name="verify_sign_in">Verify &amp; Sign In</string>
+    <string name="publishing_dots">Publishing…</string>
+    <string name="publish_moment">🚀 Publish Moment</string>
+    <string name="leaderboard_score">⚡ %1$d</string>
+    <string name="number_plain">%1$d</string>
+    <string name="moment_duration_secs">%1$ds</string>
+    <string name="top_broadcasters">🏆 Top Broadcasters</string>
+    <string name="my_bag_cosmetics">🎒 My Bag &amp; Cosmetics</string>
+    <string name="equip_luxury_frames_entry_effects">Equip luxury frames, entry effects &amp; medals to stand out in live streams</string>
+    <string name="tab_frames">Frames</string>
+    <string name="tab_rides">Rides</string>
+    <string name="tab_bubbles">Bubbles</string>
+    <string name="tab_medals">Medals</string>
+    <string name="bag_empty">No items found in this category</string>
+    <string name="my_level_badge">Lv 48</string>
+    <string name="my_wealth_title">Diamond Lord</string>
+    <string name="my_exp_label">72,450 / 80,000 EXP (90%%)</string>
+    <string name="tab_privileges">Level Privileges</string>
+    <string name="tab_badges">Honor Wall (Badges)</string>
+    <string name="profile_message">Message</string>
+    <string name="profile_join_live">Join Live</string>
+    <string name="title">🧧 Lucky Red Packet (Shagun)</string>
+    <string name="tab_claim">🎁 Claim Active</string>
+    <string name="tab_drop">💸 Drop Red Packet</string>
+    <string name="claim_packet">✨ OPEN &amp; CLAIM ✨</string>
+    <string name="select_coin_amount">SELECT COIN AMOUNT</string>
+    <string name="chip_coins1000">1,000 🪙</string>
+    <string name="number_of_lucky_splits">NUMBER OF LUCKY SPLITS</string>
+    <string name="chip_splits5">5 Splits</string>
+    <string name="chip_splits10">10 Splits</string>
+    <string name="chip_splits20">20 Splits</string>
+    <string name="drop_packet">🧧 Drop Red Packet into Room</string>
+    <string name="trending_searches">🔥 Trending Searches</string>
+    <string name="tab_filter_all">All</string>
+    <string name="tab_filter_hosts">Hosts</string>
+    <string name="tab_filter_rooms">Rooms</string>
+    <string name="tab_filter_topics">Topics</string>
+    <string name="search_empty">Search for hosts, live rooms, or topics like #Party</string>
+    <string name="settings_preferences">Settings &amp; Preferences</string>
+    <string name="account_security">Account &amp; Security</string>
+    <string name="user_id">User ID</string>
+    <string name="settings_user_id">9999</string>
+    <string name="linked_device_status">Linked Device Status</string>
+    <string name="verified">✓ Verified</string>
+    <string name="push_notifications">Push Notifications</string>
+    <string name="clear_media_cache">Clear Media Cache</string>
+    <string name="frees_disk_space_used_by">Frees disk space used by temporary video streams</string>
+    <string name="cache_size">14.2 MB</string>
+    <string name="privacy_policy_terms">Privacy Policy &amp; Terms</string>
+    <string name="app_version">CamStar Live v2.4.0 (Aura Engine)</string>
+    <string name="logout">Log Out / Switch Account</string>
+    <string name="vip_privileges">👑 VIP Privileges</string>
 </resources>

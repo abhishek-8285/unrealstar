@@ -24,6 +24,7 @@
         android:layout_height="40dp"
         android:layout_marginStart="8dp"
         android:background="@drawable/bg_live_avatar"
+        android:contentDescription="@string/creator_avatar"
         android:scaleType="centerCrop" />
 
     <TextView

@@ -26,9 +26,9 @@
             android:background="@drawable/bg_feed_pill_gold"
             android:paddingHorizontal="6dp"
             android:paddingVertical="2dp"
-            android:text="+15 BONUS"
+            android:text="@string/coin_bonus_tag"
             android:textColor="@color/text_white"
-            android:textSize="9sp"
+            android:textSize="11sp"
             android:textStyle="bold"
             android:visibility="gone"
             tools:visibility="visible" />
@@ -37,6 +37,7 @@
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:layout_marginTop="6dp"
+            android:contentDescription="@null"
             android:src="@drawable/ic_me_diamond"
             app:tint="@color/level_gold" />
 
@@ -53,7 +54,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Coins"
+            android:text="@string/coins"
             android:textColor="@color/text_muted"
             android:textSize="11sp" />
 

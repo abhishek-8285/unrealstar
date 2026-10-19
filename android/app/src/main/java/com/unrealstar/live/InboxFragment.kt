@@ -1,15 +1,22 @@
 package com.unrealstar.live
 
+import android.content.Context
 import android.graphics.Typeface
 import android.os.Bundle
 import android.text.SpannableString
+import android.text.SpannableStringBuilder
 import android.text.Spanned
+import android.text.TextPaint
+import android.text.method.LinkMovementMethod
 import android.text.style.BackgroundColorSpan
+import android.text.style.ClickableSpan
 import android.text.style.ForegroundColorSpan
+import android.text.style.StyleSpan
 import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -22,13 +29,24 @@ import androidx.recyclerview.widget.RecyclerView
 import com.bumptech.glide.Glide
 import com.unrealstar.live.api.UnrealStarApiClient
 import com.unrealstar.live.databinding.FragmentInboxBinding
+import com.unrealstar.live.databinding.ItemConversationBinding
 import com.unrealstar.live.databinding.ItemInboxCategoryBinding
+import com.unrealstar.live.databinding.ItemInboxFollowRequestsBinding
 import com.unrealstar.live.databinding.ItemInboxMessageBinding
-import com.unrealstar.live.databinding.ItemInboxOfficialBinding
+import com.unrealstar.live.databinding.ItemInboxOfficialNoticeBinding
+import com.unrealstar.live.databinding.ItemInboxOfficialRowBinding
+import com.unrealstar.live.databinding.ItemInboxSectionHeaderBinding
+import com.unrealstar.live.databinding.ItemInboxSeeAllBinding
+import com.unrealstar.live.databinding.ItemInboxSuggestionBinding
+import com.unrealstar.live.models.ConversationSummary
 import com.unrealstar.live.models.InboxCategory
 import com.unrealstar.live.models.InboxMessage
-import com.unrealstar.live.models.OfficialNotice
+import com.unrealstar.live.models.OfficialActor
+import com.unrealstar.live.models.OfficialFollowRequests
+import com.unrealstar.live.models.OfficialNoticePage
+import com.unrealstar.live.models.OfficialRow
 import com.unrealstar.live.models.OfficialSection
+import com.unrealstar.live.models.OfficialSuggestion
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
@@ -38,7 +56,9 @@ import java.util.TimeZone
 /**
  * Inbox with two top-level views:
  *  - Official: system notices under Officially / Event / Picked / Task.
- *  - Information: the message thread list under the five category tiles.
+ *  - Information: the message inbox under the five category tiles. With no
+ *    tile selected the list is the conversation list; a selected tile filters
+ *    the notification rows for that category.
  */
 class InboxFragment : Fragment() {
 
@@ -47,20 +67,69 @@ class InboxFragment : Fragment() {
 
     private val categoryBinder = CategoryAdapter { selectCategory(it) }
     private val messageAdapter = MessageAdapter { msg ->
-        val sheet = DirectMessageBottomSheet(
-            targetUserId = if (msg.sender_id > 0) msg.sender_id else 1002,
-            targetNickname = msg.sender_nickname,
-            targetAvatarUrl = msg.sender_avatar_url
-        )
-        sheet.show(childFragmentManager, DirectMessageBottomSheet.TAG)
+        // A notification row carries its actor's real peer id, so tapping it
+        // opens that person's thread — never a fallback user.
+        if (msg.sender_id > 0) {
+            DirectMessageBottomSheet(
+                targetUserId = msg.sender_id,
+                targetNickname = msg.sender_nickname,
+                targetAvatarUrl = msg.sender_avatar_url,
+                onConversationChanged = { refreshConversations() }
+            ).show(childFragmentManager, DirectMessageBottomSheet.TAG)
+        }
     }
-    private val officialAdapter = OfficialAdapter { notice ->
-        androidx.appcompat.app.AlertDialog.Builder(requireContext())
-            .setTitle(notice.title)
-            .setMessage("${notice.body}\n\nDate: ${notice.created_at.take(10)}")
-            .setPositiveButton("OK", null)
-            .show()
+    private val conversationAdapter = ConversationAdapter { conversation ->
+        openConversation(conversation)
     }
+    private val officialAdapter = OfficialFeedAdapter(object : OfficialFeedAdapter.Callbacks {
+        override fun onOpenPerson(actor: OfficialActor) {
+            openPerson(actor)
+        }
+
+        override fun onOpenNotice(row: OfficialRow) {
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setMessage("${row.body}\n\n${officialDate(row.created_at)}")
+                .setPositiveButton("OK", null)
+                .show()
+        }
+
+        override fun onOpenThumbnail(row: OfficialRow) {
+            val url = UnrealStarApiClient.localise(row.trailing.image_url) ?: return
+            val image = ImageView(requireContext()).apply {
+                scaleType = ImageView.ScaleType.CENTER_CROP
+                layoutParams = ViewGroup.LayoutParams(
+                    ViewGroup.LayoutParams.MATCH_PARENT,
+                    (220 * resources.displayMetrics.density).toInt(),
+                )
+            }
+            Glide.with(this@InboxFragment).load(url).into(image)
+            androidx.appcompat.app.AlertDialog.Builder(requireContext())
+                .setView(image)
+                .setPositiveButton("OK", null)
+                .show()
+        }
+
+        override fun onFollow(peerId: Long, follow: Boolean) {
+            toggleFollowFromFeed(peerId, follow)
+        }
+
+        override fun onConfirm(peerId: Long) {
+            resolveFollowRequest(peerId, confirm = true)
+        }
+
+        override fun onDelete(peerId: Long) {
+            resolveFollowRequest(peerId, confirm = false)
+        }
+
+        override fun onOpenRequests(summary: OfficialFollowRequests) {
+            FollowRequestsBottomSheet(summary.pending) { refreshOfficial() }
+                .show(childFragmentManager, FollowRequestsBottomSheet.TAG)
+        }
+
+        override fun onSeeAll() {
+            SearchBottomSheet().show(childFragmentManager, SearchBottomSheet.TAG)
+        }
+    })
 
     private var showingOfficial = true
     private var selectedCategory: String? = null
@@ -89,12 +158,32 @@ class InboxFragment : Fragment() {
         binding.tabInformation.setOnClickListener { setTab(official = false) }
         binding.btnPin.setOnClickListener {
             messageAdapter.markAllRead()
-            Toast.makeText(requireContext(), "✓ All notifications marked as read", Toast.LENGTH_SHORT).show()
+            // Unread badges live server-side, so the pin clears them there too.
+            viewLifecycleOwner.lifecycleScope.launch {
+                conversationAdapter.unreadPeerIds().forEach { peerId ->
+                    UnrealStarApiClient.markConversationRead(peerId).onSuccess { page ->
+                        conversationAdapter.submit(page.conversations)
+                    }
+                }
+                // Optimistic, like messageAdapter.markAllRead() above.
+                (activity as? MainActivity)?.updateInboxBadge(0)
+            }
+            Toast.makeText(requireContext(), getString(R.string.inbox_marked_read), Toast.LENGTH_SHORT).show()
         }
         binding.btnInboxSettings.setOnClickListener {
             SettingsBottomSheet().show(childFragmentManager, SettingsBottomSheet.TAG)
         }
         binding.btnOfficialRetry.setOnClickListener { loadOfficial() }
+
+        // Pull-to-refresh reloads whichever Information list is showing.
+        binding.swipeRefresh.setColorSchemeResources(R.color.primary)
+        binding.swipeRefresh.setOnRefreshListener {
+            if (selectedCategory == null) refreshConversations() else loadMessages()
+        }
+
+        // The Official feed pulls the same way as the messages list.
+        binding.swipeOfficial.setColorSchemeResources(R.color.primary)
+        binding.swipeOfficial.setOnRefreshListener { refreshOfficial() }
 
         loadCategories()
         setTab(official = true)
@@ -116,21 +205,26 @@ class InboxFragment : Fragment() {
         current.officialTabs.isVisible = official
         current.categoryScroll.isVisible = !official
         current.categoryDivider.isVisible = !official
-        current.rvOfficial.isVisible = official && officialHasData
+        current.swipeOfficial.isVisible = official && officialHasData
         current.rvMessages.isVisible = !official
         if (!official) {
             current.officialLoading.isVisible = false
             current.officialError.isVisible = false
         }
 
-        if (official) loadOfficial() else loadMessages()
+        if (official) {
+            showEmptyMessage(null)
+            loadOfficial()
+        } else {
+            showInformationList()
+        }
     }
 
     // ---- Official ----------------------------------------------------------
 
     private fun loadOfficial() {
         val current = _binding ?: return
-        current.rvOfficial.isVisible = false
+        current.swipeOfficial.isVisible = false
         current.officialError.isVisible = false
         current.officialLoading.isVisible = true
         viewLifecycleOwner.lifecycleScope.launch {
@@ -139,17 +233,94 @@ class InboxFragment : Fragment() {
             b.officialLoading.isVisible = false
             result.fold(
                 onSuccess = { page ->
-                    b.officialError.isVisible = false
-                    officialHasData = true
-                    b.rvOfficial.isVisible = showingOfficial
-                    officialAdapter.submit(page.notices)
+                    officialHasData = page.groups.isNotEmpty()
+                    officialAdapter.submit(page)
                     buildOfficialTabs(page.sections)
+                    if (showingOfficial) {
+                        b.swipeOfficial.isVisible = officialHasData
+                        b.tvOfficialError.text = getString(R.string.inbox_empty)
+                        b.btnOfficialRetry.isVisible = false
+                        b.officialError.isVisible = !officialHasData
+                    }
                 },
                 onFailure = {
                     officialHasData = false
-                    if (showingOfficial) b.officialError.isVisible = true
+                    if (showingOfficial) {
+                        b.swipeOfficial.isVisible = false
+                        b.tvOfficialError.text = getString(R.string.inbox_load_failed)
+                        b.btnOfficialRetry.isVisible = true
+                        b.officialError.isVisible = true
+                    }
                 },
             )
+        }
+    }
+
+    /** Tapping an actor opens that person's thread — never a fallback user. */
+    private fun openPerson(actor: OfficialActor) {
+        DirectMessageBottomSheet(
+            targetUserId = actor.user_id,
+            targetNickname = actor.nickname,
+            targetAvatarUrl = actor.avatar_url,
+            onConversationChanged = { refreshConversations() }
+        ).show(childFragmentManager, DirectMessageBottomSheet.TAG)
+    }
+
+    /** Optimistic pill flip; the server call reverts it on failure. */
+    private fun toggleFollowFromFeed(peerId: Long, follow: Boolean) {
+        officialAdapter.applyFollow(peerId, follow)
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = if (follow) UnrealStarApiClient.followUser(peerId)
+            else UnrealStarApiClient.unfollowUser(peerId)
+            result.onFailure {
+                officialAdapter.applyFollow(peerId, !follow)
+                Toast.makeText(
+                    requireContext(),
+                    getString(R.string.inbox_follow_failed),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }
+    }
+
+    /** Confirm/Delete return the refreshed feed in one round-trip. */
+    private fun resolveFollowRequest(peerId: Long, confirm: Boolean) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = if (confirm) UnrealStarApiClient.confirmFollowRequest(peerId)
+            else UnrealStarApiClient.deleteFollowRequest(peerId)
+            val b = _binding ?: return@launch
+            result.fold(
+                onSuccess = { page ->
+                    officialHasData = page.groups.isNotEmpty()
+                    officialAdapter.submit(page)
+                    buildOfficialTabs(page.sections)
+                    b.swipeOfficial.isVisible = showingOfficial && officialHasData
+                },
+                onFailure = {
+                    Toast.makeText(
+                        requireContext(),
+                        getString(R.string.inbox_follow_failed),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                },
+            )
+        }
+    }
+
+    /** Silent refresh, so a sheet resolution never blanks the list behind it. */
+    private fun refreshOfficial() {
+        val current = _binding ?: return
+        current.swipeOfficial.isRefreshing = true
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = UnrealStarApiClient.fetchOfficialNotices(officialSection)
+            val b = _binding ?: return@launch
+            b.swipeOfficial.isRefreshing = false
+            result.onSuccess { page ->
+                officialHasData = page.groups.isNotEmpty()
+                officialAdapter.submit(page)
+                buildOfficialTabs(page.sections)
+                if (showingOfficial) b.swipeOfficial.isVisible = officialHasData
+            }
         }
     }
 
@@ -237,20 +408,116 @@ class InboxFragment : Fragment() {
         }
     }
 
-    private fun selectCategory(key: String?) {
-        if (selectedCategory == key) return
-        selectedCategory = key
+    /** Tapping the active tile clears the filter and returns to the message inbox. */
+    private fun selectCategory(key: String) {
+        selectedCategory = if (selectedCategory == key) null else key
         loadCategories()
-        loadMessages()
+        showInformationList()
+    }
+
+    /**
+     * Information tab content: with no tile selected the list is the message
+     * inbox (conversations); a selected tile filters the notification rows.
+     */
+    private fun showInformationList() {
+        val current = _binding ?: return
+        showEmptyMessage(null)
+        if (selectedCategory == null) {
+            current.rvMessages.adapter = conversationAdapter
+            refreshConversations()
+        } else {
+            current.rvMessages.adapter = messageAdapter
+            loadMessages()
+        }
+    }
+
+    /**
+     * Reloads the message inbox. Identity, read state and previews all live on
+     * the server, so every open/send round-trips and the list always matches
+     * the thread that was just shown.
+     */
+    private fun refreshConversations() {
+        viewLifecycleOwner.lifecycleScope.launch {
+            val result = UnrealStarApiClient.fetchConversations()
+            val current = _binding ?: return@launch
+            current.swipeRefresh.isRefreshing = false
+            result.fold(
+                onSuccess = { page ->
+                    conversationAdapter.submit(page.conversations)
+                    (activity as? MainActivity)?.updateInboxBadge(
+                        page.conversations.sumOf { it.unread_count }
+                    )
+                    if (current.rvMessages.adapter === conversationAdapter) {
+                        showEmptyMessage(
+                            if (page.conversations.isEmpty()) {
+                                getString(R.string.inbox_messages_empty)
+                            } else {
+                                null
+                            }
+                        )
+                    }
+                },
+                onFailure = {
+                    if (current.rvMessages.adapter === conversationAdapter &&
+                        conversationAdapter.itemCount == 0
+                    ) {
+                        showEmptyMessage(getString(R.string.inbox_messages_failed)) {
+                            refreshConversations()
+                        }
+                    }
+                },
+            )
+        }
+    }
+
+    /** Opening a row is reading it: clear the badge, then open that person's thread. */
+    private fun openConversation(conversation: ConversationSummary) {
+        viewLifecycleOwner.lifecycleScope.launch {
+            UnrealStarApiClient.markConversationRead(conversation.peer_id).onSuccess { page ->
+                conversationAdapter.submit(page.conversations)
+                (activity as? MainActivity)?.updateInboxBadge(
+                    page.conversations.sumOf { it.unread_count }
+                )
+            }
+        }
+        DirectMessageBottomSheet(
+            targetUserId = conversation.peer_id,
+            targetNickname = conversation.peer_nickname,
+            targetAvatarUrl = conversation.peer_avatar_url,
+            onConversationChanged = { refreshConversations() }
+        ).show(childFragmentManager, DirectMessageBottomSheet.TAG)
     }
 
     private fun loadMessages() {
         viewLifecycleOwner.lifecycleScope.launch {
-            val page = UnrealStarApiClient.fetchInbox(selectedCategory)
+            val result = UnrealStarApiClient.fetchInbox(selectedCategory)
             val current = _binding ?: return@launch
-            messageAdapter.submit(page.messages)
-            current.tvEmpty.isVisible = page.messages.isEmpty()
+            current.swipeRefresh.isRefreshing = false
+            result.fold(
+                onSuccess = { page ->
+                    messageAdapter.submit(page.messages)
+                    if (current.rvMessages.adapter === messageAdapter) {
+                        showEmptyMessage(
+                            if (page.messages.isEmpty()) getString(R.string.inbox_empty) else null
+                        )
+                    }
+                },
+                onFailure = {
+                    if (current.rvMessages.adapter === messageAdapter) {
+                        showEmptyMessage(getString(R.string.inbox_messages_failed)) { loadMessages() }
+                    }
+                },
+            )
         }
+    }
+
+    /** Single owner of the empty/error slot under the Information list. */
+    private fun showEmptyMessage(text: String?, retry: (() -> Unit)? = null) {
+        val view = _binding?.tvEmpty ?: return
+        view.text = text
+        view.isVisible = text != null
+        view.isClickable = retry != null
+        view.setOnClickListener { retry?.invoke() }
     }
 
     override fun onDestroyView() {
@@ -261,79 +528,434 @@ class InboxFragment : Fragment() {
     }
 }
 
-/** Official notice feed. [bracketed] tokens render as highlight chips. */
-private class OfficialAdapter(
-    private val onNoticeClick: (OfficialNotice) -> Unit = {}
-) : RecyclerView.Adapter<OfficialAdapter.OfficialViewHolder>() {
+/** One entry in the Official feed's RecyclerView. */
+private sealed interface FeedItem {
+    data class Requests(val summary: OfficialFollowRequests) : FeedItem
+    data class Bucket(val label: String) : FeedItem
+    data class Row(val row: OfficialRow) : FeedItem
+    data class SuggestionsHeader(val label: String) : FeedItem
+    data class Suggestion(val user: OfficialSuggestion) : FeedItem
+    data class SeeAll(val label: String) : FeedItem
+}
 
-    private val items = mutableListOf<OfficialNotice>()
+private const val TYPE_REQUESTS = 0
+private const val TYPE_BUCKET = 1
+private const val TYPE_NOTICE = 2
+private const val TYPE_ROW = 3
+private const val TYPE_SUGGESTED_HEADER = 4
+private const val TYPE_SUGGESTION = 5
+private const val TYPE_SEE_ALL = 6
 
-    fun submit(next: List<OfficialNotice>) {
-        items.clear()
-        items.addAll(next)
-        notifyDataSetChanged()
+/**
+ * The Official tab's reference anatomy: the "Follow requests" summary row,
+ * time buckets ("This week" / "This month" / "Earlier") holding notice and
+ * activity rows with their trailing slot (media thumbnail / Follow pill /
+ * Confirm + Delete), then "Suggested for you" and "See all suggestions".
+ */
+private class OfficialFeedAdapter(
+    private val callbacks: Callbacks
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+
+    interface Callbacks {
+        fun onOpenPerson(actor: OfficialActor)
+        fun onOpenNotice(row: OfficialRow)
+        fun onOpenThumbnail(row: OfficialRow)
+        fun onFollow(peerId: Long, follow: Boolean)
+        fun onConfirm(peerId: Long)
+        fun onDelete(peerId: Long)
+        fun onOpenRequests(summary: OfficialFollowRequests)
+        fun onSeeAll()
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = OfficialViewHolder(
-        ItemInboxOfficialBinding.inflate(LayoutInflater.from(parent.context), parent, false)
-    )
+    private val items = mutableListOf<FeedItem>()
 
-    override fun onBindViewHolder(holder: OfficialViewHolder, position: Int) =
-        holder.bind(items[position])
+    fun submit(page: OfficialNoticePage) {
+        val oldSize = items.size
+        items.clear()
+        if (page.follow_requests.pending.isNotEmpty()) {
+            items.add(FeedItem.Requests(page.follow_requests))
+        }
+        page.groups.forEach { group ->
+            if (group.rows.isEmpty()) return@forEach
+            items.add(FeedItem.Bucket(group.label))
+            group.rows.forEach { items.add(FeedItem.Row(it)) }
+        }
+        if (page.suggested.users.isNotEmpty()) {
+            items.add(FeedItem.SuggestionsHeader(page.suggested.label))
+            page.suggested.users.forEach { items.add(FeedItem.Suggestion(it)) }
+            items.add(FeedItem.SeeAll(page.suggested.see_all_label))
+        }
+        notifyListReplaced(oldSize, items.size)
+    }
+
+    /**
+     * Flips every pill for [peerId] in place and repaints just those rows, so
+     * a follow tap never re-submits the list mid-gesture.
+     */
+    fun applyFollow(peerId: Long, following: Boolean) {
+        items.forEachIndexed { index, item ->
+            when (item) {
+                is FeedItem.Row -> if (item.row.trailing.kind == "follow" &&
+                    item.row.trailing.user_id == peerId
+                ) {
+                    items[index] = FeedItem.Row(
+                        item.row.copy(trailing = item.row.trailing.copy(is_following = following))
+                    )
+                    notifyItemChanged(index)
+                }
+                is FeedItem.Suggestion -> if (item.user.user_id == peerId) {
+                    items[index] = FeedItem.Suggestion(item.user.copy(is_following = following))
+                    notifyItemChanged(index)
+                }
+                else -> Unit
+            }
+        }
+    }
 
     override fun getItemCount() = items.size
 
-    inner class OfficialViewHolder(private val binding: ItemInboxOfficialBinding) :
-        RecyclerView.ViewHolder(binding.root) {
-
-        fun bind(notice: OfficialNotice) {
-            binding.tvNoticeTitle.text = notice.title
-            binding.tvNoticeTime.text = stamp(notice.created_at)
-            renderBody(notice.body)
-
-            val image = UnrealStarApiClient.localise(notice.image_url)
-            binding.ivNoticeImage.isVisible = !image.isNullOrBlank()
-            if (!image.isNullOrBlank()) {
-                Glide.with(binding.ivNoticeImage).load(image).centerCrop()
-                    .into(binding.ivNoticeImage)
-            }
-            binding.root.setOnClickListener { onNoticeClick(notice) }
+    override fun getItemViewType(position: Int): Int {
+        val item = items[position]
+        return when (item) {
+            is FeedItem.Requests -> TYPE_REQUESTS
+            is FeedItem.Bucket -> TYPE_BUCKET
+            is FeedItem.Row -> if (item.row.kind == "notice") TYPE_NOTICE else TYPE_ROW
+            is FeedItem.SuggestionsHeader -> TYPE_SUGGESTED_HEADER
+            is FeedItem.Suggestion -> TYPE_SUGGESTION
+            is FeedItem.SeeAll -> TYPE_SEE_ALL
         }
+    }
 
-        private fun renderBody(body: String) {
-            val view = binding.tvNoticeBody
-            view.text = ""
-            val pattern = Regex("\\[([^]]+)]")
-            var cursor = 0
-            pattern.findAll(body).forEach { match ->
-                if (match.range.first > cursor) {
-                    view.append(body.substring(cursor, match.range.first))
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+        val inflater = LayoutInflater.from(parent.context)
+        return when (viewType) {
+            TYPE_REQUESTS -> RequestsHolder(
+                ItemInboxFollowRequestsBinding.inflate(inflater, parent, false), callbacks
+            )
+            TYPE_BUCKET, TYPE_SUGGESTED_HEADER -> BucketHolder(
+                ItemInboxSectionHeaderBinding.inflate(inflater, parent, false)
+            )
+            TYPE_NOTICE -> NoticeHolder(
+                ItemInboxOfficialNoticeBinding.inflate(inflater, parent, false), callbacks
+            )
+            TYPE_ROW -> RowHolder(
+                ItemInboxOfficialRowBinding.inflate(inflater, parent, false), callbacks
+            )
+            TYPE_SUGGESTION -> SuggestionHolder(
+                ItemInboxSuggestionBinding.inflate(inflater, parent, false), callbacks
+            )
+            else -> SeeAllHolder(
+                ItemInboxSeeAllBinding.inflate(inflater, parent, false), callbacks
+            )
+        }
+    }
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        when (val item = items[position]) {
+            is FeedItem.Requests -> (holder as RequestsHolder).bind(item.summary)
+            is FeedItem.Bucket -> (holder as BucketHolder).bind(item.label)
+            is FeedItem.Row -> if (item.row.kind == "notice") {
+                (holder as NoticeHolder).bind(item.row)
+            } else {
+                (holder as RowHolder).bind(item.row)
+            }
+            is FeedItem.SuggestionsHeader -> (holder as BucketHolder).bind(item.label)
+            is FeedItem.Suggestion -> (holder as SuggestionHolder).bind(item.user)
+            is FeedItem.SeeAll -> (holder as SeeAllHolder).bind(item.label)
+        }
+    }
+
+    private class BucketHolder(
+        private val binding: ItemInboxSectionHeaderBinding
+    ) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(label: String) {
+            binding.tvSectionTitle.text = label
+        }
+    }
+
+    private class RequestsHolder(
+        private val binding: ItemInboxFollowRequestsBinding,
+        private val callbacks: Callbacks
+    ) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(summary: OfficialFollowRequests) {
+            binding.tvFollowReqTitle.text = summary.title
+            binding.tvFollowReqSubtitle.text = summary.subtitle
+            binding.ivFollowReqBack.isVisible = summary.avatars.size >= 2
+            loadAvatar(binding.ivFollowReqFront, summary.avatars.getOrNull(0))
+            loadAvatar(binding.ivFollowReqBack, summary.avatars.getOrNull(1))
+            binding.root.setOnClickListener { callbacks.onOpenRequests(summary) }
+        }
+    }
+
+    private class NoticeHolder(
+        private val binding: ItemInboxOfficialNoticeBinding,
+        private val callbacks: Callbacks
+    ) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(row: OfficialRow) {
+            val context = binding.root.context
+            if (row.icon == "info") {
+                // The reference's smaller info glyph: no tile, just the mark.
+                binding.ivNoticeGlyph.setBackgroundResource(0)
+                binding.ivNoticeGlyph.clipToOutline = false
+                binding.ivNoticeGlyph.setPadding(
+                    dp(binding.root, 9), dp(binding.root, 9),
+                    dp(binding.root, 9), dp(binding.root, 9),
+                )
+                binding.ivNoticeGlyph.setImageResource(R.drawable.ic_inbox_info)
+            } else {
+                // The CamStar mark in a rounded tile, like the brand notices.
+                binding.ivNoticeGlyph.setPadding(0, 0, 0, 0)
+                binding.ivNoticeGlyph.setBackgroundResource(R.drawable.bg_inbox_thumb)
+                binding.ivNoticeGlyph.clipToOutline = true
+                binding.ivNoticeGlyph.setImageResource(R.drawable.ic_launcher_foreground)
+            }
+            renderNotificationText(context, binding.tvNoticeText, row, callbacks)
+            binding.root.setOnClickListener { callbacks.onOpenNotice(row) }
+        }
+    }
+
+    private class RowHolder(
+        private val binding: ItemInboxOfficialRowBinding,
+        private val callbacks: Callbacks
+    ) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(row: OfficialRow) {
+            val context = binding.root.context
+            val actors = row.actors
+
+            // Leading slot: one 44dp avatar, or the stacked 32dp pair.
+            val stacked = actors.size >= 2
+            binding.ivActor.isVisible = !stacked && actors.isNotEmpty()
+            binding.ivActorBack.isVisible = stacked
+            binding.ivActorFront.isVisible = stacked
+            if (stacked) {
+                loadAvatar(binding.ivActorBack, actors[1].avatar_url)
+                loadAvatar(binding.ivActorFront, actors[0].avatar_url)
+                binding.ivActorBack.setOnClickListener { callbacks.onOpenPerson(actors[1]) }
+                binding.ivActorFront.setOnClickListener { callbacks.onOpenPerson(actors[0]) }
+            } else if (actors.isNotEmpty()) {
+                loadAvatar(binding.ivActor, actors[0].avatar_url)
+                binding.ivActor.setOnClickListener { callbacks.onOpenPerson(actors[0]) }
+            }
+
+            renderNotificationText(context, binding.tvOfficialBody, row, callbacks)
+
+            // Trailing slot: exactly one of thumbnail / Follow / Confirm + Delete.
+            val trailing = row.trailing
+            binding.ivTrailingThumb.isVisible = trailing.kind == "thumbnail"
+            binding.btnTrailingFollow.isVisible = trailing.kind == "follow"
+            binding.trailingActions.isVisible = trailing.kind == "confirm_delete"
+            when (trailing.kind) {
+                "thumbnail" -> {
+                    binding.ivTrailingThumb.clipToOutline = true
+                    Glide.with(binding.ivTrailingThumb)
+                        .load(UnrealStarApiClient.localise(trailing.image_url))
+                        .centerCrop()
+                        .placeholder(R.drawable.bg_inbox_thumb)
+                        .into(binding.ivTrailingThumb)
+                    binding.ivTrailingThumb.setOnClickListener {
+                        callbacks.onOpenThumbnail(row)
+                    }
                 }
-                val chip = SpannableString(match.groupValues.firstOrNull().orEmpty())
-                chip.setSpan(
-                    BackgroundColorSpan(0xFF3A3A5E.toInt()),
-                    0, chip.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
-                chip.setSpan(
-                    ForegroundColorSpan(0xFFFFC93C.toInt()),
-                    0, chip.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
-                )
-                view.append(chip)
-                cursor = match.range.last + 1
+                "follow" -> {
+                    binding.btnTrailingFollow.text = context.getString(
+                        if (trailing.is_following) R.string.me_following else R.string.follow
+                    )
+                    binding.btnTrailingFollow.setBackgroundResource(
+                        if (trailing.is_following) R.drawable.bg_me_pill_outline
+                        else R.drawable.bg_btn_primary
+                    )
+                    binding.btnTrailingFollow.setTextColor(
+                        ContextCompat.getColor(
+                            context,
+                            if (trailing.is_following) R.color.text_muted else R.color.text_white
+                        )
+                    )
+                    binding.btnTrailingFollow.setOnClickListener {
+                        callbacks.onFollow(trailing.user_id, !trailing.is_following)
+                    }
+                }
+                "confirm_delete" -> {
+                    binding.btnConfirm.setOnClickListener {
+                        callbacks.onConfirm(trailing.user_id)
+                    }
+                    binding.btnDelete.setOnClickListener {
+                        callbacks.onDelete(trailing.user_id)
+                    }
+                }
             }
-            if (cursor < body.length) view.append(body.substring(cursor))
-        }
 
-        private fun stamp(raw: String): String = try {
-            val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-            parser.timeZone = TimeZone.getTimeZone("UTC")
-            val date: Date = parser.parse(raw.substringBefore('.').substringBefore('+'))!!
-            SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US).format(date)
-        } catch (e: Exception) {
-            raw.take(16)
+            binding.root.setOnClickListener(if (actors.isEmpty()) null else View.OnClickListener {
+                callbacks.onOpenPerson(actors[0])
+            })
+        }
+    }
+
+    private class SuggestionHolder(
+        private val binding: ItemInboxSuggestionBinding,
+        private val callbacks: Callbacks
+    ) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(user: OfficialSuggestion) {
+            val context = binding.root.context
+            binding.tvSuggestionName.text = user.nickname
+            binding.tvSuggestionProof.text = user.social_proof
+            loadAvatar(binding.ivSuggestionAvatar, user.avatar_url)
+            binding.btnSuggestionFollow.text = context.getString(
+                if (user.is_following) R.string.me_following else R.string.follow
+            )
+            binding.btnSuggestionFollow.setBackgroundResource(
+                if (user.is_following) R.drawable.bg_me_pill_outline
+                else R.drawable.bg_btn_primary
+            )
+            binding.btnSuggestionFollow.setTextColor(
+                ContextCompat.getColor(
+                    context,
+                    if (user.is_following) R.color.text_muted else R.color.text_white
+                )
+            )
+            binding.btnSuggestionFollow.setOnClickListener {
+                callbacks.onFollow(user.user_id, !user.is_following)
+            }
+            val actor = OfficialActor(user.user_id, user.nickname, user.avatar_url)
+            binding.ivSuggestionAvatar.setOnClickListener { callbacks.onOpenPerson(actor) }
+            binding.root.setOnClickListener { callbacks.onOpenPerson(actor) }
+        }
+    }
+
+    private class SeeAllHolder(
+        private val binding: ItemInboxSeeAllBinding,
+        private val callbacks: Callbacks
+    ) : RecyclerView.ViewHolder(binding.root) {
+        fun bind(label: String) {
+            binding.tvSeeAll.text = label
+            binding.root.setOnClickListener { callbacks.onSeeAll() }
         }
     }
 }
+
+/**
+ * Renders a feed row's body: `[tokens]` become highlight chips, `{actor}` /
+ * `{actor2}` become the row's people (bold, tappable), `@mentions` render
+ * gold, and the row's stamp trails the sentence in gray — the exact anatomy
+ * of the reference notifications page.
+ */
+private fun renderNotificationText(
+    context: Context,
+    view: TextView,
+    row: OfficialRow,
+    callbacks: OfficialFeedAdapter.Callbacks
+) {
+    val text = SpannableStringBuilder()
+    var hasLinks = false
+    val body = row.body
+    var index = 0
+
+    while (index < body.length) {
+        when (body[index]) {
+            '[' -> {
+                val end = body.indexOf(']', index + 1)
+                if (end < 0) {
+                    text.append(body[index])
+                } else {
+                    val chip = SpannableString(body.substring(index + 1, end))
+                    chip.setSpan(
+                        BackgroundColorSpan(0xFF3A3A5E.toInt()),
+                        0, chip.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    chip.setSpan(
+                        ForegroundColorSpan(0xFFFFC93C.toInt()),
+                        0, chip.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    text.append(chip)
+                    index = end
+                }
+            }
+            '{' -> {
+                val end = body.indexOf('}', index + 1)
+                val token = if (end < 0) "" else body.substring(index, end + 1)
+                val actorIndex = when (token) {
+                    "{actor}" -> 0
+                    "{actor2}" -> 1
+                    else -> -1
+                }
+                val actor = if (actorIndex >= 0) row.actors.getOrNull(actorIndex) else null
+                if (actor == null) {
+                    text.append(body[index])
+                } else {
+                    val start = text.length
+                    text.append(actor.nickname)
+                    text.setSpan(
+                        object : ClickableSpan() {
+                            override fun onClick(widget: View) {
+                                callbacks.onOpenPerson(actor)
+                            }
+
+                            override fun updateDrawState(ds: TextPaint) {
+                                // Keep the row's own color and weight; no underline.
+                            }
+                        },
+                        start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    text.setSpan(
+                        StyleSpan(Typeface.BOLD),
+                        start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    text.setSpan(
+                        ForegroundColorSpan(ContextCompat.getColor(context, R.color.text_white)),
+                        start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    hasLinks = true
+                    index = end
+                }
+            }
+            '@' -> {
+                var end = index + 1
+                while (end < body.length &&
+                    (body[end].isLetterOrDigit() || body[end] == '_' || body[end] == '.')
+                ) {
+                    end++
+                }
+                if (end == index + 1) {
+                    text.append(body[index])
+                } else {
+                    val start = text.length
+                    text.append(body.substring(index, end))
+                    text.setSpan(
+                        ForegroundColorSpan(0xFFFFC93C.toInt()),
+                        start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+                    )
+                    index = end - 1
+                }
+            }
+            else -> text.append(body[index])
+        }
+        index++
+    }
+
+    val stamp = officialStamp(row.created_at)
+    if (stamp.isNotEmpty()) {
+        val start = text.length
+        text.append(" ").append(stamp)
+        text.setSpan(
+            ForegroundColorSpan(0xFF6E6E8C.toInt()),
+            start, text.length, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE
+        )
+    }
+
+    view.movementMethod = if (hasLinks) LinkMovementMethod.getInstance() else null
+    view.highlightColor = 0
+    view.text = text
+}
+
+private fun loadAvatar(view: ImageView, url: String?) {
+    Glide.with(view)
+        .load(UnrealStarApiClient.localise(url))
+        .circleCrop()
+        .placeholder(R.drawable.bg_live_avatar)
+        .into(view)
+}
+
+private fun dp(view: View, value: Int): Int =
+    (value * view.resources.displayMetrics.density).toInt()
 
 /** The five category tiles are inflated directly, so this is a plain binder. */
 private class CategoryAdapter(
@@ -380,16 +1002,17 @@ private class MessageAdapter(
     private val items = mutableListOf<InboxMessage>()
 
     fun submit(next: List<InboxMessage>) {
+        val oldSize = items.size
         items.clear()
         items.addAll(next)
-        notifyDataSetChanged()
+        notifyListReplaced(oldSize, items.size)
     }
 
     fun markAllRead() {
         for (i in items.indices) {
             items[i] = items[i].copy(unread = false)
         }
-        notifyDataSetChanged()
+        if (items.isNotEmpty()) notifyItemRangeChanged(0, items.size)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = MessageViewHolder(
@@ -410,7 +1033,7 @@ private class MessageAdapter(
         fun bind(message: InboxMessage) {
             binding.tvSender.text = message.sender_nickname
             binding.tvPreview.text = message.preview
-            binding.tvTime.text = stamp(message.created_at)
+            binding.tvTime.text = relativeStamp(message.created_at)
             binding.tvUnread.isVisible = message.unread
             Glide.with(binding.ivAvatar)
                 .load(UnrealStarApiClient.localise(message.sender_avatar_url))
@@ -422,16 +1045,111 @@ private class MessageAdapter(
                 onMessageClick(message)
             }
         }
+    }
+}
 
-        private fun stamp(raw: String): String = try {
-            val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
-            parser.timeZone = TimeZone.getTimeZone("UTC")
-            val date: Date = parser.parse(raw.substringBefore('.').substringBefore('+'))!!
-            SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US).format(date)
-        } catch (e: Exception) {
-            raw.take(16)
+/** Message inbox rows: avatar, name (bold while unread), preview, relative time, unread dot. */
+private class ConversationAdapter(
+    private val onConversationClick: (ConversationSummary) -> Unit
+) : RecyclerView.Adapter<ConversationAdapter.ConversationViewHolder>() {
+
+    private val items = mutableListOf<ConversationSummary>()
+
+    fun submit(next: List<ConversationSummary>) {
+        val oldSize = items.size
+        items.clear()
+        items.addAll(next)
+        notifyListReplaced(oldSize, items.size)
+    }
+
+    fun unreadPeerIds(): List<Long> = items.filter { it.unread_count > 0 }.map { it.peer_id }
+
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int) = ConversationViewHolder(
+        ItemConversationBinding.inflate(LayoutInflater.from(parent.context), parent, false),
+        onConversationClick
+    )
+
+    override fun onBindViewHolder(holder: ConversationViewHolder, position: Int) =
+        holder.bind(items[position])
+
+    override fun getItemCount() = items.size
+
+    class ConversationViewHolder(
+        private val binding: ItemConversationBinding,
+        private val onClick: (ConversationSummary) -> Unit
+    ) : RecyclerView.ViewHolder(binding.root) {
+
+        fun bind(conversation: ConversationSummary) {
+            val unread = conversation.unread_count > 0
+            val context = binding.root.context
+
+            binding.tvName.text = conversation.peer_nickname
+            binding.tvName.setTypeface(null, if (unread) Typeface.BOLD else Typeface.NORMAL)
+            binding.tvName.setTextColor(
+                ContextCompat.getColor(
+                    context,
+                    if (unread) R.color.text_white else R.color.text_muted
+                )
+            )
+            // Four or more unread lines collapse to the reference's "4+ new messages".
+            binding.tvPreview.text = if (conversation.unread_count >= 4) {
+                context.getString(R.string.inbox_new_messages)
+            } else {
+                conversation.preview
+            }
+            binding.tvTime.text = relativeStamp(conversation.last_message_at)
+            binding.tvUnread.isVisible = unread
+
+            Glide.with(binding.ivAvatar)
+                .load(UnrealStarApiClient.localise(conversation.peer_avatar_url))
+                .circleCrop()
+                .placeholder(R.drawable.bg_live_avatar)
+                .into(binding.ivAvatar)
+
+            binding.root.setOnClickListener { onClick(conversation) }
         }
     }
+}
+
+/** "now" / "12m" / "5h" / "1d" / "2w" — the reference message list's timestamps. */
+private fun relativeStamp(raw: String): String {
+    val date = parseUtc(raw) ?: return raw.take(16)
+    val minutes = (System.currentTimeMillis() - date.time) / 60_000
+    return when {
+        minutes < 1 -> "now"
+        minutes < 60 -> "${minutes}m"
+        minutes < 60 * 24 -> "${minutes / 60}h"
+        minutes < 60 * 24 * 7 -> "${minutes / (60 * 24)}d"
+        minutes < 60 * 24 * 28 -> "${minutes / (60 * 24 * 7)}w"
+        else -> "${minutes / (60 * 24 * 30)}mo"
+    }
+}
+
+/** "now" / "12m" / "5h" / "4d" then "Oct 09" — the reference notifications page. */
+private fun officialStamp(raw: String): String {
+    val date = parseUtc(raw) ?: return raw.take(16)
+    val minutes = (System.currentTimeMillis() - date.time) / 60_000
+    return when {
+        minutes < 1 -> "now"
+        minutes < 60 -> "${minutes}m"
+        minutes < 60 * 24 -> "${minutes / 60}h"
+        minutes < 60 * 24 * 7 -> "${minutes / (60 * 24)}d"
+        else -> SimpleDateFormat("MMM dd", Locale.US).format(date)
+    }
+}
+
+/** Full timestamp for the notice dialog. */
+private fun officialDate(raw: String): String = parseUtc(raw)?.let {
+    SimpleDateFormat("yyyy/MM/dd HH:mm", Locale.US).format(it)
+} ?: raw.take(16)
+
+/** Parses the server's RFC3339 UTC stamps. */
+private fun parseUtc(raw: String): Date? = try {
+    val parser = SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss", Locale.US)
+    parser.timeZone = TimeZone.getTimeZone("UTC")
+    parser.parse(raw.substringBefore('.').substringBefore('+'))
+} catch (e: Exception) {
+    null
 }
 
 /** 999 -> "999", 1200 -> "1.2K". */

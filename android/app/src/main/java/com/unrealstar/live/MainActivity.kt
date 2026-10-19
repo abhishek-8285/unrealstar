@@ -8,8 +8,11 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
+import androidx.lifecycle.lifecycleScope
 import com.unrealstar.live.api.SessionStore
+import com.unrealstar.live.api.UnrealStarApiClient
 import com.unrealstar.live.databinding.ActivityMainBinding
+import kotlinx.coroutines.launch
 
 class MainActivity : AppCompatActivity() {
 
@@ -99,6 +102,33 @@ class MainActivity : AppCompatActivity() {
             val bars = insets.getInsets(WindowInsetsCompat.Type.systemBars())
             binding.bottomNav.updatePadding(bottom = bars.bottom)
             insets
+        }
+    }
+
+    override fun onStart() {
+        super.onStart()
+        refreshInboxBadge()
+    }
+
+    /** Unread direct messages ride the Inbox tab as a badge, like a messenger. */
+    private fun refreshInboxBadge() {
+        lifecycleScope.launch {
+            UnrealStarApiClient.fetchConversations().onSuccess { page ->
+                updateInboxBadge(page.conversations.sumOf { it.unread_count })
+            }
+        }
+    }
+
+    /** Called by the Inbox whenever its conversation list changes. */
+    fun updateInboxBadge(unread: Long) {
+        if (unread > 0) {
+            binding.bottomNav.getOrCreateBadge(R.id.nav_inbox).apply {
+                maxCharacterCount = 3
+                number = unread.toInt()
+                isVisible = true
+            }
+        } else {
+            binding.bottomNav.removeBadge(R.id.nav_inbox)
         }
     }
 

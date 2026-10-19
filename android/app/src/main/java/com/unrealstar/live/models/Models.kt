@@ -205,16 +205,24 @@ data class ShovelDigResponse(
     val remaining_coins: Long
 )
 
+/** Mirrors backend models::MagicLampWishRequest. wishes_count is 1, 10 or 100. */
 data class MagicLampWishRequest(
     val room_id: Long,
-    val wish_tier: String,
+    val wishes_count: Int,
     val idempotency_key: String
-)
+) {
+    init {
+        require(wishes_count == 1 || wishes_count == 10 || wishes_count == 100) {
+            "wishes_count must be 1, 10 or 100"
+        }
+    }
+}
 
+/** Mirrors backend models::MagicLampWishResponse. */
 data class MagicLampWishResponse(
-    val outcome_text: String,
-    val multiplier_achieved: Int,
-    val coins_won: Long,
+    val total_reward_coins: Long,
+    val multiplier_hit: Int,
+    val is_super_wish: Boolean,
     val remaining_coins: Long
 )
 
@@ -244,6 +252,20 @@ data class InboxMessage(
 
 data class InboxMessagePage(
     val messages: List<InboxMessage> = emptyList()
+)
+
+/** Mirrors backend models::ConversationSummary — one row in the message inbox. */
+data class ConversationSummary(
+    val peer_id: Long = 0,
+    val peer_nickname: String = "",
+    val peer_avatar_url: String = "",
+    val preview: String = "",
+    val last_message_at: String = "",
+    val unread_count: Long = 0
+)
+
+data class ConversationPage(
+    val conversations: List<ConversationSummary> = emptyList()
 )
 
 /** Mirrors backend models::MeStats. */
@@ -290,7 +312,77 @@ data class OfficialSection(
 
 data class OfficialNoticePage(
     val sections: List<OfficialSection> = emptyList(),
-    val notices: List<OfficialNotice> = emptyList()
+    val notices: List<OfficialNotice> = emptyList(),
+    /** Time buckets of the reference notifications anatomy, newest first. */
+    val groups: List<OfficialGroup> = emptyList(),
+    val follow_requests: OfficialFollowRequests = OfficialFollowRequests(),
+    val suggested: OfficialSuggested = OfficialSuggested()
+)
+
+/** Mirrors backend models::OfficialActor — one person on a feed row. */
+data class OfficialActor(
+    val user_id: Long = 0,
+    val nickname: String = "",
+    val avatar_url: String = ""
+)
+
+/** Mirrors backend models::OfficialTrailing — the row's trailing slot. */
+data class OfficialTrailing(
+    /** none | thumbnail | follow | confirm_delete */
+    val kind: String = "none",
+    /** The person a follow/confirm action targets; 0 when unused. */
+    val user_id: Long = 0,
+    val is_following: Boolean = false,
+    val image_url: String = ""
+)
+
+/** Mirrors backend models::OfficialRow — the reference page's row anatomy. */
+data class OfficialRow(
+    val row_id: String = "",
+    /** notice | activity */
+    val kind: String = "activity",
+    /** Sub-tab this row filters under: official | event | picked | task. */
+    val section: String = "official",
+    /** Notice glyph: app | info. Empty on activity rows. */
+    val icon: String = "",
+    /** `[tokens]` are chips, `{actor}`/`{actor2}` the row's people, `@mentions` gold. */
+    val body: String = "",
+    val actors: List<OfficialActor> = emptyList(),
+    val trailing: OfficialTrailing = OfficialTrailing(),
+    val created_at: String = ""
+)
+
+/** Mirrors backend models::OfficialGroup — "This week" / "This month" / "Earlier". */
+data class OfficialGroup(
+    val key: String = "",
+    val label: String = "",
+    val rows: List<OfficialRow> = emptyList()
+)
+
+/** Mirrors backend models::OfficialFollowRequests — the top summary row. */
+data class OfficialFollowRequests(
+    val title: String = "",
+    val subtitle: String = "",
+    val avatars: List<String> = emptyList(),
+    val pending: List<OfficialActor> = emptyList()
+)
+
+/** Mirrors backend models::OfficialSuggestion — one "Suggested for you" row. */
+data class OfficialSuggestion(
+    val user_id: Long = 0,
+    val nickname: String = "",
+    val social_proof: String = "",
+    val avatar_url: String = "",
+    val is_following: Boolean = false
+)
+
+/** Mirrors backend models::OfficialSuggested. */
+data class OfficialSuggested(
+    val label: String = "",
+    val users: List<OfficialSuggestion> = emptyList(),
+    val see_all_label: String = "",
+    /** Where "See all suggestions" goes: "search". */
+    val see_all_target: String = ""
 )
 
 /** OTP login: POST /auth/otp/send|verify. */
@@ -325,6 +417,25 @@ data class CreateRoomResponse(
     val rtc_token: String = "",
     val rtc_channel_id: String = "",
     val ws_url: String = ""
+)
+
+/** POST /rooms/{id}/close → authoritative end-of-stream stats. */
+data class CloseRoomResponse(
+    val duration_secs: Long = 0,
+    val peak_viewers: Long = 0,
+    val diamonds_earned: Long = 0
+)
+
+/** GET /rtc/ice-servers → STUN always, TURN when the deployment sets it. */
+data class IceServerEntry(
+    val urls: List<String> = emptyList(),
+    val username: String? = null,
+    val credential: String? = null
+)
+
+data class IceServersResponse(
+    val servers: List<IceServerEntry> = emptyList(),
+    val ttl_secs: Long = 0
 )
 
 /** GET /leaderboards */
@@ -401,6 +512,28 @@ data class PkStatusResponse(
 )
 
 data class SocialFollowResponse(
+    val is_following: Boolean = false
+)
+
+/** GET /api/v1/users/{id} — mirrors backend models::UserProfile plus the
+ *  per-caller is_following the route adds on the serialized value. */
+data class OtherUserProfile(
+    val user_id: Long = 0,
+    val nickname: String = "",
+    val avatar_url: String = "",
+    val bio: String = "",
+    val gender: String = "",
+    val city: String = "",
+    val age: Int = 0,
+    val can_publish: Boolean = false,
+    val creator_status: String = "",
+    val wealth_tier: String = "",
+    val vip_level: String = "None",
+    val followers_count: Long = 0,
+    val following_count: Long = 0,
+    val is_live: Boolean = false,
+    val live_room_id: Long? = null,
+    val likes_received: Long = 0,
     val is_following: Boolean = false
 )
 

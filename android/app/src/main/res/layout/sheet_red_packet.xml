@@ -25,7 +25,8 @@
             android:id="@+id/tvTitle"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="🧧 Lucky Red Packet (Shagun)"
+            android:layout_toStartOf="@id/btnClose"
+            android:text="@string/title"
             android:textColor="#FFFFFF"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -36,6 +37,7 @@
             android:layout_height="28dp"
             android:layout_alignParentEnd="true"
             android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/desc_close"
             android:src="@drawable/ic_feed_close"
             app:tint="#8E8BA5" />
     </RelativeLayout>
@@ -56,7 +58,7 @@
             android:layout_weight="1"
             android:background="@drawable/bg_chip_active"
             android:gravity="center"
-            android:text="🎁 Claim Active"
+            android:text="@string/tab_claim"
             android:textColor="#FFFFFF"
             android:textSize="13sp"
             android:textStyle="bold" />
@@ -68,7 +70,7 @@
             android:layout_weight="1"
             android:background="@drawable/bg_chip_translucent"
             android:gravity="center"
-            android:text="💸 Drop Red Packet"
+            android:text="@string/tab_drop"
             android:textColor="#8E8BA5"
             android:textSize="13sp"
             android:textStyle="bold" />
@@ -87,7 +89,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="🧧"
+            android:text="@string/red_packet"
             android:textSize="64sp" />
 
         <TextView
@@ -115,7 +117,7 @@
             android:layout_height="52dp"
             android:layout_marginTop="20dp"
             android:backgroundTint="#FF3B30"
-            android:text="✨ OPEN &amp; CLAIM ✨"
+            android:text="@string/claim_packet"
             android:textColor="#FFFFFF"
             android:textSize="15sp"
             android:textStyle="bold" />
@@ -145,7 +147,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="SELECT COIN AMOUNT"
+            android:text="@string/select_coin_amount"
             android:textColor="#8E8BA5"
             android:textSize="11sp"
             android:textStyle="bold" />
@@ -163,7 +165,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/bg_chip_translucent"
                 android:gravity="center"
-                android:text="50 🪙"
+                android:text="@string/bet50"
                 android:textColor="#FFFFFF"
                 android:textStyle="bold" />
 
@@ -175,7 +177,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/bg_chip_active"
                 android:gravity="center"
-                android:text="100 🪙"
+                android:text="@string/bet100"
                 android:textColor="#FFFFFF"
                 android:textStyle="bold" />
 
@@ -187,7 +189,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/bg_chip_translucent"
                 android:gravity="center"
-                android:text="500 🪙"
+                android:text="@string/bet500"
                 android:textColor="#FFFFFF"
                 android:textStyle="bold" />
 
@@ -199,7 +201,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/bg_chip_translucent"
                 android:gravity="center"
-                android:text="1,000 🪙"
+                android:text="@string/chip_coins1000"
                 android:textColor="#FFFFFF"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -208,7 +210,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="16dp"
-            android:text="NUMBER OF LUCKY SPLITS"
+            android:text="@string/number_of_lucky_splits"
             android:textColor="#8E8BA5"
             android:textSize="11sp"
             android:textStyle="bold" />
@@ -226,7 +228,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/bg_chip_active"
                 android:gravity="center"
-                android:text="5 Splits"
+                android:text="@string/chip_splits5"
                 android:textColor="#FFFFFF"
                 android:textStyle="bold" />
 
@@ -238,7 +240,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/bg_chip_translucent"
                 android:gravity="center"
-                android:text="10 Splits"
+                android:text="@string/chip_splits10"
                 android:textColor="#FFFFFF"
                 android:textStyle="bold" />
 
@@ -250,7 +252,7 @@
                 android:layout_weight="1"
                 android:background="@drawable/bg_chip_translucent"
                 android:gravity="center"
-                android:text="20 Splits"
+                android:text="@string/chip_splits20"
                 android:textColor="#FFFFFF"
                 android:textStyle="bold" />
         </LinearLayout>
@@ -261,7 +263,7 @@
             android:layout_height="50dp"
             android:layout_marginTop="20dp"
             android:backgroundTint="#FF6A00"
-            android:text="🧧 Drop Red Packet into Room"
+            android:text="@string/drop_packet"
             android:textColor="#FFFFFF"
             android:textSize="15sp"
             android:textStyle="bold" />

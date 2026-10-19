@@ -1,0 +1,523 @@
+{
+  "version": 1,
+  "canvas": [
+    750,
+    1334
+  ],
+  "face": {
+    "eyeL": [
+      263.2,
+      531.7
+    ],
+    "eyeR": [
+      504.8,
+      531.7
+    ],
+    "mouth": [
+      386.1,
+      772.8
+    ]
+  },
+  "categories": [
+    {
+      "id": 402,
+      "name": "Lipstick",
+      "tag": "MASK_LUT",
+      "blend": "LUT",
+      "anchor": [
+        310,
+        714
+      ],
+      "imageScale": 0.99,
+      "mask": "lipstick/mouth.png",
+      "lut": "lipstick/table.png",
+      "items": [
+        {
+          "id": "lip_rose",
+          "name": "Rose",
+          "color": "#E35081",
+          "tint": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "lip_classic_red",
+          "name": "Classic Red",
+          "color": "#E41016",
+          "tint": [
+            0.996,
+            0.21,
+            0.176
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "lip_deep_red",
+          "name": "Deep Red",
+          "color": "#900507",
+          "tint": [
+            0.629,
+            0.062,
+            0.053
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "lip_brick",
+          "name": "Brick",
+          "color": "#B34128",
+          "tint": [
+            0.786,
+            0.827,
+            0.321
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "lip_coral_red",
+          "name": "Coral Red",
+          "color": "#E35157",
+          "tint": [
+            1.0,
+            1.012,
+            0.679
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "lip_dusky_rose",
+          "name": "Dusky Rose",
+          "color": "#D46163",
+          "tint": [
+            0.926,
+            1.198,
+            0.756
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "lip_coral",
+          "name": "Coral",
+          "color": "#E35B4F",
+          "tint": [
+            1.0,
+            1.148,
+            0.611
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "lip_tangerine",
+          "name": "Tangerine",
+          "color": "#E45029",
+          "tint": [
+            1.061,
+            1.185,
+            0.458
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "lip_scarlet",
+          "name": "Scarlet",
+          "color": "#E2141A",
+          "tint": [
+            1.087,
+            0.716,
+            0.504
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "lip_wine",
+          "name": "Wine",
+          "color": "#B62C52",
+          "tint": [
+            0.795,
+            0.543,
+            0.626
+          ],
+          "strength": 0.6
+        }
+      ]
+    },
+    {
+      "id": 403,
+      "name": "Blush",
+      "tag": "BLUSH",
+      "blend": "MULTIPLY",
+      "anchor": [
+        0,
+        455
+      ],
+      "imageScale": 1.0,
+      "mask": "blush/face.png",
+      "items": [
+        {
+          "id": "blush_rosy",
+          "name": "Rosy",
+          "color": "#FF7679",
+          "tint": [
+            1.0,
+            0.992,
+            0.992
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "blush_peach",
+          "name": "Peach",
+          "color": "#FFA07A",
+          "tint": [
+            1.0,
+            1.345,
+            1.0
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "blush_coral",
+          "name": "Coral",
+          "color": "#FF7F50",
+          "tint": [
+            1.0,
+            1.067,
+            0.656
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "blush_berry",
+          "name": "Berry",
+          "color": "#C4485F",
+          "tint": [
+            0.769,
+            0.605,
+            0.779
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "blush_nude",
+          "name": "Nude",
+          "color": "#E8B4A0",
+          "tint": [
+            0.91,
+            1.513,
+            1.311
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "blush_rosewood",
+          "name": "Rosewood",
+          "color": "#B76E79",
+          "tint": [
+            0.718,
+            0.924,
+            0.992
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "blush_apricot",
+          "name": "Apricot",
+          "color": "#F5A76C",
+          "tint": [
+            0.961,
+            1.403,
+            0.885
+          ],
+          "strength": 0.6
+        }
+      ]
+    },
+    {
+      "id": 405,
+      "name": "Eyebrows",
+      "tag": "EYE_BROW",
+      "blend": "MULTIPLY",
+      "anchor": [
+        144,
+        440
+      ],
+      "imageScale": 1.0,
+      "mask": "brow/brow.png",
+      "items": [
+        {
+          "id": "brow_soft_taupe",
+          "name": "Soft Taupe",
+          "color": "#7A6455",
+          "tint": [
+            1.151,
+            1.316,
+            1.393
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "brow_ash",
+          "name": "Ash Brown",
+          "color": "#6B5A4E",
+          "tint": [
+            1.009,
+            1.184,
+            1.279
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "brow_warm",
+          "name": "Warm Brown",
+          "color": "#7A4E32",
+          "tint": [
+            1.151,
+            1.026,
+            0.82
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "brow_chestnut",
+          "name": "Chestnut",
+          "color": "#8B4A2F",
+          "tint": [
+            1.311,
+            0.974,
+            0.77
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "brow_espresso",
+          "name": "Espresso",
+          "color": "#3E2A20",
+          "tint": [
+            0.585,
+            0.553,
+            0.525
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "brow_slate",
+          "name": "Slate",
+          "color": "#5A5A5A",
+          "tint": [
+            0.849,
+            1.184,
+            1.475
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "brow_chocolate",
+          "name": "Chocolate",
+          "color": "#5C3A28",
+          "tint": [
+            0.868,
+            0.763,
+            0.656
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "brow_soft_black",
+          "name": "Soft Black",
+          "color": "#2E2A28",
+          "tint": [
+            0.434,
+            0.553,
+            0.656
+          ],
+          "strength": 0.6
+        }
+      ]
+    },
+    {
+      "id": 406,
+      "name": "Eyeshadow",
+      "tag": "EYE_SHADOW",
+      "blend": "MULTIPLY",
+      "anchor": [
+        200,
+        483
+      ],
+      "imageScale": 1.0,
+      "mask": "eyeshadow/eyeshadow.png",
+      "items": [
+        {
+          "id": "shadow_champagne",
+          "name": "Champagne",
+          "color": "#E8D5B7",
+          "tint": [
+            3.362,
+            4.438,
+            6.0
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "shadow_gold",
+          "name": "Gold",
+          "color": "#C9A227",
+          "tint": [
+            2.913,
+            3.375,
+            1.3
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "shadow_copper",
+          "name": "Copper",
+          "color": "#B87333",
+          "tint": [
+            2.667,
+            2.396,
+            1.7
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "shadow_bronze",
+          "name": "Bronze",
+          "color": "#8C5A2B",
+          "tint": [
+            2.029,
+            1.875,
+            1.433
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "shadow_taupe",
+          "name": "Taupe",
+          "color": "#8B7D6B",
+          "tint": [
+            2.014,
+            2.604,
+            3.567
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "shadow_plum",
+          "name": "Plum",
+          "color": "#6B3A5A",
+          "tint": [
+            1.551,
+            1.208,
+            3.0
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "shadow_mauve",
+          "name": "Mauve",
+          "color": "#9B7E9E",
+          "tint": [
+            2.246,
+            2.625,
+            5.267
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "shadow_smokey",
+          "name": "Smokey Grey",
+          "color": "#4A4A52",
+          "tint": [
+            1.072,
+            1.542,
+            2.733
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "shadow_midnight",
+          "name": "Midnight",
+          "color": "#2B2B3A",
+          "tint": [
+            0.623,
+            0.896,
+            1.933
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "shadow_emerald",
+          "name": "Emerald",
+          "color": "#2E5E4E",
+          "tint": [
+            0.667,
+            1.958,
+            2.6
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "shadow_cherry",
+          "name": "Cherry",
+          "color": "#7A2E3A",
+          "tint": [
+            1.768,
+            0.958,
+            1.933
+          ],
+          "strength": 0.6
+        }
+      ]
+    },
+    {
+      "id": 408,
+      "name": "Eyelashes",
+      "tag": "EYE_LASH",
+      "blend": "MULTIPLY",
+      "anchor": [
+        200,
+        483
+      ],
+      "imageScale": 1.0,
+      "mask": "eyelash/eyelash.png",
+      "items": [
+        {
+          "id": "lash_natural",
+          "name": "Natural",
+          "color": "#101010",
+          "tint": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "strength": 0.42
+        },
+        {
+          "id": "lash_volume",
+          "name": "Volume",
+          "color": "#101010",
+          "tint": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "strength": 0.6
+        },
+        {
+          "id": "lash_dramatic",
+          "name": "Dramatic",
+          "color": "#101010",
+          "tint": [
+            1.0,
+            1.0,
+            1.0
+          ],
+          "strength": 0.82
+        }
+      ]
+    }
+  ]
+}

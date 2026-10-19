@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rowFollowRequests"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?android:attr/selectableItemBackground"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
+    android:paddingStart="14dp"
+    android:paddingTop="12dp"
+    android:paddingEnd="14dp"
+    android:paddingBottom="12dp">
+
+    <!-- Stacked avatar pair, exactly like the reference's follow-requests row. -->
+    <FrameLayout
+        android:layout_width="50dp"
+        android:layout_height="36dp">
+
+        <ImageView
+            android:id="@+id/ivFollowReqBack"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="end"
+            android:contentDescription="@null"
+            android:scaleType="centerCrop"
+            tools:src="@drawable/bg_live_avatar" />
+
+        <ImageView
+            android:id="@+id/ivFollowReqFront"
+            android:layout_width="36dp"
+            android:layout_height="36dp"
+            android:layout_gravity="start"
+            android:background="@drawable/bg_inbox_avatar_ring"
+            android:contentDescription="@null"
+            android:padding="2dp"
+            android:scaleType="centerCrop"
+            tools:src="@drawable/bg_live_avatar" />
+    </FrameLayout>
+
+    <LinearLayout
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="10dp"
+        android:layout_weight="1"
+        android:orientation="vertical">
+
+        <TextView
+            android:id="@+id/tvFollowReqTitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="@color/text_white"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            tools:text="Follow requests" />
+
+        <TextView
+            android:id="@+id/tvFollowReqSubtitle"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="2dp"
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="#9A9AAB"
+            android:textSize="12sp"
+            tools:text="Gurjant Singh + 1 other" />
+    </LinearLayout>
+
+    <ImageView
+        android:id="@+id/ivFollowReqChevron"
+        android:layout_width="18dp"
+        android:layout_height="18dp"
+        android:contentDescription="@null"
+        android:src="@drawable/ic_inbox_chevron" />
+</LinearLayout>

@@ -32,6 +32,17 @@ fn random_otp() -> String {
     format!("{n:06}")
 }
 
+/// E.164 sanity shared with the Android client: optional leading `+`,
+/// then 7–15 ASCII digits. Rejects letters, spaces, and separators so one
+/// identity cannot fan out into several phone records.
+fn is_valid_e164(phone: &str) -> bool {
+    let digits = phone.strip_prefix('+').unwrap_or(phone);
+    !digits.is_empty()
+        && digits.len() <= 15
+        && digits.len() >= 7
+        && digits.bytes().all(|b| b.is_ascii_digit())
+}
+
 /// `debug_otp` is returned only when explicitly enabled: always in debug
 /// builds so local development and tests work, or via
 /// `CAMSTAR_DEBUG_OTP=1` in a release build. Production leaves it unset so
@@ -80,8 +91,12 @@ pub async fn otp_send(
     Json(req): Json<OtpSendRequest>,
 ) -> Result<Json<OtpSendResponse>, ApiError> {
     let phone = req.phone_number.trim().to_string();
-    if phone.is_empty() {
-        return Err(ApiError::BadRequest("Phone number is required".into()));
+    // E.164 sanity: optional +, 7–15 digits. Anything else wastes SMS
+    // budget and can split identity server-side (same user, two records).
+    if !is_valid_e164(&phone) {
+        return Err(ApiError::BadRequest(
+            "Phone number must be 7-15 digits, optional leading +".into(),
+        ));
     }
 
     let now = Utc::now();
@@ -333,17 +348,37 @@ pub async fn update_me(
     Ok(Json(profile.clone()))
 }
 
+/// Public profile lookup. The `UserProfile` contract stays untouched (see the
+/// note on `get_me_dashboard`); the per-caller follow state is added on the
+/// serialized value instead, so `is_following` is present here and only here.
 pub async fn get_user(
+    headers: HeaderMap,
     Path(user_id): Path<u64>,
     State(state): State<AppState>,
-) -> Result<Json<UserProfile>, ApiError> {
+) -> Result<Json<serde_json::Value>, ApiError> {
     let users = state.users.read().await;
     let profile = users
         .get(&user_id)
         .cloned()
         .ok_or_else(|| ApiError::NotFound(format!("User {user_id} not found")))?;
+    drop(users);
 
-    Ok(Json(profile))
+    let mut value = serde_json::to_value(&profile)
+        .map_err(|e| ApiError::Internal(format!("serialize profile: {e}")))?;
+
+    let auth_header = headers.get("Authorization").and_then(|h| h.to_str().ok());
+    if let Some(viewer) = state.authenticate_header(auth_header).await {
+        if viewer != user_id {
+            let follows = state.follows.read().await;
+            let is_following = follows
+                .get(&viewer)
+                .map(|set| set.contains(&user_id))
+                .unwrap_or(false);
+            value["is_following"] = serde_json::json!(is_following);
+        }
+    }
+
+    Ok(Json(value))
 }
 
 /// Payload for the Me tab. Kept separate from `UserProfile` so the profile
@@ -389,6 +424,16 @@ pub async fn get_me_dashboard(
     // numbers move when the user actually likes or gifts.
     let likes_count = profile.as_ref().map(|p| p.likes_received).unwrap_or(0);
 
+    // Real diamond balance from the ledger — never a demo constant.
+    drop(users);
+    let diamonds = state
+        .ledger
+        .balance(user_diamonds_account(user_id))
+        .await
+        .map(|m| m.to_minor() as f64)
+        .unwrap_or(0.0)
+        .max(0.0);
+
     Ok(Json(MeDashboard {
         user_id,
         nickname,
@@ -402,7 +447,7 @@ pub async fn get_me_dashboard(
         following_count: following,
         followers_count: followers,
         likes_count,
-        diamonds: 7_500_000.0,
+        diamonds,
         stats: MeStats {
             videos_watched: 0,
             lives_watched: 0,

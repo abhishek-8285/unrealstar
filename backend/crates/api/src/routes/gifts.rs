@@ -50,6 +50,15 @@ pub async fn send_gift(
             .map_err(ApiError::RoomDenial)?;
     }
 
+    // Quantity guard: count=0 would mint a no-op broadcast-eligible entry,
+    // and combo_seq=0 corrupts combo accounting. Reject before any debit.
+    if req.count == 0 || req.count > 99 {
+        return Err(ApiError::BadRequest("Gift count must be 1..99".into()));
+    }
+    if req.combo_seq == 0 {
+        return Err(ApiError::BadRequest("combo_seq must be positive".into()));
+    }
+
     // Server-authoritative pricing
     let gift = state
         .gifts
@@ -92,6 +101,36 @@ pub async fn send_gift(
         }
     }
 
+    // PK scoring: a gift landing in a duelist's room scores for that side.
+    // Points are gift coins (same unit the client scoreboard renders).
+    let pk_update: Option<crate::models::PkStatusResponse> = {
+        let host_id = {
+            let rooms = state.rooms.read().await;
+            rooms.get(&req.room_id).map(|r| r.host_id)
+        };
+        match host_id {
+            None => None,
+            Some(h) => {
+                let mut pks = state.pks.write().await;
+                match pks
+                    .values_mut()
+                    .find(|p| p.status == "in_battle" && (p.host_a_id == h || p.host_b_id == h))
+                {
+                    None => None,
+                    Some(pk) => {
+                        let pts = total_coins.max(0) as u64;
+                        if pk.host_a_id == h {
+                            pk.host_a_points = pk.host_a_points.saturating_add(pts);
+                        } else {
+                            pk.host_b_points = pk.host_b_points.saturating_add(pts);
+                        }
+                        Some(pk.clone())
+                    }
+                }
+            }
+        }
+    };
+
     // Broadcast gift event via WebSocket
     let ws_rooms = state.ws_rooms.read().await;
     if let Some(tx) = ws_rooms.get(&req.room_id) {
@@ -118,6 +157,11 @@ pub async fn send_gift(
                 ),
             });
         }
+    }
+    // Score update rides after the gift broadcast so viewers render the gift
+    // banner first, then the moving scoreboard.
+    if let Some(pk) = pk_update {
+        super::pk::broadcast_pk_state(&state, &pk).await;
     }
 
     // Push fan-out point: count recipient devices for FCM delivery once a
@@ -240,7 +284,11 @@ pub async fn list_active_red_packets(
 
     let active: Vec<ActiveRedPacketItem> = packets
         .values()
-        .filter(|p| (p.room_id == room_id || p.room_id == 0) && p.expires_at > now && (p.claimants.len() as u32) < p.split_count)
+        .filter(|p| {
+            (p.room_id == room_id || p.room_id == 0)
+                && p.expires_at > now
+                && (p.claimants.len() as u32) < p.split_count
+        })
         .map(|p| {
             let dropper_nickname = users
                 .get(&p.dropper_user_id)

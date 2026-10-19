@@ -8,5 +8,7 @@ pub mod payouts;
 pub mod pk;
 pub mod push;
 pub mod rooms;
+pub mod rtc;
 pub mod social;
+pub mod uploads;
 pub mod wallet;

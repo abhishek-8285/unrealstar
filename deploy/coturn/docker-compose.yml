@@ -1,0 +1,12 @@
+# CamStar TURN relay. Run via ./deploy.sh (renders turnserver.conf first).
+# Host networking is deliberate: TURN must see real client addresses and own
+# the full relay port range — port mapping breaks both.
+services:
+  coturn:
+    image: coturn/coturn:4.6.3
+    container_name: camstar-coturn
+    restart: unless-stopped
+    network_mode: host
+    volumes:
+      - ./turnserver.conf:/etc/coturn/turnserver.conf:ro
+    command: ["-c", "/etc/coturn/turnserver.conf"]

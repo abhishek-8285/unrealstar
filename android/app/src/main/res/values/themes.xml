@@ -4,6 +4,10 @@
         <item name="colorPrimary">@color/primary</item>
         <item name="colorPrimaryVariant">@color/primary_variant</item>
         <item name="colorSecondary">@color/secondary</item>
+        <!-- The app is dark-only by design: tint the window itself so cold
+             starts never flash white and screens do not repaint the same
+             colour under the fragments (Overdraw). -->
+        <item name="android:windowBackground">@color/background_dark</item>
         <item name="android:statusBarColor">@color/background_dark</item>
         <item name="android:navigationBarColor">@color/background_dark</item>
     </style>

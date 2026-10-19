@@ -40,9 +40,86 @@ object UnrealStarApiClient {
                 })
             }
         }
+        // Transparent 401 recovery: single-flight refresh, one retry max.
+        // Runs on OkHttp's background threads; runBlocking is safe here
+        // (Dispatchers.IO is pooled, never a single-thread executor).
+        // Requests without an Authorization header (refresh/logout) never
+        // enter recovery — that would recurse.
+        .authenticator { _, response ->
+            if (response.request.header("Authorization") == null || responseCount(response) >= 2) {
+                null
+            } else {
+                val fresh = kotlinx.coroutines.runBlocking { SessionStore.refreshAccessToken() }
+                if (fresh.isNullOrBlank()) {
+                    null
+                } else {
+                    response.request.newBuilder()
+                        .header("Authorization", "Bearer $fresh")
+                        .build()
+                }
+            }
+        }
         .build()
+
+    private fun responseCount(response: okhttp3.Response): Int {
+        var count = 1
+        var prior = response.priorResponse
+        while (prior != null) {
+            count++
+            prior = prior.priorResponse
+        }
+        return count
+    }
+
+    /** POST /api/v1/auth/token/refresh — rotation pair, no auth header needed. */
+    suspend fun performTokenRefresh(refreshToken: String, deviceUid: String): Result<com.unrealstar.live.models.AuthTokensResponse> = withContext(Dispatchers.IO) {
+        val json = JSONObject().apply {
+            put("refresh_token", refreshToken)
+            put("device_uid", deviceUid)
+        }
+        val request = Request.Builder()
+            .url("$BASE_URL/auth/token/refresh")
+            .post(json.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("token/refresh HTTP ${response.code}"))
+                val res = gson.fromJson(response.body?.string() ?: "{}", com.unrealstar.live.models.AuthTokensResponse::class.java)
+                if (res.access_token.isBlank()) {
+                    Result.failure(IOException("token/refresh empty access token"))
+                } else {
+                    Result.success(res)
+                }
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Server-side logout (revokes the whole session) + local clear.
+     * Best-effort on the network call: local state is always cleared.
+     */
+    suspend fun logout(context: android.content.Context): Result<Unit> = withContext(Dispatchers.IO) {
+        try {
+            val refresh = SessionStore.refreshTokenSnapshot()
+            if (!refresh.isNullOrBlank()) {
+                val json = JSONObject().apply { put("refresh_token", refresh) }
+                val request = Request.Builder()
+                    .url("$BASE_URL/auth/logout")
+                    .post(json.toString().toRequestBody(JSON_MEDIA_TYPE))
+                    .build()
+                try {
+                    client.newCall(request).execute().close()
+                } catch (_: Exception) {}
+            }
+        } catch (_: Exception) {}
+        SessionStore.signOut(context)
+        Result.success(Unit)
+    }
     private val gson = Gson()
     private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+    private const val EMPTY_JSON = "{}"
 
     suspend fun fetchWalletBalance(): WalletBalance = withContext(Dispatchers.IO) {
         val request = Request.Builder()
@@ -206,6 +283,33 @@ object UnrealStarApiClient {
             }
         }
 
+    /** POST /api/v1/inbox/follow-requests/{peer_id}/confirm — accepts the request; returns the refreshed feed. */
+    suspend fun confirmFollowRequest(peerId: Long): Result<OfficialNoticePage> =
+        withContext(Dispatchers.IO) { followRequestAction("confirm", peerId) }
+
+    /** POST /api/v1/inbox/follow-requests/{peer_id}/delete — removes the request; returns the refreshed feed. */
+    suspend fun deleteFollowRequest(peerId: Long): Result<OfficialNoticePage> =
+        withContext(Dispatchers.IO) { followRequestAction("delete", peerId) }
+
+    private fun followRequestAction(action: String, peerId: Long): Result<OfficialNoticePage> {
+        val request = Request.Builder()
+            .url("$BASE_URL/inbox/follow-requests/$peerId/$action")
+            .header("Authorization", SessionStore.authorization())
+            .post(EMPTY_JSON.toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        return try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return Result.failure(IOException("HTTP ${response.code}"))
+                }
+                val page = gson.fromJson(response.body?.string() ?: "", OfficialNoticePage::class.java)
+                Result.success(page ?: OfficialNoticePage())
+            }
+        } catch (e: IOException) {
+            Result.failure(e)
+        }
+    }
+
     suspend fun fetchMeDashboard(): MeDashboard = withContext(Dispatchers.IO) {
         val request = Request.Builder()
             .url("$BASE_URL/users/me/dashboard")
@@ -240,7 +344,7 @@ object UnrealStarApiClient {
         }
     }
 
-    suspend fun fetchInbox(category: String?): InboxMessagePage = withContext(Dispatchers.IO) {
+    suspend fun fetchInbox(category: String?): Result<InboxMessagePage> = withContext(Dispatchers.IO) {
         val url = if (category == null) "$BASE_URL/inbox"
         else "$BASE_URL/inbox?category=$category"
         val request = Request.Builder()
@@ -250,12 +354,54 @@ object UnrealStarApiClient {
             .build()
         try {
             client.newCall(request).execute().use { response ->
-                if (!response.isSuccessful) return@withContext InboxMessagePage()
-                gson.fromJson(response.body?.string() ?: "", InboxMessagePage::class.java)
-                    ?: InboxMessagePage()
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                }
+                val page = gson.fromJson(response.body?.string() ?: "", InboxMessagePage::class.java)
+                Result.success(page ?: InboxMessagePage())
             }
         } catch (e: IOException) {
-            InboxMessagePage()
+            Result.failure(e)
+        }
+    }
+
+    /** GET /api/v1/inbox/conversations — the message inbox list. */
+    suspend fun fetchConversations(): Result<ConversationPage> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/inbox/conversations")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                }
+                val page = gson.fromJson(response.body?.string() ?: "", ConversationPage::class.java)
+                Result.success(page ?: ConversationPage())
+            }
+        } catch (e: IOException) {
+            Result.failure(e)
+        }
+    }
+
+    /** POST /api/v1/conversations/{user_id}/read — clears the unread badge; returns the refreshed list. */
+    suspend fun markConversationRead(userId: Long): Result<ConversationPage> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/conversations/$userId/read")
+            .header("Authorization", SessionStore.authorization())
+            .post(EMPTY_JSON.toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                }
+                val page = gson.fromJson(response.body?.string() ?: "", ConversationPage::class.java)
+                Result.success(page ?: ConversationPage())
+            }
+        } catch (e: IOException) {
+            Result.failure(e)
         }
     }
 
@@ -553,8 +699,8 @@ object UnrealStarApiClient {
     }
 
     /** OTP login step 2: verify code → tokens (persisted via SessionStore). */
-    suspend fun otpVerify(sessionId: String, code: String): Result<AuthTokensResponse> = withContext(Dispatchers.IO) {
-        val json = gson.toJson(mapOf("otp_session_id" to sessionId, "otp_code" to code, "device_uid" to "android-debug"))
+    suspend fun otpVerify(sessionId: String, code: String, deviceUid: String): Result<AuthTokensResponse> = withContext(Dispatchers.IO) {
+        val json = gson.toJson(mapOf("otp_session_id" to sessionId, "otp_code" to code, "device_uid" to deviceUid))
         val request = Request.Builder()
             .url("$BASE_URL/auth/otp/verify")
             .post(json.toRequestBody(JSON_MEDIA_TYPE))
@@ -581,8 +727,10 @@ object UnrealStarApiClient {
     }
 
     /** Create a host room for the Go-Live flow. */
-    suspend fun createRoom(title: String, categoryId: String = "party"): Result<CreateRoomResponse> = withContext(Dispatchers.IO) {
-        val json = gson.toJson(mapOf("title" to title, "category_id" to categoryId))
+    suspend fun createRoom(title: String, categoryId: String = "party", coverUrl: String? = null): Result<CreateRoomResponse> = withContext(Dispatchers.IO) {
+        val payload = mutableMapOf("title" to title, "category_id" to categoryId)
+        if (!coverUrl.isNullOrBlank()) payload["cover_image_url"] = coverUrl
+        val json = gson.toJson(payload)
         val request = Request.Builder()
             .url("$BASE_URL/rooms/create")
             .header("Authorization", SessionStore.authorization())
@@ -613,6 +761,83 @@ object UnrealStarApiClient {
                     return@withContext Result.failure(IOException(response.body?.string() ?: "Leave room failed"))
                 }
                 Result.success(Unit)
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Close a hosted room. Returns authoritative stats (real duration, peak
+     * viewers, diamonds earned) for the ended screen. Failure is terminal
+     * for the room server-side only on success — callers fall back to local
+     * counters so an offline close still shows an honest screen.
+     */
+    suspend fun closeRoom(roomId: Long): Result<com.unrealstar.live.models.CloseRoomResponse> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/rooms/$roomId/close")
+            .header("Authorization", SessionStore.authorization())
+            .post("".toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException(response.body?.string() ?: "Close room failed"))
+                }
+                Result.success(gson.fromJson(response.body?.string() ?: "", com.unrealstar.live.models.CloseRoomResponse::class.java))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Per-user ICE servers (STUN always, time-limited TURN when the
+     * deployment configures it). Best-effort: failure keeps the static
+     * BuildConfig list. Call once before building peer connections.
+     */
+    suspend fun fetchIceServers(): Result<com.unrealstar.live.models.IceServersResponse> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/rtc/ice-servers")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException(response.body?.string() ?: "ICE servers failed"))
+                }
+                Result.success(gson.fromJson(response.body?.string() ?: "", com.unrealstar.live.models.IceServersResponse::class.java))
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
+    /**
+     * Upload a JPEG room-cover poster (camera capture or gallery pick,
+     * already compressed client-side). Returns the public URL to pass as
+     * cover_image_url in createRoom. Magic bytes + 3 MiB cap enforced
+     * server-side; any failure leaves the room on its default cover.
+     */
+    suspend fun uploadPoster(jpeg: ByteArray): Result<String> = withContext(Dispatchers.IO) {
+        if (jpeg.isEmpty() || jpeg.size > 3 * 1024 * 1024) {
+            return@withContext Result.failure(IOException("Poster must be 1 byte..3 MiB"))
+        }
+        val request = Request.Builder()
+            .url("$BASE_URL/uploads/poster")
+            .header("Authorization", SessionStore.authorization())
+            .post(jpeg.toRequestBody("image/jpeg".toMediaType()))
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) {
+                    return@withContext Result.failure(IOException(response.body?.string() ?: "Poster upload failed"))
+                }
+                val res = org.json.JSONObject(response.body?.string() ?: "{}")
+                val url = res.optString("url", "")
+                if (url.isBlank()) Result.failure(IOException("Poster upload empty URL"))
+                else Result.success(url)
             }
         } catch (e: Exception) {
             Result.failure(e)
@@ -884,6 +1109,26 @@ object UnrealStarApiClient {
         }
     }
 
+    /** GET /api/v1/users/{id} — public profile with per-caller follow state. */
+    suspend fun getUserProfile(userId: Long): Result<OtherUserProfile> = withContext(Dispatchers.IO) {
+        val request = Request.Builder()
+            .url("$BASE_URL/users/$userId")
+            .header("Authorization", SessionStore.authorization())
+            .get()
+            .build()
+        try {
+            client.newCall(request).execute().use { response ->
+                if (!response.isSuccessful) return@withContext Result.failure(IOException("HTTP ${response.code}"))
+                Result.success(
+                    gson.fromJson(response.body?.string() ?: "{}", OtherUserProfile::class.java)
+                        ?: OtherUserProfile()
+                )
+            }
+        } catch (e: Exception) {
+            Result.failure(e)
+        }
+    }
+
     /** GET /api/v1/payouts/preview (Trendo Earnings) */
     suspend fun fetchPayoutPreview(): Result<com.unrealstar.live.models.PayoutPreviewResponse> = withContext(Dispatchers.IO) {
         val request = Request.Builder()
@@ -1083,6 +1328,7 @@ object UnrealStarApiClient {
         val json = JSONObject().apply {
             put("order_id", orderId)
             put("status", "success")
+            put("provider_reference", "test-$orderId")
         }
         val request = Request.Builder()
             .url("$BASE_URL/payments/webhook/$provider")
@@ -1156,12 +1402,16 @@ object UnrealStarApiClient {
     }
 
     /** POST /api/v1/gifts/red-packet/drop */
-    suspend fun dropRedPacket(roomId: Long, totalCoins: Long, splitCount: Long): Result<com.unrealstar.live.models.RedPacketDropResponse> = withContext(Dispatchers.IO) {
+    suspend fun dropRedPacket(roomId: Long, totalCoins: Long, splitCount: Long, idempotencyKey: String): Result<com.unrealstar.live.models.RedPacketDropResponse> = withContext(Dispatchers.IO) {
+        require(roomId > 0) { "room_id must be positive" }
+        require(totalCoins > 0) { "total_coins must be positive" }
+        require(splitCount in 1..100) { "split_count must be 1..100" }
+        require(idempotencyKey.isNotBlank()) { "idempotency_key required" }
         val json = JSONObject().apply {
             put("room_id", roomId)
             put("total_coins", totalCoins)
             put("split_count", splitCount)
-            put("idempotency_key", java.util.UUID.randomUUID().toString())
+            put("idempotency_key", idempotencyKey)
         }
         val request = Request.Builder()
             .url("$BASE_URL/gifts/red-packet/drop")

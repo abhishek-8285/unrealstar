@@ -1,11 +1,11 @@
 package com.unrealstar.live
 
-import android.graphics.Color
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.core.graphics.toColorInt
 import androidx.lifecycle.lifecycleScope
 import com.unrealstar.live.api.UnrealStarApiClient
 import com.unrealstar.live.databinding.DialogLuckyWheelBinding
@@ -14,13 +14,28 @@ import com.google.android.material.bottomsheet.BottomSheetDialogFragment
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-class LuckyWheelDialog(
-    private val roomId: Long = 1L,
-    private val onBalanceUpdated: (Long) -> Unit = {}
-) : BottomSheetDialogFragment() {
+class LuckyWheelDialog : BottomSheetDialogFragment() {
 
     private var _binding: DialogLuckyWheelBinding? = null
     private val binding get() = _binding!!
+
+    private val roomId: Long by lazy {
+        arguments?.getLong(ARG_ROOM_ID, 1L) ?: 1L
+    }
+
+    companion object {
+        const val TAG = "LuckyWheelDialog"
+        const val RESULT_KEY = "lucky_wheel_result"
+        const val RESULT_COINS = "remaining_coins"
+        private const val ARG_ROOM_ID = "room_id"
+
+        fun newInstance(roomId: Long): LuckyWheelDialog =
+            LuckyWheelDialog().apply {
+                arguments = android.os.Bundle().apply {
+                    putLong(ARG_ROOM_ID, roomId)
+                }
+            }
+    }
 
     private var selectedBet: Long = 10L
     private var isSpinning: Boolean = false
@@ -52,12 +67,12 @@ class LuckyWheelDialog(
     }
 
     private fun refreshBalance() {
-        lifecycleScope.launch {
+        viewLifecycleOwner.lifecycleScope.launch {
             try {
                 val balance = UnrealStarApiClient.fetchWalletBalance()
-                binding.tvWheelCoinsBalance.text = "🪙 %,d Coins".format(balance.coins)
+                _binding?.tvWheelCoinsBalance?.text = resources.getQuantityString(R.plurals.wheel_coins_balance_fmt, balance.coins.toInt(), balance.coins)
             } catch (e: Exception) {
-                binding.tvWheelCoinsBalance.text = "🪙 — Coins (offline)"
+                _binding?.tvWheelCoinsBalance?.text = getString(R.string.wheel_coins_offline)
             }
         }
     }
@@ -74,10 +89,10 @@ class LuckyWheelDialog(
     private fun updateBetSelection(bet: Long) {
         if (isSpinning) return
         selectedBet = bet
-        binding.btnSpinWheelAction.text = "SPIN WHEEL ($selectedBet COINS)"
+        binding.btnSpinWheelAction.text = getString(R.string.spin_wheel_action_bet, selectedBet)
 
-        val activeColor = Color.parseColor("#FFD700")
-        val inactiveColor = Color.parseColor("#80FFFFFF")
+        val activeColor = "#FFD700".toColorInt()
+        val inactiveColor = "#80FFFFFF".toColorInt()
 
         binding.btnBet10.strokeColor = android.content.res.ColorStateList.valueOf(if (bet == 10L) activeColor else inactiveColor)
         binding.btnBet50.strokeColor = android.content.res.ColorStateList.valueOf(if (bet == 50L) activeColor else inactiveColor)
@@ -86,51 +101,78 @@ class LuckyWheelDialog(
     }
 
     private fun performSpin() {
+        val b = _binding ?: return
         isSpinning = true
-        binding.btnSpinWheelAction.isEnabled = false
-        binding.btnSpinWheelAction.text = "SPINNING..."
-        binding.tvSpinResult.text = "Good luck! The wheel is spinning..."
-        binding.tvSpinResult.setTextColor(Color.parseColor("#FFE082"))
+        isCancelable = false
+        b.btnSpinWheelAction.isEnabled = false
+        b.btnSpinWheelAction.text = getString(R.string.wheel_spinning)
+        b.tvSpinResult.text = getString(R.string.wheel_spin_started)
+        b.tvSpinResult.setTextColor("#FFE082".toColorInt())
 
-        lifecycleScope.launch {
-            val req = SpinWheelRequest(
-                room_id = roomId,
-                wheel_id = "wheel_classic",
-                coins_bet = selectedBet,
-                idempotency_key = "spin_${UUID.randomUUID()}"
-            )
+        viewLifecycleOwner.lifecycleScope.launch {
+            try {
+                val req = SpinWheelRequest(
+                    room_id = roomId,
+                    wheel_id = "wheel_classic",
+                    coins_bet = selectedBet,
+                    idempotency_key = "spin_${UUID.randomUUID()}"
+                )
 
-            val res = UnrealStarApiClient.spinWheel(req)
-            res.onSuccess { spinRes ->
-                binding.wheelView.spinToAngle(spinRes.target_angle_deg) {
-                    isSpinning = false
-                    binding.btnSpinWheelAction.isEnabled = true
-                    binding.btnSpinWheelAction.text = "SPIN WHEEL ($selectedBet COINS)"
+                val res = kotlinx.coroutines.withTimeout(15_000) {
+                    UnrealStarApiClient.spinWheel(req)
+                }
+                res.onSuccess { spinRes ->
+                    val bb = _binding ?: return@launch
+                    bb.wheelView.spinToAngle(spinRes.target_angle_deg) {
+                        val bbb = _binding ?: return@spinToAngle
+                        isSpinning = false
+                        isCancelable = true
+                        bbb.btnSpinWheelAction.isEnabled = true
+                        bbb.btnSpinWheelAction.text = getString(R.string.spin_wheel_action_bet, selectedBet)
 
-                    val resultText = if (spinRes.multiplier > 0) {
-                        "🎉 WINNER! ${spinRes.tier} (${spinRes.multiplier}x)! Won ${spinRes.reward_coins} Coins!"
-                    } else {
-                        "😢 Better luck next time! (${spinRes.tier})"
+                        val resultText = if (spinRes.multiplier > 0) {
+                            resources.getQuantityString(R.plurals.wheel_winner, spinRes.reward_coins.toInt(), spinRes.tier, spinRes.multiplier, spinRes.reward_coins)
+                        } else {
+                            getString(R.string.wheel_loser, spinRes.tier)
+                        }
+                        bbb.tvSpinResult.text = resultText
+                        bbb.tvSpinResult.setTextColor(
+                            if (spinRes.multiplier > 0) "#00E676".toColorInt() else "#FF5252".toColorInt()
+                        )
+
+                        bbb.tvWheelCoinsBalance.text = resources.getQuantityString(R.plurals.wheel_coins_balance_fmt, spinRes.remaining_coins.toInt(), spinRes.remaining_coins)
+                        parentFragmentManager.setFragmentResult(
+                            RESULT_KEY,
+                            android.os.Bundle().apply {
+                                putLong(RESULT_COINS, spinRes.remaining_coins)
+                            }
+                        )
+                        try {
+                            bbb.root.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                        } catch (_: Exception) {}
                     }
-                    binding.tvSpinResult.text = resultText
-                    binding.tvSpinResult.setTextColor(
-                        if (spinRes.multiplier > 0) Color.parseColor("#00E676") else Color.parseColor("#FF5252")
-                    )
 
-                    binding.tvWheelCoinsBalance.text = "🪙 %,d Coins".format(spinRes.remaining_coins)
-                    onBalanceUpdated(spinRes.remaining_coins)
+                }.onFailure { err ->
+                    val bb = _binding ?: return@launch
+                    isSpinning = false
+                    isCancelable = true
+                    bb.btnSpinWheelAction.isEnabled = true
+                    bb.btnSpinWheelAction.text = getString(R.string.spin_wheel_action_bet, selectedBet)
+                    bb.tvSpinResult.text = getString(R.string.wheel_spin_failed, err.message)
+                    bb.tvSpinResult.setTextColor("#FF5252".toColorInt())
                     try {
-                        binding.root.performHapticFeedback(android.view.HapticFeedbackConstants.LONG_PRESS)
+                        Toast.makeText(requireContext(), getString(R.string.wheel_spin_error, err.message), Toast.LENGTH_SHORT).show()
                     } catch (_: Exception) {}
                 }
-
-            }.onFailure { err ->
+            } catch (t: Throwable) {
+                // Timeout or cancellation while spinning.
+                val bb = _binding ?: return@launch
                 isSpinning = false
-                binding.btnSpinWheelAction.isEnabled = true
-                binding.btnSpinWheelAction.text = "SPIN WHEEL ($selectedBet COINS)"
-                binding.tvSpinResult.text = "Spin failed: ${err.message}"
-                binding.tvSpinResult.setTextColor(Color.parseColor("#FF5252"))
-                Toast.makeText(context, "Spin error: ${err.message}", Toast.LENGTH_SHORT).show()
+                isCancelable = true
+                bb.btnSpinWheelAction.isEnabled = true
+                bb.btnSpinWheelAction.text = getString(R.string.spin_wheel_action_bet, selectedBet)
+                bb.tvSpinResult.text = getString(R.string.wheel_spin_timeout)
+                bb.tvSpinResult.setTextColor("#FF5252".toColorInt())
             }
         }
     }
@@ -138,9 +180,5 @@ class LuckyWheelDialog(
     override fun onDestroyView() {
         super.onDestroyView()
         _binding = null
-    }
-
-    companion object {
-        const val TAG = "LuckyWheelDialog"
     }
 }

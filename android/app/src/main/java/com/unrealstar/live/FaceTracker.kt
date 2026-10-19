@@ -15,26 +15,49 @@ import com.google.mlkit.vision.face.FaceDetectorOptions
 import java.io.ByteArrayOutputStream
 
 /**
- * Throttled ML Kit face tracker feeding AR sticker placement.
+ * Face geometry in upright visual-frame fractions (x right as displayed, y
+ * down). Front-camera frames are already mirrored by the tracker, so the
+ * coordinates match both the live preview and the mirrored poster still.
+ *
+ * [frameW]/[frameH] are the upright frame dimensions the fractions refer to;
+ * the live preview center-crops this frame, so consumers that draw into the
+ * view must map through [MatteGeometry.cropToView]. Stills show the full
+ * frame and use the fractions directly.
+ */
+data class FaceGeometry(
+    val centerX: Float,
+    val centerY: Float,
+    val widthFrac: Float,
+    val heightFrac: Float,
+    val eyeL: Pair<Float, Float>?,
+    val eyeR: Pair<Float, Float>?,
+    val mouthL: Pair<Float, Float>?,
+    val mouthR: Pair<Float, Float>?,
+    val frameW: Int,
+    val frameH: Int
+) {
+    val mouthCenter: Pair<Float, Float>?
+        get() {
+            val l = mouthL ?: return null
+            val r = mouthR ?: return null
+            return Pair((l.first + r.first) / 2f, (l.second + r.second) / 2f)
+        }
+}
+
+/**
+ * Throttled ML Kit face tracker feeding makeup anchoring, AR sticker
+ * placement, and the GPU reshape warp.
  *
  * Pipeline ownership: the activity owns the single CameraX analyzer and calls
  * [offer] synchronously while the [ImageProxy] is open. The frame is copied
  * to a small Bitmap (throttled to 1 per [THROTTLE_MS]) and detection runs
  * async — the proxy is always closed by the caller, never here.
- *
- * Mapping is approximate: sensor fractions are rotated into screen space and
- * the front camera mirrors X. Preview centerCrop means edges can be off by a
- * few percent; the sticker falls back to center-anchored when untracked.
  */
 class FaceTracker(
     var mirrorFront: Boolean = true
 ) {
     interface Listener {
-        /** Fractions 0..1 in screen space + face width fraction. Eyes null when untracked. */
-        fun onFace(
-            centerX: Float, centerY: Float, widthFrac: Float,
-            eyeL: Pair<Float, Float>?, eyeR: Pair<Float, Float>?
-        )
+        fun onFace(face: FaceGeometry)
         fun onNoFace()
     }
 
@@ -50,8 +73,8 @@ class FaceTracker(
         try {
             val opts = FaceDetectorOptions.Builder()
                 .setPerformanceMode(FaceDetectorOptions.PERFORMANCE_MODE_FAST)
-                // Landmarks cost a little but drive the big-eyes warp; contour
-                // mode would cost a lot more and is deliberately off.
+                // Landmarks drive the makeup anchor, the big-eyes warp, and
+                // the sticker position; contour mode would cost a lot more.
                 .setLandmarkMode(FaceDetectorOptions.LANDMARK_MODE_ALL)
                 .setClassificationMode(FaceDetectorOptions.CLASSIFICATION_MODE_NONE)
                 .setMinFaceSize(0.15f)
@@ -59,7 +82,8 @@ class FaceTracker(
                 .build()
             detector = FaceDetection.getClient(opts)
         } catch (t: Throwable) {
-            // No GMS / broken vendor build: stickers stay center-anchored.
+            // No GMS / broken vendor build: stickers stay center-anchored,
+            // makeup stays off (never mis-anchored).
             Log.w(TAG, "face detector unavailable, tracking off", t)
             unsupported = true
         }
@@ -71,63 +95,87 @@ class FaceTracker(
         if (now - lastRun < THROTTLE_MS) return
         lastRun = now
         val det = detector ?: return
-        val bmp = nv21ToSmallBitmap(proxy) ?: return
-        val rotation = proxy.imageInfo.rotationDegrees
+        // Upright-first: rotate the small bitmap to visual-upright BEFORE
+        // detection and pass rotation=0 to ML Kit. Detection coordinates are
+        // then unambiguously in upright-frame fractions — no rotatePoint /
+        // mapPoint math, no double-rotation risk, no sign to verify on
+        // device. (Whether ML Kit returns pre- or post-rotation coordinates
+        // for fromBitmap(lp, rotation != 0) is version-dependent; rotation=0
+        // has exactly one interpretation.)
+        val raw = nv21ToSmallBitmap(proxy) ?: return
+        val rotation = ((proxy.imageInfo.rotationDegrees % 360) + 360) % 360
+        val upright = if (rotation == 0) {
+            raw
+        } else {
+            try {
+                val m = android.graphics.Matrix().apply { postRotate(rotation.toFloat()) }
+                val r = Bitmap.createBitmap(raw, 0, 0, raw.width, raw.height, m, true)
+                if (r !== raw) raw.recycle()
+                r
+            } catch (t: Throwable) {
+                Log.w(TAG, "upright rotate failed", t)
+                raw.recycle()
+                return
+            }
+        }
+        val frameW = upright.width
+        val frameH = upright.height
+        if (frameW <= 0 || frameH <= 0) {
+            upright.recycle()
+            return
+        }
         try {
-            val image = InputImage.fromBitmap(bmp, rotation)
+            val image = InputImage.fromBitmap(upright, 0)
             det.process(image)
                 .addOnSuccessListener { faces ->
+                    upright.recycle()
                     val f = faces.firstOrNull()
-                    if (f == null) {
+                    val box = f?.boundingBox
+                    if (f == null || box == null || box.width() <= 0 || box.height() <= 0) {
                         main.post { listener?.onNoFace() }
                         return@addOnSuccessListener
                     }
-                    val box = f.boundingBox
-                    if (box.width() <= 0 || box.height() <= 0) {
-                        main.post { listener?.onNoFace() }
-                        return@addOnSuccessListener
+                    // Upright-frame fractions; front camera mirrors for display.
+                    val mirror = mirrorFront
+                    fun mx(x: Float): Float {
+                        val c = (x / frameW).coerceIn(0f, 1f)
+                        return if (mirror) 1f - c else c
                     }
-                    // Fractions in the (possibly rotated) bitmap space.
-                    var cx = (box.centerX().toFloat() / bmp.width).coerceIn(0f, 1f)
-                    var cy = (box.centerY().toFloat() / bmp.height).coerceIn(0f, 1f)
-                    val w = (box.width().toFloat() / bmp.width).coerceIn(0.05f, 1f)
-                    // InputImage rotation is applied by ML Kit, but the box
-                    // stays in bitmap pixels — rotate the point back for screen.
-                    val (sx, sy) = rotatePoint(cx, cy, rotation)
-                    if (mirrorFront) cx = 1f - sx else cx = sx
-                    cy = sy
-                    // Eye landmarks go through the identical mapping so the
-                    // warp shader and the sticker agree on geometry.
-                    val eyeL = f.getLandmark(com.google.mlkit.vision.face.FaceLandmark.LEFT_EYE)
-                        ?.position?.let { mapPoint(it.x / bmp.width, it.y / bmp.height, rotation) }
-                    val eyeR = f.getLandmark(com.google.mlkit.vision.face.FaceLandmark.RIGHT_EYE)
-                        ?.position?.let { mapPoint(it.x / bmp.width, it.y / bmp.height, rotation) }
-                    main.post { listener?.onFace(cx, cy, w, eyeL, eyeR) }
+                    val cx = mx(box.centerX().toFloat())
+                    val cy = (box.centerY().toFloat() / frameH).coerceIn(0f, 1f)
+                    val widthFrac = (box.width().toFloat() / frameW).coerceIn(0.05f, 1f)
+                    val heightFrac = (box.height().toFloat() / frameH).coerceIn(0.05f, 1.5f)
+                    fun pt(p: android.graphics.PointF?): Pair<Float, Float>? {
+                        if (p == null) return null
+                        return Pair(mx(p.x), (p.y / frameH).coerceIn(0f, 1f))
+                    }
+                    val eyeL = pt(f.getLandmark(com.google.mlkit.vision.face.FaceLandmark.LEFT_EYE)?.position)
+                    val eyeR = pt(f.getLandmark(com.google.mlkit.vision.face.FaceLandmark.RIGHT_EYE)?.position)
+                    val mouthL = pt(f.getLandmark(com.google.mlkit.vision.face.FaceLandmark.MOUTH_LEFT)?.position)
+                    val mouthR = pt(f.getLandmark(com.google.mlkit.vision.face.FaceLandmark.MOUTH_RIGHT)?.position)
+                    // ML Kit labels eyes from the subject's perspective; a
+                    // mirrored front frame swaps them on screen. Makeup is
+                    // near-symmetric, but the big-eyes warp is not — swap so
+                    // eyeL/eyeR are screen-left/screen-right as consumers
+                    // assume.
+                    val geo = FaceGeometry(
+                        centerX = cx, centerY = cy,
+                        widthFrac = widthFrac, heightFrac = heightFrac,
+                        eyeL = if (mirror) eyeR else eyeL,
+                        eyeR = if (mirror) eyeL else eyeR,
+                        mouthL = mouthL, mouthR = mouthR,
+                        frameW = frameW, frameH = frameH
+                    )
+                    main.post { listener?.onFace(geo) }
                 }
                 .addOnFailureListener {
+                    upright.recycle()
                     main.post { listener?.onNoFace() }
                 }
         } catch (t: Throwable) {
+            upright.recycle()
             Log.w(TAG, "detect failed", t)
         }
-    }
-
-    private fun rotatePoint(x: Float, y: Float, deg: Int): Pair<Float, Float> {
-        return when ((deg % 360 + 360) % 360) {
-            90 -> Pair(1f - y, x)
-            180 -> Pair(1f - x, 1f - y)
-            270 -> Pair(y, 1f - x)
-            else -> Pair(x, y)
-        }
-    }
-
-    /** Bitmap fraction -> screen fraction (rotate, then front-camera mirror). */
-    private fun mapPoint(fx: Float, fy: Float, rotation: Int): Pair<Float, Float> {
-        val (rx, ry) = rotatePoint(
-            fx.coerceIn(0f, 1f), fy.coerceIn(0f, 1f), rotation
-        )
-        val mx = if (mirrorFront) 1f - rx else rx
-        return Pair(mx, ry)
     }
 
     private fun nv21ToSmallBitmap(proxy: ImageProxy): Bitmap? {
@@ -141,6 +189,10 @@ class FaceTracker(
             yuv.compressToJpeg(Rect(0, 0, w, h), 60, out)
             val bytes = out.toByteArray()
             val opts = BitmapFactory.Options().apply {
+                // ~640x480 upright input: far above the detector's internal
+                // input size, while keeping transient bitmap churn small at
+                // the 5Hz cadence (full-frame decodes + rotation copies cost
+                // ~50MB/s of GC churn on this class of SoC).
                 inSampleSize = if (w > 640) 2 else 1
             }
             BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
@@ -157,6 +209,8 @@ class FaceTracker(
 
     companion object {
         private const val TAG = "FaceTracker"
-        private const val THROTTLE_MS = 400L
+        // 5Hz: half the previous latency for anchors, still far below the
+        // detector's cost budget on a midrange SoC.
+        private const val THROTTLE_MS = 200L
     }
 }

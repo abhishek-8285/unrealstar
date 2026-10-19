@@ -4,8 +4,7 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@color/background_dark">
+    android:layout_height="match_parent">
 
     <!-- Official / Information switch plus the pin action. -->
     <LinearLayout
@@ -113,34 +112,46 @@
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintTop_toBottomOf="@id/categoryScroll" />
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvMessages"
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeRefresh"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:clipToPadding="false"
-        android:paddingTop="4dp"
-        android:paddingBottom="16dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/categoryDivider"
-        tools:itemCount="6"
-        tools:listitem="@layout/item_inbox_message" />
+        app:layout_constraintTop_toBottomOf="@id/categoryDivider">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvMessages"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingTop="4dp"
+            android:paddingBottom="48dp"
+            tools:itemCount="6"
+            tools:listitem="@layout/item_inbox_message" />
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
 
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/rvOfficial"
+    <androidx.swiperefreshlayout.widget.SwipeRefreshLayout
+        android:id="@+id/swipeOfficial"
         android:layout_width="0dp"
         android:layout_height="0dp"
-        android:clipToPadding="false"
-        android:paddingBottom="16dp"
         android:visibility="gone"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@id/categoryScroll"
-        tools:itemCount="3"
-        tools:listitem="@layout/item_inbox_official" />
+        app:layout_constraintTop_toBottomOf="@id/categoryScroll">
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/rvOfficial"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingBottom="48dp"
+            tools:itemCount="3"
+            tools:listitem="@layout/item_inbox_official" />
+    </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
 
     <ProgressBar
         android:id="@+id/officialLoading"
@@ -203,9 +214,9 @@
         android:textColor="@color/text_muted"
         android:textSize="14sp"
         android:visibility="gone"
-        app:layout_constraintBottom_toBottomOf="@id/rvMessages"
+        app:layout_constraintBottom_toBottomOf="@id/swipeRefresh"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="@id/rvMessages" />
+        app:layout_constraintTop_toTopOf="@id/swipeRefresh" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

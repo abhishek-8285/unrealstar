@@ -55,7 +55,7 @@ class CoinStoreBottomSheet(
                 val balance = UnrealStarApiClient.fetchWalletBalance()
                 binding.tvCurrentCoins.text = String.format(Locale.US, "%,d Coins", balance.coins)
             } catch (_: Exception) {
-                binding.tvCurrentCoins.text = "12,450 Coins"
+                binding.tvCurrentCoins.text = getString(R.string.current_coins)
             }
         }
     }
@@ -81,20 +81,24 @@ class CoinStoreBottomSheet(
 
     private fun performPurchase(pkg: CoinPackage) {
         lifecycleScope.launch {
-            Toast.makeText(requireContext(), "Connecting UPI payment gateway for ₹${pkg.price_inr}...", Toast.LENGTH_SHORT).show()
+            Toast.makeText(requireContext(), getString(R.string.coin_connecting, pkg.price_inr), Toast.LENGTH_SHORT).show()
             val orderRes = UnrealStarApiClient.createWalletOrder(pkg.package_id)
             orderRes.onSuccess { order ->
                 // Simulate instant payment settlement webhook
                 val webhookRes = UnrealStarApiClient.simulatePaymentSuccess(order.order_id)
                 webhookRes.onSuccess {
-                    Toast.makeText(requireContext(), "🎉 Successfully credited ${pkg.coins + pkg.bonus_coins} coins!", Toast.LENGTH_LONG).show()
+                    val credited = (pkg.coins + pkg.bonus_coins).toInt()
+                    Toast.makeText(requireContext(), resources.getQuantityString(R.plurals.coin_credited, credited, credited), Toast.LENGTH_LONG).show()
                     loadWalletBalance()
                     onRechargeSuccess?.invoke()
                 }.onFailure {
-                    Toast.makeText(requireContext(), "Payment verified: ${order.order_id}", Toast.LENGTH_SHORT).show()
+                    // Settlement failed: coins were NOT credited. Never claim
+                    // success — direct the user to retry; the order stays
+                    // pending server-side and a retry settles it idempotently.
+                    Toast.makeText(requireContext(), getString(R.string.coin_not_settled, order.order_id), Toast.LENGTH_LONG).show()
                 }
             }.onFailure { err ->
-                Toast.makeText(requireContext(), "Purchase error: ${err.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.coin_purchase_error, err.message), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -116,9 +120,10 @@ class CoinPackageAdapter(
     private val items = mutableListOf<CoinPackage>()
 
     fun submit(newItems: List<CoinPackage>) {
+        val oldSize = items.size
         items.clear()
         items.addAll(newItems)
-        notifyDataSetChanged()
+        notifyListReplaced(oldSize, items.size)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): CoinPackageViewHolder {
@@ -135,11 +140,11 @@ class CoinPackageAdapter(
     inner class CoinPackageViewHolder(private val binding: ItemCoinPackageBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: CoinPackage) {
             binding.tvCoinsAmount.text = String.format(Locale.US, "%,d", item.coins)
-            binding.btnBuyPackage.text = "₹${item.price_inr}"
+            binding.btnBuyPackage.text = binding.root.context.getString(R.string.coin_price_rupee, item.price_inr)
 
             if (item.bonus_coins > 0) {
                 binding.tvCoinBonusTag.isVisible = true
-                binding.tvCoinBonusTag.text = "+${item.bonus_coins} BONUS"
+                binding.tvCoinBonusTag.text = binding.root.context.getString(R.string.coin_bonus_fmt, item.bonus_coins)
             } else {
                 binding.tvCoinBonusTag.isVisible = false
             }

@@ -104,19 +104,19 @@ class RedPacketBottomSheet(
                 val packet = list.firstOrNull { !it.already_claimed }
                 if (packet != null) {
                     activePacket = packet
-                    binding.tvDropperInfo.text = "${packet.dropper_nickname} dropped a ${packet.total_coins} Coin Packet!"
-                    binding.tvSplitsRemaining.text = "${packet.remaining_splits} of ${packet.split_count} splits remaining • Tap Open to claim!"
+                    binding.tvDropperInfo.text = getString(R.string.redpacket_dropper_info, packet.dropper_nickname, packet.total_coins)
+                    binding.tvSplitsRemaining.text = resources.getQuantityString(R.plurals.redpacket_splits_remaining, packet.split_count.toInt(), packet.remaining_splits, packet.split_count)
                     binding.btnClaimPacket.isEnabled = true
-                    binding.btnClaimPacket.text = "✨ OPEN & CLAIM ✨"
+                    binding.btnClaimPacket.text = getString(R.string.claim_packet)
                     binding.btnClaimPacket.setOnClickListener {
                         claimPacket(packet.packet_id)
                     }
                     showClaimView(true)
                 } else {
-                    binding.tvDropperInfo.text = "No active Red Packets in this room"
-                    binding.tvSplitsRemaining.text = "Be the hero! Drop a packet to shower coins on viewers 🧧"
+                    binding.tvDropperInfo.text = getString(R.string.redpacket_none_active)
+                    binding.tvSplitsRemaining.text = getString(R.string.redpacket_promo)
                     binding.btnClaimPacket.isEnabled = false
-                    binding.btnClaimPacket.text = "No Packet Active"
+                    binding.btnClaimPacket.text = getString(R.string.redpacket_no_packet_active)
                     // Switch to drop view so user can send one
                     showClaimView(false)
                 }
@@ -128,38 +128,58 @@ class RedPacketBottomSheet(
 
     private fun claimPacket(packetId: String) {
         binding.btnClaimPacket.isEnabled = false
-        binding.btnClaimPacket.text = "Opening..."
+        binding.btnClaimPacket.text = getString(R.string.redpacket_opening)
 
         lifecycleScope.launch {
             val res = UnrealStarApiClient.claimRedPacket(packetId)
             res.onSuccess { claimRes ->
-                binding.btnClaimPacket.text = "✓ Claimed!"
+                binding.btnClaimPacket.text = getString(R.string.redpacket_claimed)
                 binding.tvClaimOutcome.isVisible = true
-                binding.tvClaimOutcome.text = "🎉 You grabbed +${claimRes.coins_claimed} Coins! (${claimRes.remaining_splits} splits left)"
-                Toast.makeText(requireContext(), "🎉 Received ${claimRes.coins_claimed} Coins!", Toast.LENGTH_SHORT).show()
+                binding.tvClaimOutcome.text = resources.getQuantityString(R.plurals.redpacket_claim_outcome, claimRes.remaining_splits.toInt(), claimRes.coins_claimed, claimRes.remaining_splits)
+                Toast.makeText(requireContext(), resources.getQuantityString(R.plurals.redpacket_received, claimRes.coins_claimed.toInt(), claimRes.coins_claimed), Toast.LENGTH_SHORT).show()
                 onCoinsClaimed?.invoke(claimRes.coins_claimed)
             }.onFailure { err ->
                 binding.btnClaimPacket.isEnabled = true
-                binding.btnClaimPacket.text = "✨ OPEN & CLAIM ✨"
-                Toast.makeText(requireContext(), "Claim failed: ${err.message}", Toast.LENGTH_SHORT).show()
+                binding.btnClaimPacket.text = getString(R.string.claim_packet)
+                Toast.makeText(requireContext(), getString(R.string.redpacket_claim_failed, err.message), Toast.LENGTH_SHORT).show()
             }
         }
     }
 
-    private fun dropPacket() {
-        binding.btnDropPacket.isEnabled = false
-        binding.btnDropPacket.text = "Dropping..."
+    /** Survives failure so timeout retaps reuse one idempotency key. */
+    private var dropKey: String? = null
 
+    private fun dropPacket() {
+        if (roomId <= 0L) {
+            Toast.makeText(requireContext(), getString(R.string.watch_joining), Toast.LENGTH_SHORT).show()
+            return
+        }
+        if (selectedCoins <= 0L || selectedSplits !in 1L..100L) {
+            Toast.makeText(requireContext(), getString(R.string.redpacket_pick_valid), Toast.LENGTH_SHORT).show()
+            return
+        }
+        binding.btnDropPacket.isEnabled = false
+        binding.btnDropPacket.text = getString(R.string.redpacket_dropping)
+
+        val key = dropKey ?: java.util.UUID.randomUUID().toString().also { dropKey = it }
         lifecycleScope.launch {
-            val res = UnrealStarApiClient.dropRedPacket(roomId, selectedCoins, selectedSplits)
-            binding.btnDropPacket.isEnabled = true
-            binding.btnDropPacket.text = "🧧 Drop Red Packet into Room"
+            val res = try {
+                UnrealStarApiClient.dropRedPacket(roomId, selectedCoins, selectedSplits, key)
+            } catch (t: Throwable) {
+                // require() validation above should prevent this; belt-and-braces.
+                Result.failure<com.unrealstar.live.models.RedPacketDropResponse>(t)
+            }
+            _binding?.let { b ->
+                b.btnDropPacket.isEnabled = true
+                b.btnDropPacket.text = getString(R.string.drop_packet)
+            }
 
             res.onSuccess {
-                Toast.makeText(requireContext(), "🧧 Dropped $selectedCoins Coins ($selectedSplits splits) into room!", Toast.LENGTH_LONG).show()
+                dropKey = null
+                Toast.makeText(requireContext(), resources.getQuantityString(R.plurals.redpacket_dropped, selectedCoins.toInt(), selectedCoins, selectedSplits), Toast.LENGTH_LONG).show()
                 loadActivePackets()
             }.onFailure { err ->
-                Toast.makeText(requireContext(), "Drop failed: ${err.message}", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), getString(R.string.redpacket_drop_failed, err.message), Toast.LENGTH_SHORT).show()
             }
         }
     }

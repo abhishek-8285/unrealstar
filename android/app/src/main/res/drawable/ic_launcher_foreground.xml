@@ -1,0 +1,20 @@
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+    <!-- Camera-aperture star on brand primary -->
+    <path
+        android:fillColor="#FF0055"
+        android:pathData="M0,0h108v108h-108z" />
+    <group
+        android:translateX="30"
+        android:translateY="30">
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M24,12A12,12 0,1 0,24,36A12,12 0,1 0,24,12zM24,31.2A7.2,7.2 0,1 1,24,16.8A7.2,7.2 0,1 1,24,31.2z" />
+        <path
+            android:fillColor="#FFFFFF"
+            android:pathData="M24,4l2.2,6.1L32.5,12l-6.3,1.9L24,20l-2.2,-6.1L15.5,12l6.3,-1.9z" />
+    </group>
+</vector>

@@ -1,0 +1,158 @@
+{
+  "filters": [
+    {
+      "curve": "clarendon/curve.png",
+      "id": "clarendon",
+      "overlays": [],
+      "strength": {
+        "default": 1.0,
+        "max": 1.0,
+        "min": 0.0
+      }
+    },
+    {
+      "curve": "juno/curve.png",
+      "id": "juno",
+      "overlays": [
+        {
+          "blend": "screen",
+          "opacity": 0.2,
+          "texture": "juno/glow.png"
+        }
+      ],
+      "strength": {
+        "default": 1.0,
+        "max": 1.0,
+        "min": 0.0
+      }
+    },
+    {
+      "curve": "gingham/curve.png",
+      "id": "gingham",
+      "overlays": [
+        {
+          "blend": "soft_light",
+          "opacity": 0.22,
+          "texture": "gingham/paper.png"
+        }
+      ],
+      "strength": {
+        "default": 1.0,
+        "max": 1.0,
+        "min": 0.0
+      }
+    },
+    {
+      "curve": "lark/curve.png",
+      "id": "lark",
+      "overlays": [],
+      "strength": {
+        "default": 1.0,
+        "max": 1.0,
+        "min": 0.0
+      }
+    },
+    {
+      "id": "moon",
+      "overlays": [
+        {
+          "blend": "multiply",
+          "opacity": 0.35,
+          "texture": "moon/vignette.png"
+        }
+      ],
+      "strength": {
+        "default": 1.0,
+        "max": 1.0,
+        "min": 0.0
+      }
+    },
+    {
+      "curve": "aden/curve.png",
+      "id": "aden",
+      "overlays": [
+        {
+          "blend": "screen",
+          "opacity": 0.16,
+          "texture": "aden/glow.png"
+        }
+      ],
+      "strength": {
+        "default": 1.0,
+        "max": 1.0,
+        "min": 0.0
+      }
+    },
+    {
+      "curve": "valencia/curve.png",
+      "id": "valencia",
+      "overlays": [
+        {
+          "blend": "soft_light",
+          "opacity": 0.28,
+          "texture": "valencia/paper.png"
+        }
+      ],
+      "strength": {
+        "default": 1.0,
+        "max": 1.0,
+        "min": 0.0
+      }
+    },
+    {
+      "curve": "xpro/curve.png",
+      "id": "xpro",
+      "overlays": [
+        {
+          "blend": "multiply",
+          "opacity": 0.45,
+          "texture": "xpro/vignette.png"
+        }
+      ],
+      "strength": {
+        "default": 1.0,
+        "max": 1.0,
+        "min": 0.0
+      }
+    },
+    {
+      "curve": "lofi/curve.png",
+      "id": "lofi",
+      "overlays": [
+        {
+          "blend": "multiply",
+          "opacity": 0.5,
+          "texture": "lofi/vignette.png"
+        },
+        {
+          "blend": "screen",
+          "opacity": 0.1,
+          "texture": "lofi/grain.png"
+        }
+      ],
+      "strength": {
+        "default": 1.0,
+        "max": 1.0,
+        "min": 0.0
+      }
+    },
+    {
+      "curve": "nashville/curve.png",
+      "id": "nashville",
+      "overlays": [
+        {
+          "blend": "screen",
+          "opacity": 0.24,
+          "texture": "nashville/glow.png"
+        }
+      ],
+      "strength": {
+        "default": 1.0,
+        "max": 1.0,
+        "min": 0.0
+      }
+    }
+  ],
+  "source": "scripts/build_grade_assets.py",
+  "version": 1
+}

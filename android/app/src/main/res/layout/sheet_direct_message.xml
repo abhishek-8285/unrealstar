@@ -35,6 +35,7 @@
                 android:layout_width="40dp"
                 android:layout_height="40dp"
                 android:layout_gravity="center"
+                android:contentDescription="@string/creator_avatar"
                 android:src="@drawable/bg_live_avatar" />
 
             <View
@@ -63,7 +64,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="Online • CamStar VIP"
+                android:text="@string/online_cam_star_vip"
                 android:textColor="#4CAF50"
                 android:textSize="12sp" />
         </LinearLayout>
@@ -73,6 +74,7 @@
             android:layout_width="32dp"
             android:layout_height="32dp"
             android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/desc_close"
             android:padding="6dp"
             android:src="@drawable/ic_feed_close"
             app:tint="#8E8BA5" />
@@ -116,7 +118,7 @@
             android:layout_height="44dp"
             android:layout_weight="1"
             android:background="@drawable/bg_input_field"
-            android:hint="Type a private message..."
+            android:hint="@string/dm_input_hint"
             android:imeOptions="actionSend"
             android:inputType="textCapSentences|textMultiLine"
             android:maxLines="3"
@@ -124,7 +126,8 @@
             android:paddingEnd="16dp"
             android:textColor="#FFFFFF"
             android:textColorHint="#6C678A"
-            android:textSize="14sp" />
+            android:textSize="14sp"
+            android:importantForAutofill="no" />
 
         <Button
             android:id="@+id/btnSendMessage"
@@ -132,7 +135,7 @@
             android:layout_height="44dp"
             android:layout_marginStart="10dp"
             android:backgroundTint="#FF6A00"
-            android:text="Send"
+            android:text="@string/send"
             android:textColor="#FFFFFF"
             android:textStyle="bold" />
     </LinearLayout>

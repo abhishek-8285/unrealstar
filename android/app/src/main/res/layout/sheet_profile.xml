@@ -1,0 +1,240 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/surface_dark"
+    android:orientation="vertical"
+    android:paddingStart="16dp"
+    android:paddingTop="12dp"
+    android:paddingEnd="16dp"
+    android:paddingBottom="24dp">
+
+    <!-- Drag Handle -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginBottom="12dp"
+        android:background="#44FFFFFF" />
+
+    <!-- Identity row: avatar + name/status + close -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal">
+
+        <ImageView
+            android:id="@+id/ivProfileAvatar"
+            android:layout_width="64dp"
+            android:layout_height="64dp"
+            android:background="@drawable/bg_live_avatar"
+            android:padding="2dp"
+            android:src="@drawable/bg_live_avatar"
+            tools:ignore="ContentDescription" />
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvProfileNickname"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="@color/text_white"
+                android:textSize="17sp"
+                android:textStyle="bold"
+                tools:text="Host_2104" />
+
+            <TextView
+                android:id="@+id/tvProfileMeta"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:maxLines="1"
+                android:ellipsize="end"
+                android:textColor="@color/text_muted"
+                android:textSize="12sp"
+                tools:text="Mumbai · 22 · Established" />
+        </LinearLayout>
+
+        <TextView
+            android:id="@+id/btnCloseProfile"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:minWidth="40dp"
+            android:minHeight="40dp"
+            android:gravity="center"
+            android:text="@string/watch_close"
+            android:textColor="@color/text_muted"
+            android:textSize="16sp"
+            tools:ignore="HardcodedText" />
+    </LinearLayout>
+
+    <!-- Bio -->
+    <TextView
+        android:id="@+id/tvProfileBio"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="10dp"
+        android:maxLines="2"
+        android:ellipsize="end"
+        android:textColor="@color/text_muted"
+        android:textSize="13sp"
+        tools:text="Bollywood dancer &amp; singer" />
+
+    <!-- Stat strip: followers / following / likes -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:background="@drawable/bg_me_pill_outline"
+        android:baselineAligned="false"
+        android:gravity="center"
+        android:orientation="horizontal"
+        android:paddingVertical="10dp">
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvProfileFollowers"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_white"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                tools:text="1.2K" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/me_followers"
+                android:textColor="@color/text_muted"
+                android:textSize="11sp"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvProfileFollowing"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_white"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                tools:text="88" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/me_following"
+                android:textColor="@color/text_muted"
+                android:textSize="11sp"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:orientation="vertical">
+
+            <TextView
+                android:id="@+id/tvProfileLikes"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/text_white"
+                android:textSize="15sp"
+                android:textStyle="bold"
+                tools:text="4.5K" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/me_likes"
+                android:textColor="@color/text_muted"
+                android:textSize="11sp"
+                tools:ignore="HardcodedText" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <!-- Action row: Follow | Message | Gift (Join Live appears when live) -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:orientation="horizontal">
+
+        <TextView
+            android:id="@+id/btnProfileFollow"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_weight="1.2"
+            android:background="@drawable/bg_feed_follow_badge"
+            android:gravity="center"
+            android:text="@string/follow_host"
+            android:textColor="@color/text_white"
+            android:textSize="14sp"
+            android:textStyle="bold"
+            tools:ignore="HardcodedText" />
+
+        <TextView
+            android:id="@+id/btnProfileMessage"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_me_pill_outline"
+            android:gravity="center"
+            android:text="@string/profile_message"
+            android:textColor="@color/text_white"
+            android:textSize="13sp"
+            tools:ignore="HardcodedText" />
+
+        <TextView
+            android:id="@+id/btnProfileGift"
+            android:layout_width="0dp"
+            android:layout_height="44dp"
+            android:layout_marginStart="8dp"
+            android:layout_weight="1"
+            android:background="@drawable/bg_me_pill_outline"
+            android:gravity="center"
+            android:text="@string/me_gift"
+            android:textColor="@color/text_white"
+            android:textSize="13sp"
+            tools:ignore="HardcodedText" />
+    </LinearLayout>
+
+    <!-- Join Live: only for a host currently broadcasting -->
+    <TextView
+        android:id="@+id/btnProfileJoinLive"
+        android:layout_width="match_parent"
+        android:layout_height="44dp"
+        android:layout_marginTop="10dp"
+        android:background="@drawable/bg_me_pill_gradient"
+        android:gravity="center"
+        android:text="@string/profile_join_live"
+        android:textColor="@color/text_white"
+        android:textSize="14sp"
+        android:textStyle="bold"
+        android:visibility="gone"
+        tools:ignore="HardcodedText" />
+</LinearLayout>

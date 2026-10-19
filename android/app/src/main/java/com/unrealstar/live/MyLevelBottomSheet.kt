@@ -36,7 +36,7 @@ class MyLevelBottomSheet(
     private val privilegeAdapter = PrivilegeAdapter()
     private val badgeAdapter = BadgeAdapter { badge ->
         val status = if (badge.is_unlocked) "Unlocked on ${badge.unlocked_at ?: "recent"}" else "Locked: Complete requirements to claim"
-        Toast.makeText(requireContext(), "${badge.name}: $status", Toast.LENGTH_SHORT).show()
+        Toast.makeText(requireContext(), getString(R.string.level_status, badge.name, status), Toast.LENGTH_SHORT).show()
     }
 
     override fun onCreateView(
@@ -99,7 +99,7 @@ class MyLevelBottomSheet(
             levelData = res
 
             if (res != null) {
-                binding.tvMyLevelBadge.text = "Lv ${res.current_level}"
+                binding.tvMyLevelBadge.text = getString(R.string.level_lv_badge, res.current_level)
                 binding.tvMyWealthTitle.text = res.wealth_title
                 binding.tvMyExpLabel.text = String.format(
                     Locale.US,
@@ -131,9 +131,10 @@ class PrivilegeAdapter : RecyclerView.Adapter<PrivilegeAdapter.PrivilegeViewHold
     private val items = mutableListOf<LevelPrivilegeItem>()
 
     fun submit(newItems: List<LevelPrivilegeItem>) {
+        val oldSize = items.size
         items.clear()
         items.addAll(newItems)
-        notifyDataSetChanged()
+        notifyListReplaced(oldSize, items.size)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): PrivilegeViewHolder {
@@ -149,21 +150,21 @@ class PrivilegeAdapter : RecyclerView.Adapter<PrivilegeAdapter.PrivilegeViewHold
 
     inner class PrivilegeViewHolder(private val binding: ItemPrivilegeBinding) : RecyclerView.ViewHolder(binding.root) {
         fun bind(item: LevelPrivilegeItem) {
-            binding.tvPrivilegeLevel.text = "Lv ${item.level}"
+            binding.tvPrivilegeLevel.text = binding.root.context.getString(R.string.level_lv_badge, item.level)
             binding.tvPrivilegeTitle.text = item.title
             binding.tvPrivilegeDesc.text = item.description
 
             if (item.is_unlocked) {
-                binding.tvPrivilegeStatus.text = "✓ Unlocked"
+                binding.tvPrivilegeStatus.text = binding.root.context.getString(R.string.level_unlocked_check)
                 binding.tvPrivilegeStatus.setTextColor(ContextCompat.getColor(binding.root.context, R.color.disclaimer_green))
             } else {
-                binding.tvPrivilegeStatus.text = "Locked"
+                binding.tvPrivilegeStatus.text = binding.root.context.getString(R.string.locked)
                 binding.tvPrivilegeStatus.setTextColor(ContextCompat.getColor(binding.root.context, R.color.text_muted))
             }
 
             binding.root.setOnClickListener {
                 val status = if (item.is_unlocked) "Unlocked privilege" else "Requires Level ${item.level} to unlock"
-                Toast.makeText(binding.root.context, "👑 ${item.title}: $status", Toast.LENGTH_SHORT).show()
+                Toast.makeText(binding.root.context, binding.root.context.getString(R.string.level_crown, item.title, status), Toast.LENGTH_SHORT).show()
             }
         }
     }
@@ -176,9 +177,10 @@ class BadgeAdapter(
     private val items = mutableListOf<BadgeItem>()
 
     fun submit(newItems: List<BadgeItem>) {
+        val oldSize = items.size
         items.clear()
         items.addAll(newItems)
-        notifyDataSetChanged()
+        notifyListReplaced(oldSize, items.size)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): BadgeViewHolder {
@@ -198,11 +200,11 @@ class BadgeAdapter(
             binding.tvBadgeDesc.text = item.description
 
             if (item.is_unlocked) {
-                binding.tvBadgeStatus.text = "UNLOCKED"
+                binding.tvBadgeStatus.text = binding.root.context.getString(R.string.unlocked_upper)
                 binding.tvBadgeStatus.setBackgroundResource(R.drawable.bg_me_pill_gradient)
                 binding.ivBadgeIcon.alpha = 1.0f
             } else {
-                binding.tvBadgeStatus.text = "LOCKED"
+                binding.tvBadgeStatus.text = binding.root.context.getString(R.string.locked_upper)
                 binding.tvBadgeStatus.setBackgroundResource(R.drawable.bg_me_pill_outline)
                 binding.ivBadgeIcon.alpha = 0.35f
             }

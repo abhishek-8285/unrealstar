@@ -44,7 +44,7 @@ class SearchBottomSheet : BottomSheetDialogFragment() {
         onUserAction = { user ->
             lifecycleScope.launch {
                 val ok = UnrealStarApiClient.followUser(user.user_id).getOrDefault(true)
-                Toast.makeText(requireContext(), if (ok) "✓ Following ${user.nickname}" else "Unfollowed", Toast.LENGTH_SHORT).show()
+                Toast.makeText(requireContext(), if (ok) getString(R.string.feed_followed_user, user.nickname) else getString(R.string.feed_unfollowed), Toast.LENGTH_SHORT).show()
                 executeSearch(binding.etSearchQuery.text.toString().trim())
             }
         },
@@ -213,6 +213,7 @@ class SearchResultAdapter(
     private val items = mutableListOf<SearchItem>()
 
     fun submit(response: SearchResponse, filter: String) {
+        val oldSize = items.size
         items.clear()
         when (filter) {
             "users" -> items.addAll(response.users.map { SearchItem.User(it) })
@@ -224,12 +225,14 @@ class SearchResultAdapter(
                 items.addAll(response.topics.map { SearchItem.Topic(it) })
             }
         }
-        notifyDataSetChanged()
+        notifyListReplaced(oldSize, items.size)
     }
 
     fun clear() {
+        if (items.isEmpty()) return
+        val oldSize = items.size
         items.clear()
-        notifyDataSetChanged()
+        notifyItemRangeRemoved(0, oldSize)
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): SearchViewHolder {
@@ -251,8 +254,12 @@ class SearchResultAdapter(
                     val u = item.data
                     binding.tvResultTitle.text = u.nickname
                     binding.tvResultBadge.isVisible = true
-                    binding.tvResultBadge.text = "Lv ${u.level}"
-                    binding.tvResultSubtitle.text = "ID: ${u.user_id} • ${u.followers_count} followers${if (u.bio.isNotEmpty()) " • " + u.bio else ""}"
+                    binding.tvResultBadge.text = binding.root.context.getString(R.string.level_lv_badge, u.level)
+                    binding.tvResultSubtitle.text = if (u.bio.isNotEmpty()) {
+                        binding.root.context.resources.getQuantityString(R.plurals.search_result_user_subtitle_bio, u.followers_count.toInt(), u.user_id, u.followers_count, u.bio)
+                    } else {
+                        binding.root.context.resources.getQuantityString(R.plurals.search_result_user_subtitle, u.followers_count.toInt(), u.user_id, u.followers_count)
+                    }
                     binding.tvLiveIndicator.isVisible = u.is_live
                     binding.btnResultAction.text = if (u.is_following) "Following" else "+ Follow"
                     binding.btnResultAction.setBackgroundResource(
@@ -272,10 +279,10 @@ class SearchResultAdapter(
                     val r = item.data
                     binding.tvResultTitle.text = r.title
                     binding.tvResultBadge.isVisible = r.is_pk
-                    binding.tvResultBadge.text = "PK"
-                    binding.tvResultSubtitle.text = "Host: ${r.host_nickname} • 👥 ${r.viewers_count} watching • ${r.category.uppercase()}"
+                    binding.tvResultBadge.text = binding.root.context.getString(R.string.search_result_pk_badge)
+                    binding.tvResultSubtitle.text = binding.root.context.resources.getQuantityString(R.plurals.search_result_room_subtitle, r.viewers_count.toInt(), r.host_nickname, r.viewers_count, r.category.uppercase())
                     binding.tvLiveIndicator.isVisible = true
-                    binding.btnResultAction.text = "Watch"
+                    binding.btnResultAction.text = binding.root.context.getString(R.string.watch_action)
                     binding.btnResultAction.setBackgroundResource(R.drawable.bg_me_pill_gradient)
 
                     Glide.with(binding.ivResultIcon)
@@ -291,9 +298,9 @@ class SearchResultAdapter(
                     val t = item.data
                     binding.tvResultTitle.text = t.tag
                     binding.tvResultBadge.isVisible = false
-                    binding.tvResultSubtitle.text = "${t.posts_count} moments posted under this topic"
+                    binding.tvResultSubtitle.text = binding.root.context.resources.getQuantityString(R.plurals.search_result_topic_subtitle, t.posts_count.toInt(), t.posts_count)
                     binding.tvLiveIndicator.isVisible = false
-                    binding.btnResultAction.text = "Explore"
+                    binding.btnResultAction.text = binding.root.context.getString(R.string.explore_action)
                     binding.btnResultAction.setBackgroundResource(R.drawable.bg_me_pill_outline)
 
                     binding.ivResultIcon.setImageResource(R.drawable.ic_me_crown)

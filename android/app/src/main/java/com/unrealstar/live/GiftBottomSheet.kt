@@ -1,13 +1,13 @@
 package com.unrealstar.live
 
 import android.content.res.ColorStateList
-import android.graphics.Color
 import android.os.Bundle
 import android.view.HapticFeedbackConstants
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.core.graphics.toColorInt
 import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -35,6 +35,8 @@ class GiftBottomSheet(
     private var comboSequence: Int = 0
     private var currentCoins: Long = 0L
     private lateinit var adapter: GiftCardAdapter
+    /** In-flight guard: one request at a time, one key per user intent. */
+    private var giftInFlight: Boolean = false
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -49,8 +51,11 @@ class GiftBottomSheet(
         super.onViewCreated(view, savedInstanceState)
 
         adapter = GiftCardAdapter(gifts) { item ->
+            val prev = gifts.indexOfFirst { it.gift_id == selectedGift?.gift_id }
             selectedGift = item
-            adapter.notifyDataSetChanged()
+            val next = gifts.indexOfFirst { it.gift_id == item.gift_id }
+            if (prev >= 0) adapter.notifyItemChanged(prev)
+            if (next >= 0 && next != prev) adapter.notifyItemChanged(next)
             updateSendButton()
         }
         binding.rvGiftGrid.layoutManager = GridLayoutManager(requireContext(), 3)
@@ -100,13 +105,13 @@ class GiftBottomSheet(
     private fun updateSendButton() {
         val gift = selectedGift
         if (gift == null) {
-            binding.btnSendGiftAction.text = "SELECT GIFT"
+            binding.btnSendGiftAction.text = getString(R.string.gift_select_action)
             binding.btnSendGiftAction.isEnabled = false
             return
         }
         binding.btnSendGiftAction.isEnabled = true
         val totalCost = gift.price_coins * selectedQuantity
-        binding.btnSendGiftAction.text = "SEND ($totalCost 🪙)"
+        binding.btnSendGiftAction.text = getString(R.string.gift_send_action_total, totalCost)
     }
 
     private fun loadCatalogAndBalance() {
@@ -115,12 +120,13 @@ class GiftBottomSheet(
             try {
                 val balance = UnrealStarApiClient.fetchWalletBalance()
                 currentCoins = balance.coins
-                binding.tvGiftCoinBalance.text = "🪙 %,d Coins".format(currentCoins)
+                binding.tvGiftCoinBalance.text = resources.getQuantityString(R.plurals.coin_balance_fmt, currentCoins.toInt(), currentCoins)
             } catch (_: Exception) {}
 
             // Fetch catalog
             val res = UnrealStarApiClient.fetchGiftCatalog()
             res.onSuccess { list ->
+                val oldSize = gifts.size
                 gifts.clear()
                 if (list.isNotEmpty()) {
                     gifts.addAll(list)
@@ -130,15 +136,16 @@ class GiftBottomSheet(
                 if (gifts.isNotEmpty() && selectedGift == null) {
                     selectedGift = gifts[0]
                 }
-                adapter.notifyDataSetChanged()
+                adapter.notifyListReplaced(oldSize, gifts.size)
                 updateSendButton()
             }.onFailure {
+                val oldSize = gifts.size
                 gifts.clear()
                 gifts.addAll(defaultCatalog())
                 if (gifts.isNotEmpty() && selectedGift == null) {
                     selectedGift = gifts[0]
                 }
-                adapter.notifyDataSetChanged()
+                adapter.notifyListReplaced(oldSize, gifts.size)
                 updateSendButton()
             }
         }
@@ -156,44 +163,59 @@ class GiftBottomSheet(
     private fun sendGift() {
         val gift = selectedGift ?: return
         val totalCost = gift.price_coins * selectedQuantity
-        if (currentCoins > 0 && currentCoins < totalCost) {
-            Toast.makeText(requireContext(), "Insufficient coins. Please recharge!", Toast.LENGTH_SHORT).show()
+        // Zero means "no coins" (or balance not loaded yet) — never spend blind.
+        if (currentCoins < totalCost) {
+            Toast.makeText(requireContext(), getString(R.string.gift_insufficient), Toast.LENGTH_SHORT).show()
             return
         }
-
+        // One key per user intent; transport retries reuse it so the server
+        // ledger can dedupe. Double-tap while in flight is ignored.
+        if (giftInFlight) return
+        giftInFlight = true
+        val key = "gift_${UUID.randomUUID()}"
         comboSequence++
         val seq = comboSequence
 
         // Tactical button pop animation
-        binding.btnSendGiftAction.animate().cancel()
-        binding.btnSendGiftAction.scaleX = 0.88f
-        binding.btnSendGiftAction.scaleY = 0.88f
-        binding.btnSendGiftAction.animate().scaleX(1f).scaleY(1f).setDuration(160).start()
+        _binding?.let { b ->
+            b.btnSendGiftAction.animate().cancel()
+            b.btnSendGiftAction.scaleX = 0.88f
+            b.btnSendGiftAction.scaleY = 0.88f
+            b.btnSendGiftAction.animate().scaleX(1f).scaleY(1f).setDuration(160).start()
+            b.btnSendGiftAction.isEnabled = false
+        }
         try {
             binding.root.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
         } catch (_: Exception) {}
 
         viewLifecycleOwner.lifecycleScope.launch {
-            val req = SendGiftRequest(
-                room_id = roomId,
-                recipient_id = recipientId,
-                gift_id = gift.gift_id,
-                count = selectedQuantity,
-                combo_seq = seq,
-                idempotency_key = "gift_${UUID.randomUUID()}"
-            )
-            val res = UnrealStarApiClient.sendGift(req)
-            res.onSuccess { resp ->
-                currentCoins = resp.remaining_coins
-                binding.tvGiftCoinBalance.text = "🪙 %,d Coins".format(currentCoins)
-                onGiftSent(gift, selectedQuantity, seq, resp.remaining_coins)
-                Toast.makeText(
-                    requireContext(),
-                    "✨ Sent ${selectedQuantity}x ${gift.name}!",
-                    Toast.LENGTH_SHORT
-                ).show()
-            }.onFailure { err ->
-                Toast.makeText(requireContext(), "Gifting note: ${err.message}", Toast.LENGTH_SHORT).show()
+            try {
+                val req = SendGiftRequest(
+                    room_id = roomId,
+                    recipient_id = recipientId,
+                    gift_id = gift.gift_id,
+                    count = selectedQuantity,
+                    combo_seq = seq,
+                    idempotency_key = key
+                )
+                val res = UnrealStarApiClient.sendGift(req)
+                res.onSuccess { resp ->
+                    currentCoins = resp.remaining_coins
+                    _binding?.let { b ->
+                        b.tvGiftCoinBalance.text = resources.getQuantityString(R.plurals.coin_balance_fmt, currentCoins.toInt(), currentCoins)
+                    }
+                    onGiftSent(gift, selectedQuantity, seq, resp.remaining_coins)
+                    Toast.makeText(
+                        requireContext(),
+                        getString(R.string.gift_sent_host, selectedQuantity, gift.name),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }.onFailure { err ->
+                    Toast.makeText(requireContext(), getString(R.string.live_gift_note, err.message), Toast.LENGTH_SHORT).show()
+                }
+            } finally {
+                giftInFlight = false
+                _binding?.btnSendGiftAction?.isEnabled = true
             }
         }
     }
@@ -220,11 +242,11 @@ class GiftBottomSheet(
             val isSelected = item.gift_id == selectedGift?.gift_id
 
             holder.binding.tvGiftName.text = item.name
-            holder.binding.tvGiftPrice.text = item.price_coins.toString()
+            holder.binding.tvGiftPrice.text = getString(R.string.number_plain, item.price_coins)
             holder.binding.tvGiftEmoji.text = emojiForGift(item.gift_id)
 
-            val stroke = if (isSelected) Color.parseColor("#FFD700") else Color.parseColor("#3D3766")
-            val bg = if (isSelected) Color.parseColor("#2F2B4D") else Color.parseColor("#211E38")
+            val stroke = if (isSelected) "#FFD700".toColorInt() else "#3D3766".toColorInt()
+            val bg = if (isSelected) "#2F2B4D".toColorInt() else "#211E38".toColorInt()
             holder.binding.cardGift.strokeColor = stroke
             holder.binding.cardGift.setCardBackgroundColor(ColorStateList.valueOf(bg))
             holder.binding.cardGift.strokeWidth = if (isSelected) 3 else 1

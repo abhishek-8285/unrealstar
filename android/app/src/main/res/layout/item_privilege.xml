@@ -17,6 +17,7 @@
         android:layout_width="40dp"
         android:layout_height="40dp"
         android:background="@drawable/bg_me_pill_outline"
+        android:contentDescription="@null"
         android:padding="8dp"
         android:scaleType="fitCenter"
         android:src="@drawable/ic_me_crown"
@@ -44,9 +45,9 @@
                 android:paddingTop="1dp"
                 android:paddingEnd="6dp"
                 android:paddingBottom="1dp"
-                android:text="Lv 25"
+                android:text="@string/privilege_level"
                 android:textColor="@color/text_white"
-                android:textSize="9sp"
+                android:textSize="11sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -75,7 +76,7 @@
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginStart="8dp"
-        android:text="Unlocked"
+        android:text="@string/privilege_status"
         android:textColor="@color/disclaimer_green"
         android:textSize="11sp"
         android:textStyle="bold" />

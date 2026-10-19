@@ -118,7 +118,7 @@
                 android:minWidth="24dp"
                 android:paddingStart="6dp"
                 android:paddingEnd="6dp"
-                android:text="₹"
+                android:text="@string/paid_badge"
                 android:textColor="#FFFFC107"
                 android:textSize="14sp"
                 android:textStyle="bold" />
@@ -147,7 +147,7 @@
             android:paddingTop="5dp"
             android:paddingEnd="12dp"
             android:paddingBottom="5dp"
-            android:text="🔥 +100"
+            android:text="@string/banner_pill"
             android:textColor="#FFFFFFFF"
             android:textSize="13sp"
             android:textStyle="bold" />

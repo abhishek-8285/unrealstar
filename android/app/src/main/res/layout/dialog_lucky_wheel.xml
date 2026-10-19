@@ -19,7 +19,7 @@
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="🎡 Lucky Wheel of Fortune"
+            android:text="@string/lucky_wheel_of_fortune"
             android:textColor="@color/secondary"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -31,7 +31,7 @@
             android:background="@color/overlay_scrim"
             android:paddingHorizontal="10dp"
             android:paddingVertical="4dp"
-            android:text="🪙 1,000 Coins"
+            android:text="@string/wheel_coins_balance"
             android:textColor="@color/text_white"
             android:textSize="13sp"
             android:textStyle="bold" />
@@ -42,6 +42,7 @@
             android:layout_height="36dp"
             android:layout_marginStart="8dp"
             android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/desc_close"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
             app:tint="@color/text_white" />
     </LinearLayout>
@@ -60,7 +61,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:gravity="center"
-        android:text="Choose bet and test your luck!"
+        android:text="@string/spin_result"
         android:textColor="@color/text_muted"
         android:textSize="14sp"
         android:textStyle="bold" />
@@ -78,7 +79,7 @@
             android:layout_width="wrap_content"
             android:layout_height="40dp"
             android:layout_marginEnd="6dp"
-            android:text="10 🪙"
+            android:text="@string/bet10"
             android:textColor="@color/text_white"
             app:strokeColor="@color/secondary" />
 
@@ -88,7 +89,7 @@
             android:layout_width="wrap_content"
             android:layout_height="40dp"
             android:layout_marginEnd="6dp"
-            android:text="50 🪙"
+            android:text="@string/bet50"
             android:textColor="@color/text_white"
             app:strokeColor="@color/secondary" />
 
@@ -98,7 +99,7 @@
             android:layout_width="wrap_content"
             android:layout_height="40dp"
             android:layout_marginEnd="6dp"
-            android:text="100 🪙"
+            android:text="@string/bet100"
             android:textColor="@color/text_white"
             app:strokeColor="@color/secondary" />
 
@@ -107,7 +108,7 @@
             style="@style/Widget.MaterialComponents.Button.OutlinedButton"
             android:layout_width="wrap_content"
             android:layout_height="40dp"
-            android:text="500 🪙"
+            android:text="@string/bet500"
             android:textColor="@color/text_white"
             app:strokeColor="@color/secondary" />
     </LinearLayout>
@@ -119,7 +120,7 @@
         android:layout_height="52dp"
         android:layout_marginTop="16dp"
         android:backgroundTint="@color/secondary"
-        android:text="SPIN WHEEL (10 COINS)"
+        android:text="@string/spin_wheel_action"
         android:textColor="@color/background_dark"
         android:textSize="16sp"
         android:textStyle="bold"

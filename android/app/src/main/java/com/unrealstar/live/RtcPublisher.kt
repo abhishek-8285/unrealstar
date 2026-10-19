@@ -74,33 +74,41 @@ class RtcPublisher(
 
     /** viewerId -> dedicated peer connection sharing the host tracks. */
     private val viewerConnections = ConcurrentHashMap<Long, PeerConnection>()
+    /** viewerIds whose answer was applied (negotiation complete). */
+    private val negotiated = ConcurrentHashMap.newKeySet<Long>()
+    /** Trickled ICE held until the matching answer is applied. */
+    private val pendingIce =
+        ConcurrentHashMap<Long, java.util.concurrent.ConcurrentLinkedQueue<IceCandidate>>()
 
     fun init() {
         PeerConnectionFactory.initialize(
             PeerConnectionFactory.InitializationOptions.builder(appContext)
-                .setEnableInternalTracer(true)
+                .setEnableInternalTracer(com.unrealstar.live.BuildConfig.DEBUG)
                 .createInitializationOptions(),
         )
-        factory = PeerConnectionFactory.builder()
+        val rf = PeerConnectionFactory.builder()
             .setVideoEncoderFactory(DefaultVideoEncoderFactory(eglBase.eglBaseContext, true, true))
             .setVideoDecoderFactory(DefaultVideoDecoderFactory(eglBase.eglBaseContext))
             .createPeerConnectionFactory()
+            ?: throw IllegalStateException("peer connection factory creation failed")
+        factory = rf
 
         // Mic: plain platform capture. Failure (permission dropped between ask
-        // and go-live) silently disables the audio track and the video-only
-        // show continues.
+        // and go-live) disables the audio track, but the host UI is told so
+        // viewers can distinguish "host muted" from a bug.
         try {
-            val source = factory!!.createAudioSource(MediaConstraints())
-            audioTrack = factory!!.createAudioTrack(AUDIO_TRACK_ID, source)
+            val source = rf.createAudioSource(MediaConstraints())
+            audioTrack = rf.createAudioTrack(AUDIO_TRACK_ID, source)
             audioSource = source
         } catch (t: Throwable) {
             Log.w(TAG, "mic unavailable — streaming video-only", t)
+            listener.onPublisherError("mic", "Microphone unavailable — streaming video-only")
         }
 
         // Camera: the source is fed by [attachCameraFrames]; the track exists
         // here so viewer PC creation does not race capture start.
-        videoSource = factory!!.createVideoSource(false /* not screencast */)
-        videoTrack = factory!!.createVideoTrack(VIDEO_TRACK_ID, videoSource)
+        videoSource = rf.createVideoSource(false /* not screencast */)
+        videoTrack = rf.createVideoTrack(VIDEO_TRACK_ID, videoSource)
     }
 
     /**
@@ -151,11 +159,11 @@ class RtcPublisher(
                 source.capturerObserver.onCapturerStarted(true)
             }
             val nv21 = CameraFrame.toNv21(proxy, ::acquireNv21) ?: return
-            // CameraX timestamps are capture-pipeline monotonic; falling back
-            // to a wall clock only if the sensor clock is zeroed/unavailable.
-            val timestampUs = proxy.imageInfo.timestamp.takeIf { it > 0 }
-                ?.let { TimeUnit.NANOSECONDS.toMicros(it) }
-                ?: TimeUnit.NANOSECONDS.toMicros(SystemClock.elapsedRealtimeNanos())
+            // libwebrtc VideoFrame takes NANOSECONDS. CameraX timestamps are
+            // already capture-pipeline monotonic ns; falling back to a
+            // monotonic clock only if the sensor clock is zeroed/unavailable.
+            val timestampNs = proxy.imageInfo.timestamp.takeIf { it > 0 }
+                ?: SystemClock.elapsedRealtimeNanos()
             // CameraX rotationDegrees is counterclockwise-to-upright,
             // libwebrtc VideoFrame rotation is clockwise-to-upright — the
             // inverse angles. Passing CameraX's value verbatim landed remote
@@ -172,7 +180,7 @@ class RtcPublisher(
                         }
                     }),
                     rotation,
-                    timestampUs,
+                    timestampNs,
                 ),
             )
         } catch (t: Throwable) {
@@ -204,6 +212,14 @@ class RtcPublisher(
      */
     suspend fun openViewerSession(viewerId: Long): SessionDescription {
         val rf = factory ?: throw IllegalStateException("publisher not initialised")
+        // A reconnecting viewer re-requests: never orphan the old PC — close
+        // and dispose it before it is overwritten and becomes unleakable.
+        viewerConnections.remove(viewerId)?.let { old ->
+            try { old.close() } catch (_: Throwable) {}
+            try { old.dispose() } catch (_: Throwable) {}
+        }
+        negotiated.remove(viewerId)
+        pendingIce.remove(viewerId)
         val pc = rf.createPeerConnection(rtcConfig(), PeerObserver(viewerId))
             ?: throw IllegalStateException("peer connection creation failed")
         viewerConnections[viewerId] = pc
@@ -221,27 +237,80 @@ class RtcPublisher(
             )
         }
 
-        return createOffer(pc)
+        try {
+            return createOffer(pc)
+        } catch (t: Throwable) {
+            // A failed offer must not leave a ghost PC behind.
+            viewerConnections.remove(viewerId, pc)
+            try { pc.close() } catch (_: Throwable) {}
+            try { pc.dispose() } catch (_: Throwable) {}
+            throw t
+        }
     }
 
     /**
      * Apply a viewer's answer to their own connection. Suspend + explicit
      * failure propagation: the old void version swallowed setRemoteDescription
-     * errors and left a dead media path with zero diagnostics.
+     * errors and left a dead media path with zero diagnostics. On success the
+     * session is marked negotiated and any early trickled ICE is drained.
      */
     suspend fun applyViewerAnswer(viewerId: Long, sdp: String) {
         val pc = viewerConnections[viewerId]
             ?: throw IllegalStateException("no viewer session for $viewerId")
         setRemoteAnswer(pc, sdp)
+        negotiated.add(viewerId)
+        drainPendingIce(viewerId, pc)
     }
 
     fun addRemoteIce(viewerId: Long, sdpMid: String, sdpMLineIndex: Int, candidate: String) {
-        viewerConnections[viewerId]?.addIceCandidate(IceCandidate(sdpMid, sdpMLineIndex, candidate))
+        if (sdpMid.isEmpty() || candidate.isEmpty() || sdpMLineIndex < 0) {
+            Log.w(TAG, "dropping malformed ICE for viewer $viewerId")
+            return
+        }
+        val pc = viewerConnections[viewerId]
+        if (pc == null) {
+            Log.w(TAG, "dropping ICE for unknown viewer $viewerId")
+            return
+        }
+        val ice = IceCandidate(sdpMid, sdpMLineIndex, candidate)
+        if (!negotiated.contains(viewerId)) {
+            pendingIce
+                .getOrPut(viewerId) { java.util.concurrent.ConcurrentLinkedQueue() }
+                .add(ice)
+            return
+        }
+        try {
+            if (pc.addIceCandidate(ice) == false) {
+                Log.w(TAG, "ICE rejected for negotiated viewer $viewerId, requeueing")
+                pendingIce
+                    .getOrPut(viewerId) { java.util.concurrent.ConcurrentLinkedQueue() }
+                    .add(ice)
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "ICE add failed for viewer $viewerId", t)
+        }
+    }
+
+    private fun drainPendingIce(viewerId: Long, pc: PeerConnection) {
+        val queue = pendingIce.remove(viewerId) ?: return
+        while (true) {
+            val ice = queue.poll() ?: break
+            try {
+                pc.addIceCandidate(ice)
+            } catch (t: Throwable) {
+                Log.w(TAG, "pending ICE drain failed for viewer $viewerId", t)
+            }
+        }
     }
 
     /** Tear down a single viewer's connection (viewer left / disconnected). */
     fun closeViewerSession(viewerId: Long) {
-        viewerConnections.remove(viewerId)?.let { pc -> runCatching { pc.close() } }
+        negotiated.remove(viewerId)
+        pendingIce.remove(viewerId)
+        viewerConnections.remove(viewerId)?.let { pc ->
+            try { pc.close() } catch (_: Throwable) {}
+            try { pc.dispose() } catch (_: Throwable) {}
+        }
     }
 
     fun activeViewerCount(): Int = viewerConnections.size
@@ -299,12 +368,7 @@ class RtcPublisher(
         }
 
     private fun rtcConfig(): PeerConnection.RTCConfiguration =
-        PeerConnection.RTCConfiguration(
-            listOf(
-                PeerConnection.IceServer.builder("stun:stun.l.google.com:19302")
-                    .createIceServer(),
-            ),
-        ).apply {
+        PeerConnection.RTCConfiguration(RtcIce.iceServers()).apply {
             sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
         }
 
@@ -317,11 +381,17 @@ class RtcPublisher(
             listener.onViewerConnectionChange(viewerId, state)
             // Auto-clean dead viewer connections so the map does not grow
             // forever with ghosts (viewer left app mid-stream, stale stale
-            // ICE candidates from the network held references).
+            // ICE candidates from the network held references). Posted off
+            // the observer callback: close/dispose on the PC's own thread
+            // risks native re-entrancy on some WebRTC builds.
             if (state == PeerConnection.IceConnectionState.FAILED ||
                 state == PeerConnection.IceConnectionState.CLOSED
             ) {
-                closeViewerSession(viewerId)
+                try {
+                    pumpExecutor.execute { closeViewerSession(viewerId) }
+                } catch (_: Throwable) {
+                    closeViewerSession(viewerId)
+                }
             }
         }
 
@@ -350,7 +420,9 @@ class RtcPublisher(
         fun parseIce(wire: String): Triple<String, Int, String>? {
             val parts = wire.split('|', limit = 3)
             if (parts.size != 3) return null
+            if (parts[0].isEmpty() || parts[2].isEmpty()) return null
             val mLine = parts[1].toIntOrNull() ?: return null
+            if (mLine < 0) return null
             return Triple(parts[0], mLine, parts[2])
         }
     }
@@ -368,8 +440,11 @@ class RtcPublisher(
 
         for ((_, pc) in viewerConnections) {
             try { pc.close() } catch (_: Throwable) {}
+            try { pc.dispose() } catch (_: Throwable) {}
         }
         viewerConnections.clear()
+        negotiated.clear()
+        pendingIce.clear()
 
         // Throwable on purpose: native teardown can raise Errors
         // (UnsatisfiedLinkError, NoClassDefFoundError from broken vendor
@@ -393,54 +468,86 @@ class RtcPublisher(
  * landed in 1.4).
  */
 object CameraFrame {
+    /**
+     * YUV_420_888 -> NV21. Plane buffers are duplicated and rewound so
+     * absolute reads honor the buffer's initial position (CameraX planes may
+     * carry non-zero offsets); bounds are checked against limit(), never
+     * capacity(). Odd dimensions are rejected explicitly instead of
+     * producing short/chroma-shifted output.
+     */
     fun toNv21(image: ImageProxy, allocate: (Int) -> ByteArray = { ByteArray(it) }): ByteArray? {
         val width = image.width
         val height = image.height
         if (width <= 0 || height <= 0) return null
+        if (width % 2 != 0 || height % 2 != 0) return null
 
         val yPlane = image.planes[0]
         val uPlane = image.planes[1]
         val vPlane = image.planes[2]
+        val ySize = width * height
+        val nv21 = allocate(ySize + ySize / 2)
 
-        val nv21 = allocate(width * height + (width / 2) * (height / 2) * 2)
-
-        // 1) Luma per row (always pixelStride 1) to survive rowStride padding.
-        val yBuffer = yPlane.buffer
-        var offset = 0
-        if (yPlane.rowStride == width) {
-            yBuffer.get(nv21, 0, width * height)
-            offset = width * height
+        // 1) Luma.
+        val yb = yPlane.buffer.duplicate()
+        val yOff = yb.position()
+        val yRs = yPlane.rowStride
+        val yPs = yPlane.pixelStride.coerceAtLeast(1)
+        if (yPs == 1 && yRs == width && yb.remaining() >= ySize) {
+            yb.get(nv21, 0, ySize)
         } else {
-            var row = 0
-            while (row < height) {
-                yBuffer.position(row * yPlane.rowStride)
-                yBuffer.get(nv21, offset, width)
-                offset += width
-                row++
+            var dst = 0
+            for (r in 0 until height) {
+                val rowBase = yOff + r * yRs
+                if (rowBase < 0 || rowBase + (width - 1) * yPs >= yb.limit()) return null
+                if (yPs == 1) {
+                    yb.position(rowBase)
+                    yb.get(nv21, dst, width)
+                } else {
+                    for (c in 0 until width) nv21[dst + c] = yb.get(rowBase + c * yPs)
+                }
+                dst += width
             }
         }
 
-        // 2) Chroma: NV21 interleaves V then U per 2x2 block.
-        val chromaWidth = width / 2
-        val chromaHeight = height / 2
-        val uBuffer = uPlane.buffer
-        val vBuffer = vPlane.buffer
-        val uStride = uPlane.pixelStride.coerceAtLeast(1)
-        val vStride = vPlane.pixelStride.coerceAtLeast(1)
-
-        var cy = 0
-        while (cy < chromaHeight) {
-            var cx = 0
-            while (cx < chromaWidth) {
-                val vIdx = cy * vPlane.rowStride + cx * vStride
-                val uIdx = cy * uPlane.rowStride + cx * uStride
-                if (vIdx < vBuffer.capacity() && uIdx < uBuffer.capacity()) {
-                    nv21[offset++] = vBuffer.get(vIdx)
-                    nv21[offset++] = uBuffer.get(uIdx)
+        // 2) Chroma, interleaved V,U per 2x2 block.
+        val cw = width / 2
+        val ch = height / 2
+        val ub = uPlane.buffer.duplicate()
+        val vb = vPlane.buffer.duplicate()
+        val uOff = ub.position()
+        val vOff = vb.position()
+        val uRs = uPlane.rowStride
+        val vRs = vPlane.rowStride
+        val uPs = uPlane.pixelStride.coerceAtLeast(1)
+        val vPs = vPlane.pixelStride.coerceAtLeast(1)
+        var dst = ySize
+        if (uPs == 1 && vPs == 1 && uRs == cw && vRs == cw &&
+            uOff + (ch - 1) * uRs + (cw - 1) < ub.limit() &&
+            vOff + (ch - 1) * vRs + (cw - 1) < vb.limit()
+        ) {
+            // Tight rows: copy each plane row, then interleave.
+            val uRow = ByteArray(cw)
+            val vRow = ByteArray(cw)
+            for (r in 0 until ch) {
+                ub.position(uOff + r * uRs)
+                ub.get(uRow, 0, cw)
+                vb.position(vOff + r * vRs)
+                vb.get(vRow, 0, cw)
+                for (c in 0 until cw) {
+                    nv21[dst++] = vRow[c]
+                    nv21[dst++] = uRow[c]
                 }
-                cx++
             }
-            cy++
+        } else {
+            for (r in 0 until ch) {
+                for (c in 0 until cw) {
+                    val vIdx = vOff + r * vRs + c * vPs
+                    val uIdx = uOff + r * uRs + c * uPs
+                    if (vIdx >= vb.limit() || uIdx >= ub.limit()) return null
+                    nv21[dst++] = vb.get(vIdx)
+                    nv21[dst++] = ub.get(uIdx)
+                }
+            }
         }
         return nv21
     }

@@ -203,7 +203,10 @@ pub async fn feed_moments(
     // Newest first; if followed_only is requested, limit to authors in followed_set.
     let mut ordered: Vec<&MomentItem> = if q.followed_only.unwrap_or(false) {
         match &followed_set {
-            Some(set) => moments.iter().filter(|m| set.contains(&m.author_id)).collect(),
+            Some(set) => moments
+                .iter()
+                .filter(|m| set.contains(&m.author_id))
+                .collect(),
             None => Vec::new(),
         }
     } else {

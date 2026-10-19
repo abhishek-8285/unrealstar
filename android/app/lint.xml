@@ -1,6 +1,12 @@
-<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <lint>
-    <issue id="UnsafeOptInUsageError">
-        <option name="opt-in" value="androidx.media3.common.util.UnstableApi" />
+    <!-- Overdraw: these roots intentionally paint their own surface.
+         Sheets and dialogs render into a transparent dialog window whose
+         default container background would otherwise be exposed; list items
+         carry ?selectableItemBackground for ripple feedback; full-bleed
+         media items must not let the window show through while loading. -->
+    <issue id="Overdraw">
+        <ignore regexp="(sheet_|dialog_|item_)" />
+        <ignore regexp="activity_watch_live" />
     </issue>
 </lint>

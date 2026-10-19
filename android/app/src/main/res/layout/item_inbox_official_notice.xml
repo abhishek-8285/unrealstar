@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<androidx.constraintlayout.widget.ConstraintLayout
+    xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/rowNotice"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="?android:attr/selectableItemBackground"
+    android:paddingStart="14dp"
+    android:paddingTop="10dp"
+    android:paddingEnd="14dp"
+    android:paddingBottom="10dp">
+
+    <!-- System glyph: the CamStar mark (rounded) or the small info icon. -->
+    <ImageView
+        android:id="@+id/ivNoticeGlyph"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:contentDescription="@null"
+        android:scaleType="centerInside"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:src="@drawable/ic_inbox_info" />
+
+    <TextView
+        android:id="@+id/tvNoticeText"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="12dp"
+        android:lineSpacingExtra="3dp"
+        android:textColor="#C9C9E4"
+        android:textSize="13sp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toEndOf="@id/ivNoticeGlyph"
+        app:layout_constraintTop_toTopOf="parent"
+        tools:text="Your support request from 24 August was just updated. Aug 25" />
+</androidx.constraintlayout.widget.ConstraintLayout>

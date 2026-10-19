@@ -193,12 +193,13 @@ pub fn refresh_token_ttl_secs() -> u64 {
 }
 
 /// Unauthenticated `Bearer guest_token_N` tokens are a development
-/// convenience only. Production must leave `CAMSTAR_ALLOW_GUEST_TOKEN`
-/// unset so forged guest tokens are rejected.
+/// convenience only. They are REJECTED unless `CAMSTAR_ALLOW_GUEST_TOKEN`
+/// is explicitly set to `1`/`true`/`yes` (local dev sets it; production
+/// must leave it unset so forged guest tokens are rejected).
 pub fn guest_tokens_enabled() -> bool {
-    !matches!(
+    matches!(
         std::env::var("CAMSTAR_ALLOW_GUEST_TOKEN").as_deref(),
-        Ok("0") | Ok("false") | Ok("FALSE") | Ok("no") | Ok("NO")
+        Ok("1") | Ok("true") | Ok("TRUE") | Ok("yes") | Ok("YES")
     )
 }
 
@@ -244,6 +245,28 @@ pub struct DirectMessageRecord {
     pub created_at: chrono::DateTime<Utc>,
 }
 
+/// The 1:1 conversation key: the two participant ids, ordered low-high.
+pub type ConversationKey = (u64, u64);
+
+/// In-memory direct-message store: conversation key -> lines, oldest first.
+pub type DirectMessageStore = HashMap<ConversationKey, Vec<DirectMessageRecord>>;
+
+/// Threads a reader has opened: `(reader_id, peer_id)`. Unread badges clear
+/// against this set.
+pub type ReadConversationSet = HashSet<ConversationKey>;
+
+/// How a reader resolved a follow request. Confirmed requests turn into
+/// "started following you" rows; deleted ones leave the feed entirely.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum FollowRequestOutcome {
+    Confirmed,
+    Deleted,
+}
+
+/// reader_id -> requester_id -> outcome. Resolution lives server-side so a
+/// refresh can never resurrect a request the user already handled.
+pub type FollowRequestResolutions = HashMap<u64, HashMap<u64, FollowRequestOutcome>>;
+
 #[derive(Debug, Clone)]
 pub struct RoomSession {
     pub room_id: u64,
@@ -268,12 +291,27 @@ pub struct RoomSession {
     /// Viewer count attributed to seeds/demo data, unaffected by presence
     /// tracking. Reported count = viewers_base + present.len().
     pub viewers_base: u64,
+    /// Wall-clock open time; close_room reports `now - started_at` instead
+    /// of a constant so the ended screen shows the real stream length.
+    pub started_at: chrono::DateTime<Utc>,
 }
+
+/// Hard cap on tracked viewer presence per room. Without it one viral room
+/// grows presence (and its broadcast fan-out) without bound; HTTP join and the
+/// WS upgrade path both enforce it. The host is never counted and always admits.
+pub const MAX_ROOM_VIEWERS: u64 = 500;
 
 impl RoomSession {
     /// Reported viewer count: seeded/demo viewers plus tracked presence.
     pub fn viewers_count(&self) -> u64 {
         self.viewers_base + self.present.len() as u64
+    }
+
+    /// Whether tracked presence is at the hard cap. Only REAL presence counts:
+    /// `viewers_base` is display-only demo data that cannot open sockets, so
+    /// it must not consume the join/fan-out budget.
+    pub fn at_viewer_capacity(&self) -> bool {
+        self.present.len() as u64 >= MAX_ROOM_VIEWERS
     }
 
     /// Insert a viewer into presence. The host is never tracked (they are not
@@ -362,7 +400,14 @@ pub struct AppState {
     pub vip_tiers: Arc<Vec<VipTierItem>>,
     pub families: Arc<RwLock<Vec<FamilyItem>>>,
     pub user_family: Arc<RwLock<HashMap<u64, String>>>,
-    pub direct_messages: Arc<RwLock<HashMap<(u64, u64), Vec<DirectMessageRecord>>>>,
+    pub direct_messages: Arc<RwLock<DirectMessageStore>>,
+    /// (reader_id, peer_id) pairs whose thread has been opened. The message
+    /// inbox clears its unread badge here, so the seeded list and "read"
+    /// state live in one place instead of drifting.
+    pub read_conversations: Arc<RwLock<ReadConversationSet>>,
+    /// Follow requests the reader has confirmed or deleted; drives both the
+    /// "Follow requests" summary row and the inline request rows.
+    pub follow_request_resolutions: Arc<RwLock<FollowRequestResolutions>>,
 }
 
 impl Default for AppState {
@@ -638,7 +683,13 @@ impl AppState {
             daily_tasks: Arc::new(RwLock::new(HashMap::new())),
             kyc_records: Arc::new(RwLock::new(HashMap::new())),
             payouts: Arc::new(RwLock::new(Vec::new())),
-            follows: Arc::new(RwLock::new(HashMap::new())),
+            follows: Arc::new(RwLock::new(HashMap::from([(
+                1001u64,
+                // Demo user 1001 already follows one member of the inbox cast,
+                // so the reference's "Following" pill state is visible on a
+                // fresh account, exactly like the pasted notifications page.
+                HashSet::from([1002u64]),
+            )]))),
             moment_likes: Arc::new(RwLock::new(HashMap::new())),
             moment_comments: Arc::new(RwLock::new(HashMap::new())),
             comment_likes: Arc::new(RwLock::new(HashMap::new())),
@@ -651,6 +702,8 @@ impl AppState {
             families: Arc::new(RwLock::new(initial_families)),
             user_family: Arc::new(RwLock::new(HashMap::new())),
             direct_messages: Arc::new(RwLock::new(HashMap::new())),
+            read_conversations: Arc::new(RwLock::new(HashSet::new())),
+            follow_request_resolutions: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 

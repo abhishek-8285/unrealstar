@@ -6,6 +6,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
+import androidx.core.graphics.toColorInt
 import androidx.core.os.bundleOf
 import androidx.core.view.isVisible
 import androidx.lifecycle.lifecycleScope
@@ -32,10 +33,10 @@ class CommentsBottomSheet : BottomSheetDialogFragment() {
         onReply = ::startReply,
         onToggleLike = ::toggleCommentLike,
         onOpenProfile = { comment ->
-            DirectMessageBottomSheet(
-                targetUserId = comment.author_id,
-                targetNickname = comment.author_nickname
-            ).show(parentFragmentManager, "dm_chat")
+            ProfileBottomSheet(
+                userId = comment.author_id,
+                fallbackNickname = comment.author_nickname
+            ).show(parentFragmentManager, ProfileBottomSheet.TAG)
         }
     )
 
@@ -178,9 +179,10 @@ private class CommentAdapter(
     private val rows = mutableListOf<CommentRow>()
 
     fun submit(next: List<CommentRow>) {
+        val oldSize = rows.size
         rows.clear()
         rows.addAll(next)
-        notifyDataSetChanged()
+        notifyListReplaced(oldSize, rows.size)
     }
 
     fun patchLike(commentId: String, likes: Long) {
@@ -243,19 +245,19 @@ private class CommentAdapter(
 
             binding.tvReplyCount.isVisible = row.replyCount > 0
             if (row.replyCount > 0) {
-                binding.tvReplyCount.text = itemView.context.getString(
-                    R.string.reply_count, row.replyCount
+                binding.tvReplyCount.text = itemView.context.resources.getQuantityString(
+                    R.plurals.reply_count, row.replyCount, row.replyCount
                 )
             }
 
-            binding.tvCommentLikes.text = comment.likes_count.toString()
+            binding.tvCommentLikes.text = itemView.context.getString(R.string.number_plain, comment.likes_count)
             binding.tvCommentLikes.isVisible = comment.likes_count > 0
             binding.btnCommentLike.setImageResource(
                 if (comment.liked_by_me) R.drawable.ic_feed_heart_filled
                 else R.drawable.ic_feed_heart
             )
             binding.btnCommentLike.imageTintList = android.content.res.ColorStateList.valueOf(
-                if (comment.liked_by_me) Color.parseColor("#FF0055") else Color.WHITE
+                if (comment.liked_by_me) "#FF0055".toColorInt() else Color.WHITE
             )
 
             // Replying to a reply would make a third level; the API refuses it.

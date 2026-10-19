@@ -412,6 +412,25 @@ pub struct PkStatusResponse {
 }
 
 // ---------------------------------------------------------------------------
+// WebRTC ICE servers (TURN time-limited credentials)
+// ---------------------------------------------------------------------------
+
+/// One ICE server entry. STUN entries carry urls only; a TURN entry also
+/// carries the time-limited username/credential pair.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IceServerEntry {
+    pub urls: Vec<String>,
+    pub username: Option<String>,
+    pub credential: Option<String>,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct IceServersResponse {
+    pub servers: Vec<IceServerEntry>,
+    pub ttl_secs: u64,
+}
+
+// ---------------------------------------------------------------------------
 // Social & Feed
 // ---------------------------------------------------------------------------
 
@@ -659,6 +678,16 @@ pub struct KycSubmitRequest {
     pub ifsc_code: String,
 }
 
+/// Production KYC review decision, posted by operations staff with the
+/// `X-Admin-Token` header. `reason` is required for rejections so the
+/// applicant learns why ("blurred PAN", "name mismatch", ...).
+#[derive(Debug, Serialize, Deserialize)]
+pub struct KycReviewRequest {
+    pub decision: String, // "approve" | "reject"
+    #[serde(default)]
+    pub reason: Option<String>,
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 pub struct PayoutPreviewResponse {
     pub diamonds_amount: i64,
@@ -718,9 +747,16 @@ pub struct BeautyAssetItem {
 #[derive(Debug, Serialize, Deserialize, Clone)]
 #[serde(tag = "type", content = "payload")]
 pub enum WsClientMessage {
-    Join { user_id: u64, room_id: u64 },
-    Chat { text: String },
-    SeatSignal { is_muted: bool },
+    Join {
+        user_id: u64,
+        room_id: u64,
+    },
+    Chat {
+        text: String,
+    },
+    SeatSignal {
+        is_muted: bool,
+    },
     /// WebRTC signalling: opaque SDP offer/answer or ICE candidate JSON,
     /// relayed verbatim to the room. `kind` is "offer" | "answer" | "ice".
     RtcSignal {
@@ -836,6 +872,29 @@ pub struct InboxMessagePage {
     pub messages: Vec<InboxMessage>,
 }
 
+/// One conversation row in the message inbox, mirroring the reference chat
+/// list: avatar, display name, last-line preview, relative time, unread count.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ConversationSummary {
+    /// The other participant. DM threads are 1:1 today, so one id is enough.
+    pub peer_id: u64,
+    pub peer_nickname: String,
+    pub peer_avatar_url: String,
+    /// The last line, already shaped for a single row: the message text, or
+    /// "You: ..." when the newest line is the reader's own.
+    pub preview: String,
+    /// RFC3339; the client renders it relatively ("1d", "2w", "14:05").
+    pub last_message_at: DateTime<Utc>,
+    /// Unread lines from the peer. The client shows the dot and collapses
+    /// four or more to "4+ new messages", exactly like the reference list.
+    pub unread_count: u64,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct ConversationPage {
+    pub conversations: Vec<ConversationSummary>,
+}
+
 // ---------------------------------------------------------------------------
 // Me dashboard
 // ---------------------------------------------------------------------------
@@ -895,6 +954,94 @@ pub struct OfficialSection {
 pub struct OfficialNoticePage {
     pub sections: Vec<OfficialSection>,
     pub notices: Vec<OfficialNotice>,
+    /// Time buckets of the reference notifications anatomy, newest first.
+    #[serde(default)]
+    pub groups: Vec<OfficialGroup>,
+    #[serde(default)]
+    pub follow_requests: OfficialFollowRequests,
+    #[serde(default)]
+    pub suggested: OfficialSuggested,
+}
+
+/// One person shown on an Official-tab row (up to two per row).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OfficialActor {
+    pub user_id: u64,
+    pub nickname: String,
+    pub avatar_url: String,
+}
+
+/// The trailing slot of an Official-tab row: nothing, a media thumbnail, a
+/// Follow/Following pill, or the Confirm/Delete pair.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct OfficialTrailing {
+    /// none | thumbnail | follow | confirm_delete
+    pub kind: String,
+    /// The person a follow/confirm action targets; 0 when unused.
+    pub user_id: u64,
+    /// Whether the reader already follows `user_id`.
+    pub is_following: bool,
+    /// Media thumbnail; empty renders no image.
+    pub image_url: String,
+}
+
+/// One row of the reference notifications anatomy. `notice` rows draw a
+/// system glyph, `activity` rows draw their actor avatar(s).
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OfficialRow {
+    pub row_id: String,
+    /// notice | activity
+    pub kind: String,
+    /// Sub-tab the row filters under: official | event | picked | task.
+    pub section: String,
+    /// Notice glyph: app | info. Empty on activity rows.
+    pub icon: String,
+    /// Body copy. `[tokens]` render as highlight chips, `{actor}`/`{actor2}`
+    /// are the row's people, and `@mentions` render gold.
+    pub body: String,
+    pub actors: Vec<OfficialActor>,
+    pub trailing: OfficialTrailing,
+    pub created_at: DateTime<Utc>,
+}
+
+/// A time bucket under the Official tab ("This week", "This month",
+/// "Earlier"), exactly like the reference notifications page.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OfficialGroup {
+    pub key: String,
+    pub label: String,
+    pub rows: Vec<OfficialRow>,
+}
+
+/// The "Follow requests" summary row at the top of the Official tab.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct OfficialFollowRequests {
+    pub title: String,
+    /// "Anjali Verma + 1 other" — empty when nothing is pending.
+    pub subtitle: String,
+    /// Up to two stacked avatars.
+    pub avatars: Vec<String>,
+    pub pending: Vec<OfficialActor>,
+}
+
+/// One "Suggested for you" row.
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct OfficialSuggestion {
+    pub user_id: u64,
+    pub nickname: String,
+    pub social_proof: String,
+    pub avatar_url: String,
+    pub is_following: bool,
+}
+
+/// The "Suggested for you" block at the bottom of the Official tab.
+#[derive(Debug, Serialize, Deserialize, Clone, Default)]
+pub struct OfficialSuggested {
+    pub label: String,
+    pub users: Vec<OfficialSuggestion>,
+    pub see_all_label: String,
+    /// Where "See all suggestions" goes: "search".
+    pub see_all_target: String,
 }
 
 // ---------------------------------------------------------------------------

@@ -13,9 +13,10 @@ import java.io.ByteArrayOutputStream
 /**
  * One-shot full-resolution frame grab for poster capture.
  *
- * The activity arms it ([armed] = true); the next analyzer frame is decoded
- * to an upright Bitmap on the analyzer thread and handed back — the caller
- * owns closing the proxy as usual. Rotation comes from the frame metadata;
+ * Two-phase by design: [grabCopy] runs on the analyzer thread and does
+ * nothing but a plane memcpy (~1ms), so the WebRTC pump and face tracker
+ * never stall. [decode] does the expensive JPEG + rotate + mirror work and
+ * must run on a background dispatcher. Rotation comes from frame metadata;
  * front-camera frames are mirrored so the poster matches what the user saw.
  */
 object FrameCapture {
@@ -23,27 +24,45 @@ object FrameCapture {
 
     @Volatile var armed: Boolean = false
 
-    fun takeFullFrame(proxy: ImageProxy, mirror: Boolean): Bitmap? {
+    data class FrameCopy(
+        val nv21: ByteArray,
+        val width: Int,
+        val height: Int,
+        val rotation: Int,
+        val mirror: Boolean
+    )
+
+    /** Analyzer thread: copy NV21 bytes only. Null unless armed. */
+    fun grabCopy(proxy: ImageProxy, mirror: Boolean): FrameCopy? {
         if (!armed) return null
         armed = false
         return try {
             val w = proxy.width
             val h = proxy.height
-            if (w <= 0 || h <= 0) return null
+            if (w <= 0 || h <= 0 || w % 2 != 0 || h % 2 != 0) return null
             val nv21 = CameraFrame.toNv21(proxy) ?: return null
-            val yuv = YuvImage(nv21, ImageFormat.NV21, w, h, null)
+            FrameCopy(nv21, w, h, proxy.imageInfo.rotationDegrees, mirror)
+        } catch (t: Throwable) {
+            Log.w(TAG, "frame grab failed", t)
+            null
+        }
+    }
+
+    /** Background thread: JPEG decode + upright. Caller owns closing nothing. */
+    fun decode(copy: FrameCopy): Bitmap? {
+        return try {
+            val yuv = YuvImage(copy.nv21, ImageFormat.NV21, copy.width, copy.height, null)
             val out = ByteArrayOutputStream()
-            yuv.compressToJpeg(Rect(0, 0, w, h), 92, out)
+            yuv.compressToJpeg(Rect(0, 0, copy.width, copy.height), 92, out)
             val bytes = out.toByteArray()
             var bmp = BitmapFactory.decodeByteArray(bytes, 0, bytes.size) ?: return null
-            val rot = proxy.imageInfo.rotationDegrees
-            if (rot != 0) {
-                val m = Matrix().apply { postRotate(rot.toFloat()) }
+            if (copy.rotation != 0) {
+                val m = Matrix().apply { postRotate(copy.rotation.toFloat()) }
                 val rotated = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
                 if (rotated !== bmp) bmp.recycle()
                 bmp = rotated
             }
-            if (mirror) {
+            if (copy.mirror) {
                 val m = Matrix().apply { postScale(-1f, 1f, bmp.width / 2f, bmp.height / 2f) }
                 val mirrored = Bitmap.createBitmap(bmp, 0, 0, bmp.width, bmp.height, m, true)
                 if (mirrored !== bmp) bmp.recycle()
@@ -54,5 +73,11 @@ object FrameCapture {
             Log.w(TAG, "poster frame decode failed", t)
             null
         }
+    }
+
+    /** Legacy one-shot path (grab + decode inline). Prefer grab/decode split. */
+    fun takeFullFrame(proxy: ImageProxy, mirror: Boolean): Bitmap? {
+        val copy = grabCopy(proxy, mirror) ?: return null
+        return decode(copy)
     }
 }

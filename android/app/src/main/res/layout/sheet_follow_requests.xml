@@ -1,0 +1,64 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="#151322"
+    android:orientation="vertical">
+
+    <!-- Drag handle, same as the DM sheet. -->
+    <View
+        android:layout_width="40dp"
+        android:layout_height="4dp"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="10dp"
+        android:background="#353150" />
+
+    <!-- Title and close button are separate views; merging the trailing
+         icon into the text would fold the close target into the title. -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="16dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="12dp"
+        tools:ignore="UseCompoundDrawables">
+
+        <TextView
+            android:id="@+id/tvFollowRequestsTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/inbox_follow_requests"
+            android:textColor="#FFFFFF"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+
+        <ImageView
+            android:id="@+id/btnFollowRequestsClose"
+            android:layout_width="32dp"
+            android:layout_height="32dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/inbox_follow_requests"
+            android:padding="6dp"
+            android:src="@drawable/ic_feed_close" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="#242238" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/rvFollowRequests"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipToPadding="false"
+        android:paddingTop="6dp"
+        android:paddingBottom="16dp"
+        tools:itemCount="2"
+        tools:listitem="@layout/item_follow_request" />
+</LinearLayout>

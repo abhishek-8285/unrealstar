@@ -91,7 +91,8 @@
             android:maxLines="3"
             android:textColor="@color/text_white"
             android:textColorHint="@color/text_muted"
-            android:textSize="14sp" />
+            android:textSize="14sp"
+            android:importantForAutofill="no" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/btnSendComment"

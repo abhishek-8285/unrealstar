@@ -1,6 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="@color/surface_dark"
@@ -19,17 +20,20 @@
         android:background="#44FFFFFF" />
 
     <!-- Title Bar -->
+    <!-- Title and close button are separate views; merging the trailing
+         icon into the text would fold the close target into the title. -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal">
+        android:orientation="horizontal"
+        tools:ignore="UseCompoundDrawables">
 
         <TextView
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:text="Settings &amp; Preferences"
+            android:text="@string/settings_preferences"
             android:textColor="@color/text_white"
             android:textSize="18sp"
             android:textStyle="bold" />
@@ -39,7 +43,7 @@
             android:layout_width="28dp"
             android:layout_height="28dp"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Close"
+            android:contentDescription="@string/desc_close"
             android:padding="4dp"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
             app:tint="@color/text_muted" />
@@ -57,7 +61,7 @@
         <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:text="Account &amp; Security"
+            android:text="@string/account_security"
             android:textColor="@color/level_gold"
             android:textSize="11sp"
             android:textStyle="bold" />
@@ -73,7 +77,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="User ID"
+                android:text="@string/user_id"
                 android:textColor="@color/text_muted"
                 android:textSize="13sp" />
 
@@ -81,7 +85,7 @@
                 android:id="@+id/tvSettingsUserId"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="9999"
+                android:text="@string/settings_user_id"
                 android:textColor="@color/text_white"
                 android:textSize="13sp"
                 android:textStyle="bold" />
@@ -98,14 +102,14 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Linked Device Status"
+                android:text="@string/linked_device_status"
                 android:textColor="@color/text_muted"
                 android:textSize="13sp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="✓ Verified"
+                android:text="@string/verified"
                 android:textColor="@color/disclaimer_green"
                 android:textSize="12sp"
                 android:textStyle="bold" />
@@ -132,7 +136,7 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Push Notifications"
+                android:text="@string/push_notifications"
                 android:textColor="@color/text_white"
                 android:textSize="14sp" />
 
@@ -169,14 +173,14 @@
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Clear Media Cache"
+                    android:text="@string/clear_media_cache"
                     android:textColor="@color/text_white"
                     android:textSize="14sp" />
 
                 <TextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:text="Frees disk space used by temporary video streams"
+                    android:text="@string/frees_disk_space_used_by"
                     android:textColor="@color/text_muted"
                     android:textSize="11sp" />
             </LinearLayout>
@@ -185,7 +189,7 @@
                 android:id="@+id/tvCacheSize"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="14.2 MB"
+                android:text="@string/cache_size"
                 android:textColor="@color/countdown_blue"
                 android:textSize="12sp"
                 android:textStyle="bold" />
@@ -212,14 +216,14 @@
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="Privacy Policy &amp; Terms"
+                android:text="@string/privacy_policy_terms"
                 android:textColor="@color/text_white"
                 android:textSize="14sp" />
 
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="›"
+                android:text="@string/label_4"
                 android:textColor="@color/text_muted"
                 android:textSize="18sp" />
         </LinearLayout>
@@ -232,7 +236,7 @@
         android:layout_height="wrap_content"
         android:layout_gravity="center_horizontal"
         android:layout_marginTop="20dp"
-        android:text="CamStar Live v2.4.0 (Aura Engine)"
+        android:text="@string/app_version"
         android:textColor="@color/text_muted"
         android:textSize="11sp" />
 
@@ -244,7 +248,7 @@
         android:layout_marginTop="16dp"
         android:background="@drawable/bg_me_pill_gradient"
         android:gravity="center"
-        android:text="Log Out / Switch Account"
+        android:text="@string/logout"
         android:textColor="@color/text_white"
         android:textSize="14sp"
         android:textStyle="bold" />

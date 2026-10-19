@@ -131,3 +131,19 @@ Bi-directional real-time events over WebSocket:
 |---|---|---|---|
 | `GET` | `/api/v1/config/app` | Client runtime configuration | Res: `features: { is_cashout_enabled, min_app_version }, rtc_servers: [], api_endpoints: {}` |
 | `GET` | `/api/v1/config/beauty/assets` | Manifest of 2D makeup & AR assets | Res: `categories: [{ name: "lipstick", mattes: [{ id, url, default_intensity }] }]` |
+
+---
+
+## 10. Inbox & Direct Messages (`/api/v1/inbox`, `/api/v1/conversations`)
+
+| Method | Endpoint | Description | Key Request / Response Fields |
+|---|---|---|---|
+| `GET` | `/api/v1/inbox/categories` | Five activity tiles with unread counts | Res: `categories: [{ key, label, unread }]` (`likes`/`mentions`/`followers`/`comments`/`gift`) |
+| `GET` | `/api/v1/inbox` | Notification rows, optionally filtered by tile | Req query: `category`<br>Res: `messages: [{ message_id, category, sender_id, sender_nickname, sender_avatar_url, preview, created_at, unread }]` |
+| `GET` | `/api/v1/inbox/official` | Official notices feed (reference notifications anatomy) | Req query: `section` (`official`/`event`/`picked`/`task`)<br>Res: `sections: [{ key, label, unread }]` (also the four sub-tabs), legacy `notices`, `groups: [{ key, label, rows }]` — buckets `week`/`month`/`earlier`; row: `{ row_id, kind: notice/activity, section, icon: app/info, body, actors: [{ user_id, nickname, avatar_url }], trailing: { kind: none/thumbnail/follow/confirm_delete, user_id, is_following, image_url }, created_at }` (in `body`, `[tokens]` are highlight chips, `{actor}`/`{actor2}` the row's people, `@mentions` render gold); `follow_requests: { title, subtitle, avatars: [url], pending: [{ user_id, nickname, avatar_url }] }`; `suggested: { label, users: [{ user_id, nickname, social_proof, avatar_url, is_following }], see_all_label, see_all_target }` |
+| `POST` | `/api/v1/inbox/follow-requests/:peer_id/confirm` | Accept a pending follow request — its row becomes "started following you" | Auth required. Res: the refreshed official feed page (one round-trip) |
+| `POST` | `/api/v1/inbox/follow-requests/:peer_id/delete` | Dismiss a pending follow request — its row leaves the feed | Auth required. Res: the refreshed official feed page (one round-trip) |
+| `GET` | `/api/v1/inbox/conversations` | Message inbox: one row per conversation, newest first | Auth required. Res: `conversations: [{ peer_id, peer_nickname, peer_avatar_url, preview, last_message_at, unread_count }]` — `preview` is the last line, `"You: …"` when it is the reader's own |
+| `GET` | `/api/v1/conversations/:user_id` | Open a 1:1 thread (seeded history + live lines) | Auth required. Res: `recipient_id`, `recipient_nickname`, `recipient_avatar_url`, `messages: [{ message_id, sender_id, recipient_id, text, created_at, is_self }]` |
+| `POST` | `/api/v1/conversations/:user_id/send` | Send a direct message | Auth required. Req: `text`<br>Res: the stored message (`is_self: true`) |
+| `POST` | `/api/v1/conversations/:user_id/read` | Opening a thread clears its unread badge | Auth required. Res: the refreshed `conversations` list |

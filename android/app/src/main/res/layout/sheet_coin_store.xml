@@ -35,7 +35,7 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="🪙 Coin Store &amp; Top Up"
+                android:text="@string/coin_store_top_up"
                 android:textColor="@color/text_white"
                 android:textSize="17sp"
                 android:textStyle="bold" />
@@ -44,7 +44,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:text="Recharge coins for sending live gifts &amp; mini-games"
+                android:text="@string/recharge_coins_for_sending_live"
                 android:textColor="@color/text_muted"
                 android:textSize="12sp" />
         </LinearLayout>
@@ -56,7 +56,7 @@
             android:layout_alignParentEnd="true"
             android:layout_centerVertical="true"
             android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="Close"
+            android:contentDescription="@string/desc_close"
             android:padding="4dp"
             android:src="@android:drawable/ic_menu_close_clear_cancel"
             app:tint="@color/text_muted" />
@@ -80,9 +80,9 @@
             <TextView
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:text="CURRENT COIN BALANCE"
+                android:text="@string/current_coin_balance"
                 android:textColor="#CCFFFFFF"
-                android:textSize="10sp"
+                android:textSize="11sp"
                 android:textStyle="bold" />
 
             <TextView
@@ -90,7 +90,7 @@
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="2dp"
-                android:text="12,450 Coins"
+                android:text="@string/current_coins"
                 android:textColor="@color/text_white"
                 android:textSize="20sp"
                 android:textStyle="bold" />
@@ -103,7 +103,7 @@
             android:background="@drawable/bg_feed_pill_gold"
             android:paddingHorizontal="10dp"
             android:paddingVertical="5dp"
-            android:text="VIP 2x EXP"
+            android:text="@string/top_up_perk"
             android:textColor="@color/text_white"
             android:textSize="11sp"
             android:textStyle="bold" />
@@ -114,7 +114,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="16dp"
         android:layout_marginBottom="6dp"
-        android:text="Select Recharge Package"
+        android:text="@string/select_recharge_package"
         android:textColor="@color/text_white"
         android:textSize="13sp"
         android:textStyle="bold" />
@@ -132,7 +132,7 @@
         android:layout_height="wrap_content"
         android:layout_marginTop="12dp"
         android:gravity="center"
-        android:text="🔒 100% Safe &amp; Instant delivery • Supports UPI, Cards &amp; NetBanking"
+        android:text="@string/label_100_safe_instant_delivery_supports"
         android:textColor="@color/text_muted"
         android:textSize="11sp" />
 

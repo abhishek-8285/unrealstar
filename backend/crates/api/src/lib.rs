@@ -1,6 +1,7 @@
 pub mod error;
 pub mod models;
 pub mod routes;
+pub mod seed;
 pub mod state;
 
 use axum::{
@@ -142,6 +143,13 @@ pub fn create_router(state: AppState) -> Router {
             post(routes::rooms::moderate),
         )
         .route("/ws/rooms/{room_id}", get(routes::rooms::ws_handler))
+        // WebRTC: per-user ICE servers (STUN + time-limited TURN creds)
+        .route("/api/v1/rtc/ice-servers", get(routes::rtc::ice_servers))
+        // Uploads: room-cover posters (served back via /assets)
+        .route(
+            "/api/v1/uploads/poster",
+            post(routes::uploads::upload_poster),
+        )
         // Gifts & Games
         .route("/api/v1/gifts/catalog", get(routes::gifts::list_gifts))
         .route("/api/v1/gifts/send", post(routes::gifts::send_gift))
@@ -198,7 +206,19 @@ pub fn create_router(state: AppState) -> Router {
             get(routes::inbox::inbox_categories),
         )
         .route("/api/v1/inbox", get(routes::inbox::inbox_messages))
+        .route(
+            "/api/v1/inbox/conversations",
+            get(routes::inbox::list_conversations),
+        )
         .route("/api/v1/inbox/official", get(routes::inbox::inbox_official))
+        .route(
+            "/api/v1/inbox/follow-requests/{peer_id}/confirm",
+            post(routes::inbox::confirm_follow_request),
+        )
+        .route(
+            "/api/v1/inbox/follow-requests/{peer_id}/delete",
+            post(routes::inbox::delete_follow_request),
+        )
         .route(
             "/api/v1/conversations/{user_id}",
             get(routes::inbox::get_conversation),
@@ -206,6 +226,10 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/v1/conversations/{user_id}/send",
             post(routes::inbox::send_direct_message),
+        )
+        .route(
+            "/api/v1/conversations/{user_id}/read",
+            post(routes::inbox::mark_conversation_read),
         )
         .route("/api/v1/feed/moments", get(routes::social::feed_moments))
         .route(
@@ -260,7 +284,10 @@ pub fn create_router(state: AppState) -> Router {
         // Search (Trendo SearchActivity)
         .route("/api/v1/search", get(routes::social::search))
         // Backpack & Cosmetics (Trendo MyBagActivity & StoreBagActivity)
-        .route("/api/v1/users/me/bag", get(routes::gamification::get_my_bag))
+        .route(
+            "/api/v1/users/me/bag",
+            get(routes::gamification::get_my_bag),
+        )
         .route(
             "/api/v1/users/me/bag/equip",
             post(routes::gamification::equip_cosmetic),
@@ -290,6 +317,11 @@ pub fn create_router(state: AppState) -> Router {
         .route(
             "/api/v1/kyc/approve/{user_id}",
             post(routes::payouts::approve_kyc),
+        )
+        // Production review queue (X-Admin-Token: CAMSTAR_ADMIN_TOKEN)
+        .route(
+            "/api/v1/kyc/review/{user_id}",
+            post(routes::payouts::review_kyc),
         )
         .route(
             "/api/v1/payouts/preview",

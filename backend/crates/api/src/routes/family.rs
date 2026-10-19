@@ -43,9 +43,7 @@ pub async fn get_my_family(
 }
 
 /// GET /api/v1/family/leaderboard
-pub async fn get_family_leaderboard(
-    State(state): State<AppState>,
-) -> Json<Vec<FamilyItem>> {
+pub async fn get_family_leaderboard(State(state): State<AppState>) -> Json<Vec<FamilyItem>> {
     let families = state.families.read().await;
     let mut list = families.clone();
     list.sort_by_key(|f| f.rank);

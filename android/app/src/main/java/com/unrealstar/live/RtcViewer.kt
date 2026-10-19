@@ -46,14 +46,22 @@ class RtcViewer(
     private var factory: PeerConnectionFactory? = null
     private var peerConnection: PeerConnection? = null
 
+    @Volatile
     private var renderer: SurfaceViewRenderer? = null
+    @Volatile
     private var videoTrack: VideoTrack? = null
+    @Volatile
     private var answered = false
+    /** Set once the remote offer is applied; gates the ICE drain. */
+    private var remoteDescSet = false
+    /** Trickled ICE that arrived before the remote description. Main-thread only. */
+    private val pendingIce = ArrayDeque<IceCandidate>()
+    private var closed = false
 
     fun init() {
         PeerConnectionFactory.initialize(
             PeerConnectionFactory.InitializationOptions.builder(appContext)
-                .setEnableInternalTracer(true)
+                .setEnableInternalTracer(com.unrealstar.live.BuildConfig.DEBUG)
                 .createInitializationOptions(),
         )
         factory = PeerConnectionFactory.builder()
@@ -66,13 +74,27 @@ class RtcViewer(
             }
 
             override fun onAddTrack(receiver: org.webrtc.RtpReceiver, streams: Array<org.webrtc.MediaStream>) {
+                if (closed) return
                 val track = receiver.track() ?: streams.firstNotNullOfOrNull { s ->
                     s.videoTracks.firstOrNull() ?: s.audioTracks.firstOrNull()
                 }
-                if (track is VideoTrack && videoTrack == null) {
-                    videoTrack = track
-                    renderer?.let { track.addSink(it) }
-                    listener.onVideoReady()
+                if (track is VideoTrack) {
+                    val prev = videoTrack
+                    if (prev !== track) {
+                        // Renegotiation may replace the track: swap the sink
+                        // instead of dropping the new track (frozen video).
+                        val sink = renderer
+                        if (prev != null && sink != null) {
+                            try { prev.removeSink(sink) } catch (_: Throwable) {}
+                        }
+                        videoTrack = track
+                        if (sink != null) {
+                            try { track.addSink(sink) } catch (t: Throwable) {
+                                Log.w(TAG, "video sink swap failed", t)
+                            }
+                        }
+                        listener.onVideoReady()
+                    }
                 }
                 // Audio tracks need no sink: the platform plays them once the
                 // transceiver is live.
@@ -108,36 +130,50 @@ class RtcViewer(
 
     /**
      * Bind the render surface before the host offer arrives so the video
-     * track sinks into it the moment onTrack fires.
+     * track sinks into it the moment onTrack fires. Idempotent: rebinding
+     * the same surface is a no-op, and a different surface releases the old
+     * one first (double-init() throws IllegalStateException otherwise).
      */
     fun attachRenderer(surface: SurfaceViewRenderer) {
-        surface.init(eglBase.eglBaseContext, null)
+        if (closed) return
+        if (renderer === surface) return
+        val old = renderer
+        videoTrack?.let { track ->
+            old?.let { o -> try { track.removeSink(o) } catch (_: Throwable) {} }
+        }
+        old?.let { o -> try { o.release() } catch (_: Throwable) {} }
+        try {
+            surface.init(eglBase.eglBaseContext, null)
+        } catch (t: Throwable) {
+            Log.w(TAG, "renderer init failed", t)
+            return
+        }
         surface.setEnableHardwareScaler(true)
         renderer = surface
-        videoTrack?.addSink(surface)
+        videoTrack?.let { track ->
+            try { track.addSink(surface) } catch (t: Throwable) {
+                Log.w(TAG, "addSink failed", t)
+            }
+        }
     }
 
     /**
-     * Accept the host's offer, produce the answer (targeted back at the host
-     * by the caller), and mark this session answered so duplicate offers are
-     * rejected instead of corrupting the negotiated state. Errors propagate
-     * to the caller — a failed answer must be visible, not swallowed.
+     * Accept the host's offer and produce the answer targeted back at the
+     * host. The remote description is awaited (not fire-and-forget) and its
+     * failure propagates instead of poisoning the session. Re-offers
+     * renegotiate the same connection instead of throwing: a second offer
+     * replaces the remote description and yields a fresh answer.
      */
     suspend fun acceptHostOffer(hostId: Long, offerSdp: String): SessionDescription {
         val pc = peerConnection ?: throw IllegalStateException("viewer not initialised")
-        if (answered) {
-            throw IllegalStateException("duplicate offer from $hostId — session already answered")
-        }
-        pc.setRemoteDescription(
-            object : SdpObserver {
-                override fun onSetSuccess() {}
-                override fun onSetFailure(error: String?) {}
-                override fun onCreateSuccess(p0: SessionDescription?) {}
-                override fun onCreateFailure(p0: String?) {}
-            },
+        if (closed) throw IllegalStateException("viewer closed")
+        setRemoteDescriptionAwait(
+            pc,
             SessionDescription(SessionDescription.Type.OFFER, offerSdp),
         )
         answered = true
+        remoteDescSet = true
+        drainPendingIce(pc)
 
         val answer = suspendCancellableCoroutine { cont ->
             pc.createAnswer(object : SdpObserver {
@@ -172,34 +208,90 @@ class RtcViewer(
     }
 
     fun addRemoteIce(sdpMid: String, sdpMLineIndex: Int, candidate: String) {
-        peerConnection?.addIceCandidate(IceCandidate(sdpMid, sdpMLineIndex, candidate))
+        if (closed) return
+        if (sdpMid.isEmpty() || candidate.isEmpty() || sdpMLineIndex < 0) {
+            Log.w(TAG, "dropping malformed ICE candidate")
+            return
+        }
+        val ice = IceCandidate(sdpMid, sdpMLineIndex, candidate)
+        if (!remoteDescSet) {
+            pendingIce.addLast(ice)
+            return
+        }
+        val pc = peerConnection ?: return
+        try {
+            if (pc.addIceCandidate(ice) == false) {
+                Log.w(TAG, "addIceCandidate rejected post-answer, requeueing")
+                pendingIce.addLast(ice)
+            }
+        } catch (t: Throwable) {
+            Log.w(TAG, "addIceCandidate threw", t)
+        }
     }
 
+    private fun drainPendingIce(pc: PeerConnection) {
+        while (true) {
+            val ice = pendingIce.removeFirstOrNull() ?: break
+            try {
+                pc.addIceCandidate(ice)
+            } catch (t: Throwable) {
+                Log.w(TAG, "pending ICE drain failed", t)
+            }
+        }
+    }
+
+    private suspend fun setRemoteDescriptionAwait(pc: PeerConnection, sdp: SessionDescription) =
+        suspendCancellableCoroutine { cont ->
+            pc.setRemoteDescription(
+                object : SdpObserver {
+                    override fun onSetSuccess() {
+                        if (!cont.isCompleted) cont.resume(Unit)
+                    }
+
+                    override fun onSetFailure(error: String?) {
+                        if (!cont.isCompleted) {
+                            cont.resumeWithException(
+                                IllegalStateException("setRemoteDescription failed: $error")
+                            )
+                        }
+                    }
+
+                    override fun onCreateSuccess(p0: SessionDescription?) {}
+                    override fun onCreateFailure(p0: String?) {}
+                },
+                sdp,
+            )
+        }
+
     private fun rtcConfig(): PeerConnection.RTCConfiguration =
-        PeerConnection.RTCConfiguration(
-            listOf(
-                PeerConnection.IceServer.builder("stun:stun.l.google.com:19302")
-                    .createIceServer(),
-            ),
-        ).apply {
+        PeerConnection.RTCConfiguration(RtcIce.iceServers()).apply {
         sdpSemantics = PeerConnection.SdpSemantics.UNIFIED_PLAN
     }
 
     fun close() {
-        // Capture first: release order matters and one missing piece must not
-        // short-circuit the native teardown below.
+        if (closed) return
+        closed = true
+        // PC first so in-flight decoder frames stop before their sink dies;
+        // every step isolated so one failure cannot skip the rest.
+        // Throwable on purpose: native teardown can raise Errors from broken
+        // vendor WebRTC builds and must never crash the watch screen.
+        try { peerConnection?.close() } catch (_: Throwable) {}
+        try { peerConnection?.dispose() } catch (_: Throwable) {}
+        peerConnection = null
         val sinkRenderer = renderer
         videoTrack?.let { track -> sinkRenderer?.let { r -> try { track.removeSink(r) } catch (_: Throwable) {} } }
         videoTrack = null
         try { sinkRenderer?.release() } catch (_: Throwable) {}
         renderer = null
-        // Throwable on purpose: native teardown can raise Errors from broken
-        // vendor WebRTC builds and must never crash the watch screen.
-        try { peerConnection?.close() } catch (_: Throwable) {}
         try { factory?.dispose() } catch (_: Throwable) {}
         try { eglBase.release() } catch (_: Throwable) {}
-        peerConnection = null
         factory = null
+        pendingIce.clear()
+        remoteDescSet = false
+        answered = false
     }
 
+    companion object {
+        private const val TAG = "UnrealStarRtcViewer"
+    }
 }
