@@ -58,7 +58,7 @@ pub async fn create_room(
     // http(s) URL so a malicious string cannot smuggle javascript: payloads
     // or megabyte blobs into the feed.
     let cover_image_url = match req.cover_image_url {
-        None => "https://cdn.camstar.live/covers/default.png".into(),
+        None => format!("{}/assets/covers/1.jpg", crate::public_origin()),
         Some(url) => {
             let valid =
                 url.len() <= 512 && (url.starts_with("https://") || url.starts_with("http://"));
@@ -192,7 +192,11 @@ pub async fn join_room(
                 slot: seat.slot + 1,
                 occupant_id: seat.occupant,
                 nickname: format!("Seat_{}", seat.occupant),
-                avatar_url: format!("https://cdn.camstar.live/avatars/{}.png", seat.occupant),
+                avatar_url: format!(
+                    "{}/assets/avatars/a{}.jpg",
+                    crate::public_origin(),
+                    (seat.occupant % 10) + 1
+                ),
                 is_muted: seat.role == camstar_roles::SeatRole::Moderator,
             })
         })
@@ -263,7 +267,11 @@ fn room_state_snapshot(room: &RoomSession) -> WsServerMessage {
                 slot: s.slot + 1,
                 occupant_id: s.occupant,
                 nickname: format!("Seat_{}", s.occupant),
-                avatar_url: format!("https://cdn.camstar.live/avatars/{}.png", s.occupant),
+                avatar_url: format!(
+                    "{}/assets/avatars/a{}.jpg",
+                    crate::public_origin(),
+                    (s.occupant % 10) + 1
+                ),
                 is_muted: s.role == camstar_roles::SeatRole::Moderator,
             })
         })

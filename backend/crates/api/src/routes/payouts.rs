@@ -199,11 +199,7 @@ async fn apply_kyc_decision(
             None,
         );
     } else {
-        auth.revoke(
-            target_user_id,
-            Capability::RequestPayout,
-            Scope::Platform,
-        );
+        auth.revoke(target_user_id, Capability::RequestPayout, Scope::Platform);
     }
     Ok(())
 }
@@ -220,8 +216,8 @@ pub async fn review_kyc(
     headers: HeaderMap,
     Json(req): Json<KycReviewRequest>,
 ) -> Result<Json<serde_json::Value>, ApiError> {
-    let expected = admin_token()
-        .ok_or_else(|| ApiError::Forbidden("KYC review is not configured".into()))?;
+    let expected =
+        admin_token().ok_or_else(|| ApiError::Forbidden("KYC review is not configured".into()))?;
     let presented = headers
         .get("X-Admin-Token")
         .and_then(|h| h.to_str().ok())
@@ -244,9 +240,7 @@ pub async fn review_kyc(
                 .reason
                 .map(|r| r.trim().to_string())
                 .filter(|r| !r.is_empty())
-                .ok_or_else(|| {
-                    ApiError::BadRequest("reason is required when rejecting".into())
-                })?;
+                .ok_or_else(|| ApiError::BadRequest("reason is required when rejecting".into()))?;
             apply_kyc_decision(&state, target_user_id, false, Some(reason)).await?;
             Ok(Json(serde_json::json!({
                 "status": "rejected",

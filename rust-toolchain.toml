@@ -1,0 +1,7 @@
+[toolchain]
+# Pinned so rustfmt/clippy behave identically on dev machines and in CI.
+# Bump deliberately and reformat the whole tree in the same commit: newer
+# stable releases change rustfmt heuristics and add clippy lints, which is
+# what turned CI red on 7d211b0 / 5a8b1a5 with no code change.
+channel = "1.99.1"
+components = ["rustfmt", "clippy"]

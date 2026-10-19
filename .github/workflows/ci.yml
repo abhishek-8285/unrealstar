@@ -32,8 +32,8 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      - name: Install Rust (workspace rust-version)
-        uses: dtolnay/rust-toolchain@stable
+      - name: Install Rust (pinned — see rust-toolchain.toml)
+        uses: dtolnay/rust-toolchain@1.99.1
         with:
           components: rustfmt, clippy
 

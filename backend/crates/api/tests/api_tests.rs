@@ -1732,25 +1732,67 @@ async fn test_kyc_review_endpoint_gates_and_decides() {
     };
 
     // Unconfigured: the route fails closed even with a guessed token.
-    let (status, _) = json_response(app.clone().oneshot(review("approve", None, Some("x"))).await.unwrap()).await;
+    let (status, _) = json_response(
+        app.clone()
+            .oneshot(review("approve", None, Some("x")))
+            .await
+            .unwrap(),
+    )
+    .await;
     assert_eq!(status, StatusCode::FORBIDDEN);
 
     std::env::set_var("CAMSTAR_ADMIN_TOKEN", "test-admin-token-0123456789abcdef");
 
     // Wrong token, then missing token: 401 and 401 (never approved).
     for admin in [Some("wrong-token"), None] {
-        let (status, _) = json_response(app.clone().oneshot(review("approve", None, admin)).await.unwrap()).await;
+        let (status, _) = json_response(
+            app.clone()
+                .oneshot(review("approve", None, admin))
+                .await
+                .unwrap(),
+        )
+        .await;
         assert_eq!(status, StatusCode::UNAUTHORIZED, "admin={admin:?}");
     }
 
     // Rejection requires a reason; an empty one is refused.
-    let (status, _) = json_response(app.clone().oneshot(review("reject", None, Some("test-admin-token-0123456789abcdef"))).await.unwrap()).await;
+    let (status, _) = json_response(
+        app.clone()
+            .oneshot(review(
+                "reject",
+                None,
+                Some("test-admin-token-0123456789abcdef"),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
-    let (status, _) = json_response(app.clone().oneshot(review("dance", None, Some("test-admin-token-0123456789abcdef"))).await.unwrap()).await;
+    let (status, _) = json_response(
+        app.clone()
+            .oneshot(review(
+                "dance",
+                None,
+                Some("test-admin-token-0123456789abcdef"),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
     assert_eq!(status, StatusCode::BAD_REQUEST);
 
     // Real rejection: record flips, reason lands, and payouts stay forbidden.
-    let (status, body) = json_response(app.clone().oneshot(review("reject", Some("blurred PAN"), Some("test-admin-token-0123456789abcdef"))).await.unwrap()).await;
+    let (status, body) = json_response(
+        app.clone()
+            .oneshot(review(
+                "reject",
+                Some("blurred PAN"),
+                Some("test-admin-token-0123456789abcdef"),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["status"], "rejected");
     let kyc = Request::get("/api/v1/kyc/status")
@@ -1762,7 +1804,17 @@ async fn test_kyc_review_endpoint_gates_and_decides() {
     assert_eq!(body["rejection_reason"], "blurred PAN");
 
     // Then approval: capability granted, preview works.
-    let (status, body) = json_response(app.clone().oneshot(review("approve", None, Some("test-admin-token-0123456789abcdef"))).await.unwrap()).await;
+    let (status, body) = json_response(
+        app.clone()
+            .oneshot(review(
+                "approve",
+                None,
+                Some("test-admin-token-0123456789abcdef"),
+            ))
+            .await
+            .unwrap(),
+    )
+    .await;
     assert_eq!(status, StatusCode::OK);
     assert_eq!(body["status"], "approved");
     let preview = Request::get("/api/v1/payouts/preview?diamonds=1000")

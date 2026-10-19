@@ -33,7 +33,7 @@ pub async fn get_leaderboards(State(state): State<AppState>) -> Json<Vec<Leaderb
             rank: 1,
             user_id: 1,
             nickname: "TopStreamer".into(),
-            avatar_url: "https://cdn.camstar.live/avatars/1.png".into(),
+            avatar_url: format!("{}/assets/avatars/a1.jpg", crate::public_origin()),
             score: 10000,
         });
     }

@@ -434,6 +434,12 @@ impl AppState {
     fn with_ledger(ledger: LedgerBackend) -> Self {
         let authorizer = Authorizer::new();
 
+        // Gift media resolves under PUBLIC_ORIGIN/assets like every other
+        // seeded asset (banners, covers, cosmetics). The `.pag` animation
+        // files are authored separately — clients treat a miss as "no
+        // animation" until they land in MEDIA_ROOT.
+        let origin = crate::public_origin();
+
         // Standard gift catalog
         let gifts = vec![
             GiftItem {
@@ -441,7 +447,7 @@ impl AppState {
                 name: "Rose".into(),
                 price_coins: 1,
                 tier: "standard".into(),
-                icon_url: "https://cdn.camstar.live/gifts/rose.png".into(),
+                icon_url: format!("{origin}/assets/gifts/rose.png"),
                 animation_url: None,
                 is_broadcast: false,
             },
@@ -450,7 +456,7 @@ impl AppState {
                 name: "Chai".into(),
                 price_coins: 10,
                 tier: "standard".into(),
-                icon_url: "https://cdn.camstar.live/gifts/chai.png".into(),
+                icon_url: format!("{origin}/assets/gifts/chai.png"),
                 animation_url: None,
                 is_broadcast: false,
             },
@@ -459,8 +465,8 @@ impl AppState {
                 name: "Diwali Sparkler".into(),
                 price_coins: 99,
                 tier: "animated".into(),
-                icon_url: "https://cdn.camstar.live/gifts/sparkler.png".into(),
-                animation_url: Some("https://cdn.camstar.live/gifts/sparkler.pag".into()),
+                icon_url: format!("{origin}/assets/gifts/sparkler.png"),
+                animation_url: Some(format!("{origin}/assets/gifts/sparkler.pag")),
                 is_broadcast: false,
             },
             GiftItem {
@@ -468,8 +474,8 @@ impl AppState {
                 name: "Diwali Fireworks".into(),
                 price_coins: 99,
                 tier: "animated".into(),
-                icon_url: "https://cdn.camstar.live/gifts/sparkler.png".into(),
-                animation_url: Some("https://cdn.camstar.live/gifts/sparkler.pag".into()),
+                icon_url: format!("{origin}/assets/gifts/sparkler.png"),
+                animation_url: Some(format!("{origin}/assets/gifts/sparkler.pag")),
                 is_broadcast: false,
             },
             GiftItem {
@@ -477,8 +483,8 @@ impl AppState {
                 name: "Golden Supercar".into(),
                 price_coins: 999,
                 tier: "luxury".into(),
-                icon_url: "https://cdn.camstar.live/gifts/supercar.png".into(),
-                animation_url: Some("https://cdn.camstar.live/gifts/supercar.pag".into()),
+                icon_url: format!("{origin}/assets/gifts/supercar.png"),
+                animation_url: Some(format!("{origin}/assets/gifts/supercar.pag")),
                 is_broadcast: true,
             },
             GiftItem {
@@ -486,8 +492,8 @@ impl AppState {
                 name: "Taj Palace".into(),
                 price_coins: 5000,
                 tier: "luxury".into(),
-                icon_url: "https://cdn.camstar.live/gifts/palace.png".into(),
-                animation_url: Some("https://cdn.camstar.live/gifts/palace.pag".into()),
+                icon_url: format!("{origin}/assets/gifts/palace.png"),
+                animation_url: Some(format!("{origin}/assets/gifts/palace.pag")),
                 is_broadcast: true,
             },
         ];
@@ -756,7 +762,11 @@ impl AppState {
             user_id,
             phone: phone.to_string(),
             nickname: format!("Star_{user_id}"),
-            avatar_url: format!("https://cdn.camstar.live/avatars/{user_id}.png"),
+            avatar_url: format!(
+                "{}/assets/avatars/a{}.jpg",
+                crate::public_origin(),
+                (user_id % 10) + 1
+            ),
             bio: "Welcome to my CamStar stream!".into(),
             gender: "unspecified".into(),
             city: "Mumbai".into(),

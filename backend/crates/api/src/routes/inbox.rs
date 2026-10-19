@@ -974,7 +974,7 @@ async fn build_conversation_page(state: &AppState, reader_id: u64) -> Conversati
         });
     }
 
-    conversations.sort_by(|a, b| b.last_message_at.cmp(&a.last_message_at));
+    conversations.sort_by_key(|a| std::cmp::Reverse(a.last_message_at));
 
     ConversationPage { conversations }
 }

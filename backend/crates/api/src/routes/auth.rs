@@ -209,11 +209,12 @@ pub async fn otp_verify(
                 )
                 .await?;
 
+            let origin = crate::public_origin();
             let profile = UserProfile {
                 user_id: uid,
                 phone: phone.clone(),
                 nickname: format!("Star_{uid}"),
-                avatar_url: format!("https://cdn.camstar.live/avatars/{uid}.png"),
+                avatar_url: format!("{origin}/assets/avatars/a{}.jpg", (uid % 10) + 1),
                 bio: "Just joined CamStar!".into(),
                 gender: "unspecified".into(),
                 city: "Mumbai".into(),
