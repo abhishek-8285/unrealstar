@@ -202,7 +202,7 @@ pub async fn join_room(
         })
         .collect();
 
-    let response = JoinRoomResponse {
+    let mut response = JoinRoomResponse {
         room_id,
         title: room.title.clone(),
         host_id: room.host_id,
@@ -211,9 +211,21 @@ pub async fn join_room(
         viewers_count: room.roster.viewer_count(),
         active_seats,
         ws_url: format!("wss://api.camstar.live/ws/rooms/{room_id}"),
+        is_following: false,
+        is_pk: room.is_pk,
     };
     drop(users);
     drop(rooms);
+
+    // Follow state lives behind a different lock; read it after releasing the
+    // room so the two maps are never acquired in opposite orders.
+    response.is_following = {
+        let follows = state.follows.read().await;
+        follows
+            .get(&user_id)
+            .map(|set| set.contains(&response.host_id))
+            .unwrap_or(false)
+    };
 
     // Broadcast only after the room lock is released: the helper takes a read
     // lock on the same map.

@@ -42,7 +42,7 @@ X-Device-Id: <device_hardware_uid>
 | Method | Endpoint | Description | Key Request / Response Fields |
 |---|---|---|---|
 | `POST` | `/api/v1/rooms/create` | Anchor opens a new live room | Req: `title`, `cover_image_url`, `category_id`, `is_private`<br>Res: `room_id`, `rtc_token`, `rtc_channel_id`, `ws_url` |
-| `POST` | `/api/v1/rooms/:room_id/join` | Viewer joins a room | Res: `room_id`, `host_info`, `rtc_token`, `viewers_count`, `active_seats: []`, `ws_url` |
+| `POST` | `/api/v1/rooms/:room_id/join` | Viewer joins a room | Res: `room_id`, `host_id`, `host_nickname`, `rtc_token`, `viewers_count`, `active_seats: []`, `ws_url`, `is_following` (viewer follows host), `is_pk` (duel running) |
 | `POST` | `/api/v1/rooms/:room_id/leave` | Viewer/Guest leaves room | Req: `room_id`<br>Res: `success: true` |
 | `POST` | `/api/v1/rooms/:room_id/close` | Anchor ends the stream | Req: `room_id`<br>Res: `summary: { duration_secs, peak_viewers, total_diamonds_earned }` |
 | `POST` | `/api/v1/rooms/:room_id/seats/request` | Guest requests to take a seat | Req: `slot_number`<br>Res: `request_id`, `status: pending` |
@@ -110,6 +110,8 @@ Bi-directional real-time events over WebSocket:
 | `GET` | `/api/v1/tasks/daily` | Check-in streak and daily missions | Res: `tasks: [{ task_id, name, progress, target, reward_coins, is_claimed }]` |
 | `POST` | `/api/v1/tasks/:id/claim` | Claim daily mission reward | Res: `reward_coins`, `updated_balance` |
 | `GET` | `/api/v1/vip/tiers` | List VIP subscription plans | Res: `tiers: [{ tier_id, name, price_inr, privileges: [] }]` |
+| `GET` | `/api/v1/users/me/bag` | Owned/equipped cosmetics for the caller | Res: `equipped_frame`, `equipped_ride`, `equipped_bubble`, `items: [{ item_id, name, category, icon_url, is_owned, is_equipped, price_coins }]` |
+| `POST` | `/api/v1/users/me/bag/equip` | Equip an owned cosmetic, or buy then equip | Req: `item_id`, `equip`<br>Res: `is_equipped`, `coin_balance`; unowned items debit the ledger (400 when short) |
 
 ---
 

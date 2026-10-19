@@ -287,7 +287,7 @@ class HomeFragment : Fragment() {
             viewLifecycleOwner.lifecycleScope.launch {
                 val res = UnrealStarApiClient.followUser(moment.author_id)
                 res.onSuccess {
-                    adapter.markActed(moment.moment_id, MomentAction.FOLLOW)
+                    adapter.markAuthorFollowed(moment.author_id)
                     Toast.makeText(requireContext(), getString(R.string.feed_followed_user, moment.author_nickname), Toast.LENGTH_SHORT).show()
                 }.onFailure {
                     Toast.makeText(requireContext(), getString(R.string.feed_follow_note, it.message), Toast.LENGTH_SHORT).show()

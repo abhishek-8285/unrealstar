@@ -78,7 +78,8 @@
         android:background="@drawable/bg_chip_translucent"
         android:gravity="center_vertical"
         android:orientation="horizontal"
-        android:paddingHorizontal="8dp">
+        android:paddingHorizontal="8dp"
+        android:visibility="gone">
 
         <TextView
             android:id="@+id/tvPkHostAPoints"

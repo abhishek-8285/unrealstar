@@ -64,6 +64,17 @@ class MomentAdapter : RecyclerView.Adapter<MomentAdapter.MomentViewHolder>() {
         if (index != -1) notifyItemChanged(index)
     }
 
+    /**
+     * Following is per author, not per moment: every visible post by that
+     * author loses its "+" badge, exactly like the server does on reload.
+     */
+    fun markAuthorFollowed(authorId: Long) {
+        if (!acted.add("author:$authorId:FOLLOW")) return
+        items.forEachIndexed { index, post ->
+            if (post.author_id == authorId) notifyItemChanged(index)
+        }
+    }
+
     /** Muted is a player-wide setting, not a per-moment one. */
     var isMuted: Boolean = false
         set(value) {
@@ -224,8 +235,12 @@ class MomentAdapter : RecyclerView.Adapter<MomentAdapter.MomentViewHolder>() {
                 syncMuteIcon()
             }
 
-            val followed = acted.contains("${moment.moment_id}:FOLLOW")
+            val followed = moment.author_is_following ||
+                acted.contains("author:${moment.author_id}:FOLLOW")
             binding.ivFollowBadge.visibility = if (followed) View.GONE else View.VISIBLE
+            // The caption row repeats the same Follow affordance; leaving it
+            // visible after following is exactly the not-synced look.
+            binding.suggestedRow.visibility = if (followed) View.GONE else View.VISIBLE
             val followClick = View.OnClickListener {
                 pop(binding.ivFollowBadge)
                 onAction?.invoke(moment, MomentAction.FOLLOW)

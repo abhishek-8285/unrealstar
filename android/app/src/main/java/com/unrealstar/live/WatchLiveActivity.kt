@@ -120,22 +120,15 @@ class WatchLiveActivity : AppCompatActivity() {
             if (hostId <= 0L) return@setOnClickListener
             binding.btnFollowHost.isEnabled = false
             lifecycleScope.launch {
-                try {
-                    val res = UnrealStarApiClient.followUser(hostId)
-                    res.onSuccess {
-                        binding.btnFollowHost.text = getString(R.string.watch_following)
-                        binding.btnFollowHost.alpha = 0.7f
+                UnrealStarApiClient.followUser(hostId)
+                    .onSuccess {
+                        renderHostFollow(true)
                         Toast.makeText(this@WatchLiveActivity, getString(R.string.watch_followed, binding.tvHostName.text), Toast.LENGTH_SHORT).show()
-                    }.onFailure {
+                    }
+                    .onFailure {
                         binding.btnFollowHost.isEnabled = true
                         Toast.makeText(this@WatchLiveActivity, getString(R.string.watch_follow_note, it.message), Toast.LENGTH_SHORT).show()
                     }
-                } finally {
-                    // Re-enable only if still unfollowed (success latches).
-                    if (binding.btnFollowHost.text != "✓ Following") {
-                        try { binding.btnFollowHost.isEnabled = true } catch (_: Exception) {}
-                    }
-                }
             }
         }
 
@@ -154,6 +147,8 @@ class WatchLiveActivity : AppCompatActivity() {
             }
             hostId = room.host_id
             binding.tvHostName.text = room.host_nickname
+            renderHostFollow(room.is_following)
+            binding.layoutPkBar.visibility = if (room.is_pk) View.VISIBLE else View.GONE
             binding.tvViewers.text = getString(R.string.watch_viewers_eye, room.viewers_count)
             addChatMessage(0L, "System", "Welcome to ${room.host_nickname}'s room!")
             // ICE refresh rides the join round-trip so the viewer PC is
@@ -173,6 +168,16 @@ class WatchLiveActivity : AppCompatActivity() {
     private var hostAPoints = 0L
     /** True once a server PK scoreboard arrived; local tallies stop. */
     private var pkLive: Boolean = false
+
+    /** Follow pill reflects the server's state, on entry and after a tap. */
+    private fun renderHostFollow(following: Boolean) {
+        binding.btnFollowHost.text = getString(
+            if (following) R.string.watch_following else R.string.follow_host
+        )
+        binding.btnFollowHost.alpha = if (following) 0.7f else 1f
+        // An existing follow has nothing left to tap; the pill stays latched.
+        binding.btnFollowHost.isEnabled = !following
+    }
 
     /** Single-flight video re-request (ICE recovery). */
     private var iceRecoveryInFlight: Boolean = false
@@ -237,6 +242,8 @@ class WatchLiveActivity : AppCompatActivity() {
     /** Server-authoritative PK scoreboard: replaces any local tally. */
     private fun renderPkScore(pkId: String, pointsA: Long, pointsB: Long) {
         pkLive = true
+        // A duel can start after the viewer joined; surface the bar then.
+        binding.layoutPkBar.visibility = View.VISIBLE
         hostAPoints = pointsA
         binding.tvPkHostAPoints.text = getString(R.string.watch_pk_blue, pointsA)
         binding.tvPkHostBPoints.text = getString(R.string.watch_pk_red, pointsB)

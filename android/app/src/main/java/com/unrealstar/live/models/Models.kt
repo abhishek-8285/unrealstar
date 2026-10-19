@@ -32,6 +32,8 @@ data class FeedPost(
     val promo_text: String? = null,
     val tags: List<String> = emptyList(),
     val liked_by_me: Boolean = false,
+    /** Server truth: the viewer follows this post's author. */
+    val author_is_following: Boolean = false,
     val created_at: String = ""
 )
 
@@ -407,7 +409,11 @@ data class JoinRoomResponse(
     val host_nickname: String = "",
     val rtc_token: String = "",
     val viewers_count: Long = 0,
-    val ws_url: String = ""
+    val ws_url: String = "",
+    /** Server truth for the host Follow pill on entry. */
+    val is_following: Boolean = false,
+    /** True while a PK duel is running; hides the PK bar in ordinary rooms. */
+    val is_pk: Boolean = false
 )
 
 /** POST /rooms/create → host room for the Go-Live flow. */

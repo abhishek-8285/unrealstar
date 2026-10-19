@@ -2007,3 +2007,129 @@ async fn test_bag_purchase_rejects_insufficient_coins() {
     let (_, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
     assert_eq!(body["coins"], 100);
 }
+
+#[tokio::test]
+async fn test_feed_reports_the_viewers_follow_state_per_author() {
+    let state = AppState::new();
+    let app = create_router(state.clone());
+
+    let author_id = state.create_user("+919876543304", 0).await;
+    let author_token = format!("tok_{author_id}_feedauthor");
+    state.grant_test_token(&author_token, author_id).await;
+
+    let req = Request::post("/api/v1/feed/moments/create")
+        .header("Authorization", format!("Bearer {author_token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            json!({
+                "media_url": "https://us.avandab.com/assets/moments/m1.mp4",
+                "caption": "first post",
+                "duration_secs": 15
+            })
+            .to_string(),
+        ))
+        .unwrap();
+    let (status, _) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let viewer_id = state.create_user("+919876543305", 0).await;
+    let token = format!("tok_{viewer_id}_feedviewer");
+    state.grant_test_token(&token, viewer_id).await;
+
+    let feed = |app: axum::Router, token: String, followed_only: bool| async move {
+        let path = if followed_only {
+            "/api/v1/feed/moments?followed_only=true"
+        } else {
+            "/api/v1/feed/moments"
+        };
+        let req = Request::get(path)
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        json_response(app.oneshot(req).await.unwrap()).await
+    };
+
+    let (status, body) = feed(app.clone(), token.clone(), false).await;
+    assert_eq!(status, StatusCode::OK);
+    let post = body["posts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["author_id"] == author_id)
+        .unwrap();
+    assert_eq!(post["author_is_following"], false);
+
+    // After the follow, a reload keeps the badge hidden instead of asking
+    // again — and the followed-only feed now contains the author's post.
+    let req = Request::post(format!("/api/v1/social/follow/{author_id}"))
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, _) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+
+    let (_, body) = feed(app.clone(), token.clone(), false).await;
+    let post = body["posts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|p| p["author_id"] == author_id)
+        .unwrap();
+    assert_eq!(post["author_is_following"], true);
+
+    let (_, body) = feed(app.clone(), token.clone(), true).await;
+    let posts = body["posts"].as_array().unwrap();
+    assert!(!posts.is_empty());
+    assert!(posts.iter().all(|p| p["author_id"] == author_id));
+}
+
+#[tokio::test]
+async fn test_join_room_reports_whether_the_viewer_follows_the_host() {
+    let state = AppState::new();
+    let app = create_router(state.clone());
+
+    let host_id = state.create_user("+919876543306", 0).await;
+    let host_token = format!("tok_{host_id}_hostfollow");
+    state.grant_test_token(&host_token, host_id).await;
+
+    let req = Request::post("/api/v1/rooms/create")
+        .header("Authorization", format!("Bearer {host_token}"))
+        .header("Content-Type", "application/json")
+        .body(Body::from(
+            json!({ "title": "Follow State Room", "category_id": "chat" }).to_string(),
+        ))
+        .unwrap();
+    let (_, body) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    let room_id = body["room_id"].as_u64().unwrap();
+
+    let viewer_id = state.create_user("+919876543307", 0).await;
+    let token = format!("tok_{viewer_id}_roomfollow");
+    state.grant_test_token(&token, viewer_id).await;
+
+    let join = |app: axum::Router, token: String| async move {
+        let req = Request::post(format!("/api/v1/rooms/{room_id}/join"))
+            .header("Authorization", format!("Bearer {token}"))
+            .body(Body::empty())
+            .unwrap();
+        json_response(app.oneshot(req).await.unwrap()).await
+    };
+
+    // A fresh viewer is not following the host.
+    let (status, body) = join(app.clone(), token.clone()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["host_id"], host_id);
+    assert_eq!(body["is_following"], false);
+    assert_eq!(body["is_pk"], false);
+
+    let req = Request::post(format!("/api/v1/social/follow/{host_id}"))
+        .header("Authorization", format!("Bearer {token}"))
+        .body(Body::empty())
+        .unwrap();
+    let (status, _) = json_response(app.clone().oneshot(req).await.unwrap()).await;
+    assert_eq!(status, StatusCode::OK);
+
+    // Re-entering the room opens the Follow pill in the right state.
+    let (status, body) = join(app.clone(), token.clone()).await;
+    assert_eq!(status, StatusCode::OK);
+    assert_eq!(body["is_following"], true);
+}

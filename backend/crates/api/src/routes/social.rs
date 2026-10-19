@@ -194,8 +194,11 @@ pub async fn feed_moments(
     let likes = state.moment_likes.read().await;
 
     let follows = state.follows.read().await;
+    // The viewer's follow set drives both the followed-only filter and the
+    // per-post badge, so the badge stays correct after a reload.
+    let viewer_follows = viewer.and_then(|uid| follows.get(&uid).cloned());
     let followed_set = if q.followed_only.unwrap_or(false) {
-        viewer.and_then(|uid| follows.get(&uid).cloned())
+        viewer_follows.clone()
     } else {
         None
     };
@@ -261,6 +264,10 @@ pub async fn feed_moments(
                 promo_text: m.promo_text.clone(),
                 tags: m.tags.clone(),
                 liked_by_me: liked,
+                author_is_following: viewer_follows
+                    .as_ref()
+                    .map(|set| set.contains(&m.author_id))
+                    .unwrap_or(false),
                 created_at: m.created_at,
             }
         })

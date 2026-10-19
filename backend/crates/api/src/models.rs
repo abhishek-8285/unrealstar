@@ -172,6 +172,14 @@ pub struct JoinRoomResponse {
     pub viewers_count: u64,
     pub active_seats: Vec<SeatInfo>,
     pub ws_url: String,
+    /// Whether the joining viewer already follows the host. The room's Follow
+    /// pill renders from this instead of assuming a fresh viewer.
+    #[serde(default)]
+    pub is_following: bool,
+    /// True while a PK duel is running; the watch screen hides its PK bar in
+    /// ordinary rooms instead of showing a permanent 0:0 placeholder.
+    #[serde(default)]
+    pub is_pk: bool,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -534,6 +542,10 @@ pub struct FeedPost {
     pub promo_text: Option<String>,
     pub tags: Vec<String>,
     pub liked_by_me: bool,
+    /// True when the requesting viewer follows this moment's author, so the
+    /// follow badge survives a feed reload instead of being session-local.
+    #[serde(default)]
+    pub author_is_following: bool,
     pub created_at: DateTime<Utc>,
 }
 
