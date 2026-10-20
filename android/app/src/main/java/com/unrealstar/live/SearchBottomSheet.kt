@@ -43,9 +43,24 @@ class SearchBottomSheet : BottomSheetDialogFragment() {
         },
         onUserAction = { user ->
             lifecycleScope.launch {
-                val ok = UnrealStarApiClient.followUser(user.user_id).getOrDefault(true)
-                Toast.makeText(requireContext(), if (ok) getString(R.string.feed_followed_user, user.nickname) else getString(R.string.feed_unfollowed), Toast.LENGTH_SHORT).show()
-                executeSearch(binding.etSearchQuery.text.toString().trim())
+                val action = if (user.is_following) {
+                    UnrealStarApiClient.unfollowUser(user.user_id)
+                } else {
+                    UnrealStarApiClient.followUser(user.user_id)
+                }
+                action
+                    .onSuccess { isFollowing ->
+                        val message = if (isFollowing) {
+                            getString(R.string.feed_followed_user, user.nickname)
+                        } else {
+                            getString(R.string.feed_unfollowed)
+                        }
+                        Toast.makeText(requireContext(), message, Toast.LENGTH_SHORT).show()
+                        executeSearch(binding.etSearchQuery.text.toString().trim())
+                    }
+                    .onFailure {
+                        Toast.makeText(requireContext(), R.string.action_failed, Toast.LENGTH_SHORT).show()
+                    }
             }
         },
         onRoomClick = { room ->
